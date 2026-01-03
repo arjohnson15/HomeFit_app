@@ -18,6 +18,14 @@ class BackupScheduler {
     console.log('[BackupScheduler] Initializing...')
 
     try {
+      // Check if database tables exist (migrations may not have run yet)
+      const tablesExist = await this.checkTablesExist()
+      if (!tablesExist) {
+        console.log('[BackupScheduler] Database tables not ready, skipping initialization')
+        console.log('[BackupScheduler] Run "npx prisma db push" or "npx prisma migrate deploy" to set up the database')
+        return
+      }
+
       // Get current schedule settings
       const schedule = await backupService.getSchedule()
 
@@ -38,7 +46,23 @@ class BackupScheduler {
       this.initialized = true
       console.log('[BackupScheduler] Initialized successfully')
     } catch (error) {
-      console.error('[BackupScheduler] Initialization failed:', error)
+      // Handle case where tables don't exist yet (first-time deployment)
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        console.log('[BackupScheduler] Database tables not ready, skipping initialization')
+        console.log('[BackupScheduler] Run "npx prisma db push" to set up the database')
+      } else {
+        console.error('[BackupScheduler] Initialization failed:', error)
+      }
+    }
+  }
+
+  async checkTablesExist() {
+    try {
+      // Try a simple query to check if the table exists
+      await prisma.$queryRaw`SELECT 1 FROM backup_schedules LIMIT 1`
+      return true
+    } catch (error) {
+      return false
     }
   }
 

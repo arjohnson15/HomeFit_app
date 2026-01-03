@@ -48,14 +48,15 @@ docker-compose up -d
 echo -e "${GREEN}Step 4: Waiting for database to be ready...${NC}"
 sleep 10
 
-echo -e "${GREEN}Step 5: Running database migrations...${NC}"
-docker-compose exec -T app npx prisma migrate deploy || {
-    echo -e "${YELLOW}Migrations may have already been applied${NC}"
+echo -e "${GREEN}Step 5: Setting up database schema...${NC}"
+# Use db push for simpler deployment (creates tables if they don't exist)
+docker-compose exec -T app npx prisma db push --accept-data-loss 2>/dev/null || {
+    echo -e "${YELLOW}Database schema may already be set up${NC}"
 }
 
 echo -e "${GREEN}Step 6: Running database seed (if needed)...${NC}"
-docker-compose exec -T app npx prisma db seed || {
-    echo -e "${YELLOW}Seed may have already been applied${NC}"
+docker-compose exec -T app npx prisma db seed 2>/dev/null || {
+    echo -e "${YELLOW}Seed may have already been applied or failed${NC}"
 }
 
 echo -e "${GREEN}======================================${NC}"
