@@ -114,7 +114,8 @@ app.use('/api/backup', authenticateToken, backupRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  const publicPath = path.join(__dirname, '../../public')
+  // In Docker container, public is at /app/public, in dev it's at ../../public
+  const publicPath = process.env.PUBLIC_PATH || path.join(__dirname, '../public')
   app.use(express.static(publicPath))
 
   // SPA fallback
