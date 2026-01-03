@@ -1,0 +1,39 @@
+# HomeFit Development Dockerfile
+# Hot-reload enabled for rapid development
+
+FROM node:20-slim
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy root package.json
+COPY package*.json ./
+
+# Install root dependencies (concurrently)
+RUN npm install
+
+# Copy client package.json and install
+COPY src/client/package*.json ./src/client/
+RUN cd src/client && npm install
+
+# Copy server package.json and install
+COPY src/server/package*.json ./src/server/
+RUN cd src/server && npm install
+
+# Copy Prisma schema and generate client
+COPY src/server/prisma ./src/server/prisma
+RUN cd src/server && npx prisma generate
+
+# Source files will be mounted as volumes for hot-reload
+# No need to copy them in dev mode
+
+# Expose ports
+EXPOSE 3000 5173
+
+# Default command (can be overridden)
+CMD ["npm", "run", "dev"]

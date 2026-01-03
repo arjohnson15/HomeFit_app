@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Variables for customizable theming */
+:root {
+  --color-accent: #0a84ff;
+  --color-accent-hover: #409cff;
+  --color-accent-muted: rgba(10, 132, 255, 0.2);
+  --base-font-size: 16px;
+
+  /* Dark theme colors (default) */
+  --color-bg: #000000;
+  --color-card: #1c1c1e;
+  --color-elevated: #2c2c2e;
+  --color-border: #38383a;
+  --color-text: #ffffff;
+  --color-text-secondary: #8e8e93;
+  --color-text-muted: #636366;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --color-bg: #f2f2f7;
+  --color-card: #ffffff;
+  --color-elevated: #e5e5ea;
+  --color-border: #c6c6c8;
+  --color-text: #000000;
+  --color-text-secondary: #3c3c43;
+  --color-text-muted: #8e8e93;
+  color-scheme: light;
+}
+
+[data-theme="light"] body {
+  background-color: var(--color-bg);
+}
+
+[data-theme="light"] .bg-dark-bg { background-color: var(--color-bg); }
+[data-theme="light"] .bg-dark-card { background-color: var(--color-card); }
+[data-theme="light"] .bg-dark-elevated { background-color: var(--color-elevated); }
+[data-theme="light"] .border-dark-border { border-color: var(--color-border); }
+[data-theme="light"] .text-white { color: var(--color-text); }
+[data-theme="light"] .text-gray-400 { color: var(--color-text-secondary); }
+[data-theme="light"] .text-gray-500 { color: var(--color-text-muted); }
+
+[data-theme="light"] .card {
+  background-color: var(--color-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .input {
+  background-color: var(--color-card);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+[data-theme="light"] .btn-secondary {
+  background-color: var(--color-elevated);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+/* Compact mode - reduces spacing throughout */
+.compact .card { padding: 0.75rem; }
+.compact .p-4 { padding: 0.75rem; }
+.compact .p-3 { padding: 0.5rem; }
+.compact .py-3 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.compact .py-4 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.compact .px-4 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.compact .space-y-4 > * + * { margin-top: 0.75rem; }
+.compact .space-y-6 > * + * { margin-top: 1rem; }
+.compact .gap-4 { gap: 0.75rem; }
+.compact .gap-3 { gap: 0.5rem; }
+.compact .mb-4 { margin-bottom: 0.75rem; }
+.compact .mb-6 { margin-bottom: 1rem; }
+.compact .mt-4 { margin-top: 0.75rem; }
+.compact .text-2xl { font-size: 1.25rem; }
+.compact .text-xl { font-size: 1.125rem; }
+.compact .text-lg { font-size: 1rem; }
+.compact .min-h-touch { min-height: 40px; }
+.compact .rounded-2xl { border-radius: 0.75rem; }
+.compact .rounded-xl { border-radius: 0.5rem; }
+
+/* Dark mode is default */
+html {
+  color-scheme: dark;
+  font-size: var(--base-font-size);
+}
+
+/* Safe area insets for notched devices */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Hide scrollbars but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar for desktop */
+@media (hover: hover) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Touch-friendly tap highlights */
+@media (hover: none) {
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Input styling for dark mode */
+input, textarea, select {
+  @apply bg-dark-elevated border-dark-border text-white placeholder-gray-500;
+}
+
+input:focus, textarea:focus, select:focus {
+  @apply border-accent outline-none ring-2 ring-accent-muted;
+}
+
+/* Button base styles */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200;
+    @apply min-h-touch min-w-touch;
+    @apply active:scale-95;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent text-white;
+    @apply hover:bg-accent-hover;
+  }
+
+  .btn-secondary {
+    @apply btn bg-dark-elevated text-white border border-dark-border;
+    @apply hover:bg-dark-card;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-white;
+    @apply hover:bg-white/10;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-dark-card rounded-2xl p-4;
+    @apply shadow-card;
+  }
+
+  .card-elevated {
+    @apply bg-dark-elevated rounded-2xl p-4;
+    @apply shadow-elevated;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl;
+    @apply bg-dark-elevated border border-dark-border;
+    @apply text-white placeholder-gray-500;
+    @apply focus:border-accent focus:ring-2 focus:ring-accent-muted focus:outline-none;
+    @apply transition-all duration-200;
+    @apply min-h-touch;
+  }
+
+  /* Bottom navigation styles */
+  .nav-item {
+    @apply flex flex-col items-center justify-center py-2 px-3;
+    @apply text-gray-500 transition-colors duration-200;
+    @apply min-h-touch min-w-touch;
+  }
+
+  .nav-item.active {
+    @apply text-accent;
+  }
+
+  .nav-item:hover {
+    @apply text-white;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animate-in {
+    animation: fadeIn 0.2s ease-out, slideUp 0.3s ease-out;
+  }
+
+  .tap-highlight-none {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* PWA standalone mode adjustments */
+@media all and (display-mode: standalone) {
+  body {
+    /* Extra bottom padding for home indicator */
+    padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+  }
+}

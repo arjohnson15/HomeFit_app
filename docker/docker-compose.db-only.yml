@@ -1,0 +1,29 @@
+# HomeFit - Database Only (for local development)
+# Usage: docker-compose -f docker/docker-compose.db-only.yml up -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: homefit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: homefit
+      POSTGRES_PASSWORD: devpass123
+      POSTGRES_DB: homefit_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - homefit_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: homefit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - homefit_redis_data:/data
+
+volumes:
+  homefit_postgres_data:
+  homefit_redis_data:

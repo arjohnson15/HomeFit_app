@@ -1,0 +1,114 @@
+# HomeFit Production Docker Compose
+# Usage: docker-compose -f docker/docker-compose.prod.yml up --build -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: homefit-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - homefit_postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - homefit-internal
+
+  # Redis (for sessions and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: homefit-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - homefit_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - homefit-internal
+
+  # HomeFit Application
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: homefit-app
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      GITHUB_REPO: ${GITHUB_REPO:-arjohnson15/HomeFit_app}
+      GITHUB_BRANCH: ${GITHUB_BRANCH:-main}
+      AUTO_UPDATE_ENABLED: ${AUTO_UPDATE_ENABLED:-true}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+    ports:
+      - "3000:3000"
+    volumes:
+      - homefit_uploads:/app/uploads
+      - homefit_logs:/app/logs
+      - homefit_backups:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - homefit-internal
+      - homefit-external
+    labels:
+      - "com.homefit.description=HomeFit Workout App"
+      - "com.homefit.version=${APP_VERSION:-0.1.0}"
+
+  # Optional: Nginx Reverse Proxy (for SSL termination)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: homefit-nginx
+  #   restart: always
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - homefit-external
+
+volumes:
+  homefit_postgres_data:
+    driver: local
+  homefit_redis_data:
+    driver: local
+  homefit_uploads:
+    driver: local
+  homefit_logs:
+    driver: local
+  homefit_backups:
+    driver: local
+
+networks:
+  homefit-internal:
+    internal: true
+  homefit-external:
+    name: homefit-network

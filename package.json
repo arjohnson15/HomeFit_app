@@ -1,0 +1,36 @@
+{
+  "name": "homefit",
+  "version": "1.0.0",
+  "description": "HomeFit - Home Gym Workout Tracking App",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd src/client && npm run dev",
+    "dev:server": "cd src/server && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd src/client && npm run build",
+    "build:server": "cd src/server && npm run build",
+    "start": "cd src/server && npm start",
+    "docker:dev": "docker-compose -f docker/docker-compose.yml up --build",
+    "docker:dev:down": "docker-compose -f docker/docker-compose.yml down",
+    "docker:prod": "docker-compose -f production/docker-compose.yml up --build -d",
+    "docker:prod:down": "docker-compose -f production/docker-compose.yml down",
+    "docker:logs": "docker-compose -f production/docker-compose.yml logs -f",
+    "db:migrate": "cd src/server && npx prisma migrate dev",
+    "db:generate": "cd src/server && npx prisma generate",
+    "db:studio": "cd src/server && npx prisma studio",
+    "db:seed": "cd src/server && npx prisma db seed",
+    "setup": "npm install && cd src/client && npm install && cd ../server && npm install",
+    "update:check": "node scripts/update-checker.js",
+    "update:apply": "node scripts/update-apply.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arjohnson15/HomeFit_app.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

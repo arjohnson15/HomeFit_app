@@ -1,0 +1,74 @@
+# HomeFit Development Docker Compose
+# Usage: docker-compose -f docker/docker-compose.yml up --build
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: homefit-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-homefit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-homefit_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-homefit_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - homefit_postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homefit} -d ${POSTGRES_DB:-homefit_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for sessions and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: homefit-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - homefit_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # HomeFit Application (Development)
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: homefit-app-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-homefit}:${POSTGRES_PASSWORD:-homefit_dev_password}@db:5432/${POSTGRES_DB:-homefit_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+    ports:
+      - "3000:3000"   # Backend API
+      - "5173:5173"   # Vite dev server
+    volumes:
+      - ../src:/app/src
+      - ../exercises-db:/app/exercises-db:ro
+      - /app/node_modules
+      - /app/src/client/node_modules
+      - /app/src/server/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run dev
+
+volumes:
+  homefit_postgres_data:
+  homefit_redis_data:
+
+networks:
+  default:
+    name: homefit-network-dev

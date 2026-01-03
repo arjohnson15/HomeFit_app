@@ -1,0 +1,980 @@
+// HomeFit Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// User & Authentication
+// ===========================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  name          String
+  role          Role      @default(USER)
+  trainingStyle TrainingStyle @default(GENERAL)
+  avatarUrl     String?
+  active        Boolean   @default(true)
+
+  // Body Stats (for calorie calculations)
+  heightCm      Float?    // Height in centimeters
+  weightKg      Float?    // Current weight in kilograms
+  goalWeightKg  Float?    // Target weight in kilograms
+  sex           String?   // "male", "female", "other"
+  birthDate     DateTime? // For age-based calculations
+  activityLevel String?   // "sedentary", "light", "moderate", "active", "veryActive"
+
+  openaiApiKey  String?   // Encrypted - user's own API key for ChatGPT
+  resetToken    String?   // Password reset token
+  resetTokenExp DateTime? // Password reset token expiration
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  settings          UserSettings?
+  workoutSessions   WorkoutSession[]
+  weeklySchedules   WeeklySchedule[]
+  calendarWorkouts  CalendarWorkout[]
+  recurringWorkouts RecurringWorkout[]
+  friendships       Friendship[]  @relation("UserFriendships")
+  friendOf          Friendship[]  @relation("FriendOf")
+  exerciseNotes     ExerciseNote[]
+  pushSubscriptions PushSubscription[]
+
+  // Meal Planning Relations
+  recipes           Recipe[]
+  mealPlans         MealPlan[]
+  foodLogEntries    FoodLogEntry[]
+  savedRecipes      SavedRecipe[]
+  weightLogs        WeightLog[]
+
+  // Achievement Relations
+  achievements      UserAchievement[]
+  stats             UserStats?
+
+  @@map("users")
+}
+
+model WeightLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date      DateTime @default(now())
+  weightKg  Float
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@map("weight_logs")
+}
+
+model UserSettings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Workout Settings
+  showRestTimer     Boolean  @default(true)
+  defaultRestTime   Int      @default(90)  // seconds
+  showSuggestions   Boolean  @default(true)
+
+  // Unit Preferences
+  weightUnit        WeightUnit @default(LBS)
+  distanceUnit      DistanceUnit @default(MILES)
+
+  // AI Feature Settings
+  aiWorkoutSuggestions Boolean @default(true)
+  aiFormTips           Boolean @default(true)
+  aiNutritionAdvice    Boolean @default(false)
+  aiProgressAnalysis   Boolean @default(true)
+  aiModel              String  @default("gpt-4o-mini") // gpt-4o-mini, gpt-4o, gpt-4-turbo
+
+  // Warmup & Cooldown Settings
+  showWarmupSuggestions   Boolean @default(true)
+  showCooldownSuggestions Boolean @default(true)
+  useAiForWarmups         Boolean @default(false)  // Use AI to generate warmup/cooldown suggestions
+
+  // Daily Tips Settings
+  showDailyTips           Boolean @default(true)
+  dismissedTipsToday      String[] @default([])    // Tip IDs dismissed today
+  lastTipDismissDate      DateTime?                // Reset dismissals daily
+
+  // Notification Settings
+  workoutReminders    Boolean  @default(true)
+  socialNotifications Boolean  @default(true)
+
+  // Notification Channels
+  notifyByEmail     Boolean  @default(true)
+  notifyBySms       Boolean  @default(false)
+  notifyByPush      Boolean  @default(true)
+  phoneNumber       String?  // For SMS notifications
+  phoneCarrier      String   @default("vtext.com") // Email-to-SMS gateway domain
+
+  // Privacy
+  shareProgress       Boolean  @default(false)
+  shareWorkouts       Boolean  @default(false)
+  shareMeals          Boolean  @default(false)
+  profileVisibility   ProfileVisibility @default(PUBLIC)
+  showOnLeaderboard   Boolean  @default(true)
+
+  // Social Cards on Today Page
+  showSocialSection         Boolean @default(true)   // Master toggle for social section
+  showFriendsWorkoutsToday  Boolean @default(true)   // Friends who worked out today
+  showFriendsPRsToday       Boolean @default(true)   // Friends who hit PRs today
+  showFriendsStreaks        Boolean @default(true)   // Top friend streaks
+  showFriendsAchievements   Boolean @default(true)   // Friend milestone achievements
+  showGlobalLeaderboard     Boolean @default(true)   // App-wide leaderboard
+
+  // First login tracking
+  hasCompletedOnboarding Boolean @default(false)
+
+  // Nutrition Goals
+  dailyCalorieGoal  Int?     // Daily calorie target
+  dailyProteinGoal  Int?     // grams
+  dailyCarbsGoal    Int?     // grams
+  dailyFatGoal      Int?     // grams
+  mealReminders     Boolean  @default(false)
+
+  // Nutrition Preferences
+  nutritionTrackingMode  String   @default("full")  // "full", "simple", "mealPlanOnly"
+  showDetailedMacros     Boolean  @default(true)    // Show protein, carbs, fat or just calories
+  showDailyGoals         Boolean  @default(true)    // Show calorie/macro goals and progress bars
+  enableFoodLogging      Boolean  @default(true)    // Enable the food log section
+
+  // Dietary Goals & Preferences
+  dietaryGoal            String?  // "bulk", "cut", "maintain", "recomp"
+  dietaryPreference      String?  // "none", "vegetarian", "vegan", "pescatarian", "keto", "paleo"
+  allergies              String[] @default([])  // e.g., ["gluten", "dairy", "nuts", "shellfish", "soy", "eggs"]
+  preferredProteins      String[] @default([])  // e.g., ["chicken", "beef", "pork", "fish", "tofu", "eggs"]
+  dislikedFoods          String[] @default([])  // Foods to exclude from suggestions
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TrainingStyle {
+  GENERAL
+  POWERLIFTING
+  BODYBUILDING
+  STRENGTH
+  ATHLETIC
+  ENDURANCE
+}
+
+enum WeightUnit {
+  LBS
+  KG
+}
+
+enum DistanceUnit {
+  MILES
+  KM
+}
+
+// ===========================================
+// Workout Scheduling
+// ===========================================
+
+// Recurring workouts (daily cardio, stretching routines, etc.)
+model RecurringWorkout {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String   // e.g., "Morning Cardio", "Daily Stretching"
+  type          RecurringType @default(SPECIFIC_DAYS)
+
+  // For EVERY_X_DAYS type
+  intervalDays  Int?     // e.g., 2 = every 2 days
+
+  // For SPECIFIC_DAYS type (array of day numbers 0-6, Sunday-Saturday)
+  daysOfWeek    Int[]    @default([])
+
+  // Options
+  skipRestDays  Boolean  @default(true)
+  isActive      Boolean  @default(true)
+
+  // Track when this recurring workout started
+  startDate     DateTime @default(now())
+
+  // For EVERY_X_DAYS - track last completed date to calculate next occurrence
+  lastCompletedDate DateTime?
+
+  exercises     RecurringExercise[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("recurring_workouts")
+}
+
+model RecurringExercise {
+  id                String   @id @default(cuid())
+  recurringWorkoutId String
+  recurringWorkout  RecurringWorkout @relation(fields: [recurringWorkoutId], references: [id], onDelete: Cascade)
+
+  exerciseId        String   // Reference to exercise from JSON database
+  exerciseName      String   // Cached for quick display
+  sets              Int      @default(3)
+  reps              String   @default("8-12")
+  duration          Int?     // For timed exercises (seconds)
+  distance          Float?   // For cardio (in user's preferred unit)
+  restSeconds       Int?
+  notes             String?
+  order             Int      @default(0)
+
+  @@map("recurring_exercises")
+}
+
+enum RecurringType {
+  DAILY           // Every day
+  EVERY_X_DAYS    // Every X days (uses intervalDays)
+  SPECIFIC_DAYS   // Specific days of week (uses daysOfWeek)
+}
+
+model WeeklySchedule {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 0-6 (Sunday-Saturday)
+  name        String   // e.g., "Chest Day"
+  isRestDay   Boolean  @default(false)
+  exercises   ScheduledExercise[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, dayOfWeek])
+  @@map("weekly_schedules")
+}
+
+model CalendarWorkout {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime
+  name        String
+  notes       String?
+  exercises   ScheduledExercise[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("calendar_workouts")
+}
+
+model ScheduledExercise {
+  id              String   @id @default(cuid())
+  exerciseId      String   // Reference to exercise from JSON database
+  exerciseName    String   // Cached for quick display
+  sets            Int      @default(3)
+  reps            String   @default("8-12") // Can be range like "8-12" or "AMRAP"
+  restSeconds     Int?
+  notes           String?
+  order           Int      @default(0)
+
+  // Belongs to either weekly or calendar
+  weeklyScheduleId String?
+  weeklySchedule   WeeklySchedule? @relation(fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
+  calendarWorkoutId String?
+  calendarWorkout   CalendarWorkout? @relation(fields: [calendarWorkoutId], references: [id], onDelete: Cascade)
+
+  @@map("scheduled_exercises")
+}
+
+// ===========================================
+// Workout Logging
+// ===========================================
+
+model WorkoutSession {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  date            DateTime  @default(now())
+  startTime       DateTime
+  endTime         DateTime?
+  duration        Int?      // Duration in seconds
+  notes           String?
+  rating          Int?      // 1-5 overall workout rating
+
+  // Pause tracking for cross-browser sync
+  pausedAt        DateTime? // When the workout was paused (null if running)
+  totalPausedTime Int       @default(0) // Total seconds spent paused
+
+  // Rest timer for cross-browser sync
+  restTimerEndAt  DateTime? // When the rest timer should end (null if not resting)
+
+  // Link to scheduled workout (if started from schedule)
+  scheduledWorkoutId String?
+
+  exerciseLogs    ExerciseLog[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("workout_sessions")
+}
+
+model ExerciseLog {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId    String   // Reference to exercise from JSON database
+  exerciseName  String   // Cached for display
+  order         Int      @default(0)
+  notes         String?
+  difficultyRating Int?  // 1-5 (too easy to too hard)
+
+  sets          Set[]
+  createdAt     DateTime @default(now())
+
+  @@map("exercise_logs")
+}
+
+model Set {
+  id          String   @id @default(cuid())
+  logId       String
+  log         ExerciseLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+  setNumber   Int      @default(1)
+  reps        Int?
+  weight      Float?   // In user's preferred unit
+  duration    Int?     // For timed exercises (seconds)
+  distance    Float?   // For cardio (in user's preferred unit)
+  completed   Boolean  @default(false)
+  isWarmup    Boolean  @default(false)
+  isPR        Boolean  @default(false)
+  rpe         Int?     // Rate of Perceived Exertion 1-10
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("sets")
+}
+
+// ===========================================
+// Social Features
+// ===========================================
+
+model Friendship {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+  friendId    String
+  friend      User     @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, friendId])
+  @@map("friendships")
+}
+
+// ===========================================
+// Exercise Notes (User-specific notes on exercises)
+// ===========================================
+
+model ExerciseNote {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId  String   // Reference to exercise from JSON database
+  notes       String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, exerciseId])
+  @@map("exercise_notes")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+enum ProfileVisibility {
+  PUBLIC        // Anyone can follow without approval
+  PRIVATE       // Cannot be searched or followed
+  FRIENDS_ONLY  // Can be searched, requires approval to follow
+}
+
+// ===========================================
+// Achievement System
+// ===========================================
+
+model Achievement {
+  id              String   @id @default(cuid())
+
+  // Display information
+  name            String                          // e.g., "First Workout"
+  description     String                          // e.g., "Complete your first workout"
+  icon            String                          // Emoji like "💪"
+
+  // Achievement categorization
+  category        AchievementCategory
+
+  // Threshold configuration - target value to unlock
+  threshold       Int      @default(1)
+
+  // Achievement type determines what metric to check
+  metricType      AchievementMetricType
+
+  // Admin controls
+  isActive        Boolean  @default(true)         // Enable/disable achievement
+  isDefault       Boolean  @default(false)        // Seeded default (can't delete)
+  sortOrder       Int      @default(0)            // Display order within category
+
+  // Points/XP value for gamification
+  points          Int      @default(10)
+
+  // Rarity tier for display styling
+  rarity          AchievementRarity @default(COMMON)
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId   String
+  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  // Progress tracking
+  currentProgress Int      @default(0)            // Current value toward threshold
+
+  // Unlock status
+  unlockedAt      DateTime?                       // Null if not yet unlocked
+  isUnlocked      Boolean  @default(false)
+
+  // For notification tracking
+  notificationSent Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, achievementId])
+  @@index([userId, isUnlocked])
+  @@map("user_achievements")
+}
+
+model UserStats {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Workout stats
+  totalWorkouts       Int      @default(0)
+  totalWorkoutSeconds Int      @default(0)        // Total workout time in seconds
+
+  // Streak stats
+  currentStreak       Int      @default(0)
+  longestStreak       Int      @default(0)
+  lastWorkoutDate     DateTime?
+
+  // PR stats
+  totalPRs            Int      @default(0)
+
+  // Nutrition stats
+  totalMealsLogged    Int      @default(0)
+  calorieGoalStreak   Int      @default(0)
+  longestCalorieStreak Int     @default(0)
+
+  // Social stats
+  totalFriends        Int      @default(0)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("user_stats")
+}
+
+enum AchievementCategory {
+  WORKOUT     // Workout milestones
+  STREAK      // Streak achievements
+  PR          // Personal records
+  TIME        // Time-based (total hours)
+  NUTRITION   // Meal logging, calorie goals
+  SOCIAL      // Friends, sharing
+}
+
+enum AchievementMetricType {
+  TOTAL_WORKOUTS          // Count of completed workouts
+  CURRENT_STREAK          // Current consecutive days
+  LONGEST_STREAK          // Best streak ever
+  TOTAL_PRS               // Total personal records
+  TOTAL_WORKOUT_HOURS     // Sum of workout durations (in hours)
+  TOTAL_MEALS_LOGGED      // Food log entries
+  CALORIE_GOAL_STREAK     // Days hitting calorie goal
+  TOTAL_FRIENDS           // Friend count
+}
+
+enum AchievementRarity {
+  COMMON      // Easy to get (1-10 workouts)
+  UNCOMMON    // Moderate effort (10-50)
+  RARE        // Significant effort (50-100)
+  EPIC        // Major milestone (100-500)
+  LEGENDARY   // Exceptional achievement (500+)
+}
+
+// ===========================================
+// App Settings (Admin)
+// ===========================================
+
+model AppSettings {
+  id              String   @id @default("1")
+  appName         String   @default("HomeFit")
+  logoUrl         String?  // Small logo/icon for header
+  fullLogoUrl     String?  // Full logo for login page
+  faviconUrl      String?  // Favicon for browser tab
+  primaryColor    String   @default("#0a84ff")
+  accentColor     String   @default("#30d158")
+
+  // SMTP Settings
+  smtpHost        String?
+  smtpPort        Int?
+  smtpUser        String?
+  smtpPass        String?  // Encrypted
+  smtpFrom        String?
+
+  // SMS Settings (Verizon email-to-SMS)
+  smsEnabled      Boolean  @default(false)
+  smsGateway      String?  // e.g., "vtext.com" for Verizon
+  smsSenderName   String?  // Sender name for SMS emails (e.g., "HomeFit")
+
+  // VAPID Keys for Web Push (auto-generated when SMTP is configured)
+  vapidPublicKey  String?
+  vapidPrivateKey String?
+  vapidEmail      String?  // Uses smtpFrom if not set
+
+  // Global OpenAI API Key (shared with all users)
+  globalOpenaiApiKey    String?  // Admin-provided API key
+  globalOpenaiEnabled   Boolean  @default(false)  // Whether to share with users
+
+  // FatSecret API Configuration
+  fatSecretClientId     String?
+  fatSecretClientSecret String?
+  fatSecretTier         String   @default("basic")  // "basic" or "premier"
+
+  // Feedback Notification Settings
+  feedbackEmailEnabled  Boolean  @default(false)    // Send email when feedback submitted
+  feedbackEmail         String?                      // Email address to receive feedback
+  feedbackPushEnabled   Boolean  @default(false)    // Send push to admins for new feedback
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// ===========================================
+// Push Subscriptions (Web Push)
+// ===========================================
+
+model PushSubscription {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint        String   @db.Text
+  p256dh          String   // Public key
+  auth            String   // Auth secret
+  userAgent       String?  // Browser/device info
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
+}
+
+// ===========================================
+// Meal Planning & Nutrition
+// ===========================================
+
+model Recipe {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic Info
+  name            String
+  description     String?  @db.Text
+  instructions    String?  @db.Text
+  imageUrl        String?
+  servings        Int      @default(1)
+  prepTime        Int?     // minutes
+  cookTime        Int?     // minutes
+  difficulty      RecipeDifficulty @default(MEDIUM)
+
+  // Nutrition (per serving)
+  calories        Float?
+  protein         Float?   // grams
+  carbs           Float?   // grams
+  fat             Float?   // grams
+  fiber           Float?   // grams
+  sugar           Float?   // grams
+  sodium          Float?   // mg
+
+  // Categorization
+  cuisineType     String?  // e.g., "Italian", "Mexican"
+  mealType        MealType[]
+  tags            String[] // e.g., ["high-protein", "low-carb", "vegetarian"]
+
+  // FatSecret Integration
+  fatSecretId     String?  // ID from FatSecret API (if imported)
+
+  // Source URL (for FatSecret or other imported recipes)
+  sourceUrl       String?
+
+  // Original author tracking (when recipe was copied from another user)
+  originalAuthorId   String?
+  originalAuthorName String?  // Cached for display
+
+  // Sharing
+  isPublic        Boolean  @default(false)
+
+  // Relations
+  ingredients     RecipeIngredient[]
+  plannedMeals    PlannedMeal[]
+  savedBy         SavedRecipe[]
+  shares          RecipeShare[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id              String   @id @default(cuid())
+  recipeId        String
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  name            String
+  amount          Float?
+  unit            String?  // e.g., "cups", "tbsp", "oz"
+  notes           String?  // e.g., "diced", "optional"
+
+  // FatSecret food data (if linked)
+  fatSecretFoodId String?
+  calories        Float?
+  protein         Float?
+  carbs           Float?
+  fat             Float?
+
+  order           Int      @default(0)
+
+  @@map("recipe_ingredients")
+}
+
+model MealPlan {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+
+  // Daily Nutrition Targets
+  targetCalories  Int?
+  targetProtein   Int?     // grams
+  targetCarbs     Int?     // grams
+  targetFat       Int?     // grams
+
+  // Sharing
+  isPublic        Boolean  @default(false)
+
+  // Relations
+  meals           PlannedMeal[]
+  shares          MealPlanShare[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("meal_plans")
+}
+
+model PlannedMeal {
+  id              String   @id @default(cuid())
+  mealPlanId      String
+  mealPlan        MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  date            DateTime
+  mealType        MealType
+
+  // Either a recipe or custom food entry
+  recipeId        String?
+  recipe          Recipe?  @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  // Custom food (if not using a recipe)
+  customFoodName  String?
+  customCalories  Float?
+  customProtein   Float?
+  customCarbs     Float?
+  customFat       Float?
+
+  servings        Float    @default(1)
+  notes           String?
+  completed       Boolean  @default(false)
+
+  @@map("planned_meals")
+}
+
+model FoodLogEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date            DateTime @default(now())
+  mealType        MealType
+
+  // Food info (from FatSecret or manual)
+  name            String
+  brand           String?
+  servingSize     String?  // e.g., "1 cup", "100g"
+  servings        Float    @default(1)
+
+  // Nutrition
+  calories        Float
+  protein         Float?
+  carbs           Float?
+  fat             Float?
+  fiber           Float?
+  sugar           Float?
+  sodium          Float?
+
+  // FatSecret Integration
+  fatSecretFoodId String?
+
+  // Optional link to recipe
+  recipeId        String?
+
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("food_log_entries")
+}
+
+model SavedRecipe {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeId        String
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, recipeId])
+  @@map("saved_recipes")
+}
+
+model RecipeShare {
+  id              String   @id @default(cuid())
+  recipeId        String
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  sharedById      String   // User who shared
+  sharedWithId    String   // User receiving the share
+
+  message         String?
+  status          ShareStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([recipeId, sharedWithId])
+  @@map("recipe_shares")
+}
+
+model MealPlanShare {
+  id              String   @id @default(cuid())
+  mealPlanId      String
+  mealPlan        MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  sharedById      String   // User who shared
+  sharedWithId    String   // User receiving the share
+
+  message         String?
+  status          ShareStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([mealPlanId, sharedWithId])
+  @@map("meal_plan_shares")
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum RecipeDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ShareStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+// ===========================================
+// User Feedback (Feature Suggestions & Bug Reports)
+// ===========================================
+
+model Feedback {
+  id              String   @id @default(cuid())
+  userId          String
+  type            FeedbackType
+
+  // Common fields
+  title           String
+  description     String   @db.Text
+  status          FeedbackStatus @default(NEW)
+
+  // Feature suggestion fields
+  category        String?  // workout, nutrition, social, tracking, ui, other
+  useCase         String?  @db.Text
+
+  // Bug report fields
+  severity        String?  // low, medium, high, critical
+  page            String?  // Where the bug occurred
+  steps           String?  @db.Text  // Steps to reproduce
+  expected        String?  @db.Text  // Expected behavior
+  userAgent       String?  // Browser/device info
+  url             String?  // URL where bug occurred
+
+  // Admin fields
+  adminNotes      String?  @db.Text
+  resolvedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type, status])
+  @@map("feedback")
+}
+
+enum FeedbackType {
+  FEATURE
+  BUG
+}
+
+enum FeedbackStatus {
+  NEW
+  REVIEWED
+  IN_PROGRESS
+  RESOLVED
+  WONT_FIX
+}
+
+// ===========================================
+// Backup System
+// ===========================================
+
+model Backup {
+  id              String       @id @default(cuid())
+  type            BackupType
+  status          BackupStatus @default(PENDING)
+  createdById     String?
+
+  // File information
+  filename        String
+  filepath        String
+  fileSize        Int?
+
+  // Content description
+  schemaVersion   String       @default("1.0")
+  tablesIncluded  String[]     @default([])
+  recordCounts    Json?
+
+  // For USER_DATA type - which user's data
+  userId          String?
+
+  // Scheduling info (for automatic backups)
+  isAutomatic     Boolean      @default(false)
+  scheduleType    String?      // "daily", "weekly"
+
+  // Error handling
+  errorMessage    String?      @db.Text
+
+  // Timestamps
+  completedAt     DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([type, status])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("backups")
+}
+
+model BackupSchedule {
+  id              String   @id @default("1")
+
+  // Daily backup settings
+  dailyEnabled    Boolean  @default(false)
+  dailyTime       String   @default("02:00")
+  dailyRetention  Int      @default(7)
+
+  // Weekly backup settings
+  weeklyEnabled   Boolean  @default(false)
+  weeklyDay       Int      @default(0)
+  weeklyTime      String   @default("03:00")
+  weeklyRetention Int      @default(30)
+
+  // Last run tracking
+  lastDailyRun    DateTime?
+  lastWeeklyRun   DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("backup_schedules")
+}
+
+enum BackupType {
+  FULL_SYSTEM
+  USER_DATA
+  SETTINGS
+}
+
+enum BackupStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  EXPIRED
+}

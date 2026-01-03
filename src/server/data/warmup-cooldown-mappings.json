@@ -1,0 +1,254 @@
+{
+  "muscleGroups": {
+    "chest": {
+      "warmups": [
+        { "name": "Arm Circles", "duration": 30, "reps": null, "description": "Forward and backward arm circles to loosen shoulders" },
+        { "name": "Band Pull-Aparts", "sets": 2, "reps": 15, "description": "Light resistance band pulls to activate rear delts" },
+        { "name": "Push-up Plus", "sets": 1, "reps": 10, "description": "Push-ups with extra scapular protraction at top" },
+        { "name": "Wall Slides", "sets": 1, "reps": 10, "description": "Slide arms up wall maintaining contact" },
+        { "name": "Light Dumbbell Flyes", "sets": 1, "reps": 12, "description": "Very light weight to warm up pec fibers" }
+      ],
+      "cooldowns": [
+        { "name": "Doorway Chest Stretch", "duration": 30, "sides": 2, "description": "Stretch each side in a doorway" },
+        { "name": "Cross-Body Shoulder Stretch", "duration": 30, "sides": 2, "description": "Pull arm across body" },
+        { "name": "Foam Roll Chest", "duration": 60, "description": "Roll pecs on foam roller or lacrosse ball" }
+      ]
+    },
+    "back": {
+      "warmups": [
+        { "name": "Cat-Cow Stretch", "sets": 1, "reps": 10, "description": "Alternate between arching and rounding spine" },
+        { "name": "Thoracic Rotations", "sets": 1, "reps": 10, "sides": 2, "description": "Rotate upper back while on all fours" },
+        { "name": "Band Pull-Aparts", "sets": 2, "reps": 15, "description": "Activate upper back and rear delts" },
+        { "name": "Scapular Pull-ups", "sets": 2, "reps": 8, "description": "Hang and squeeze shoulder blades together" },
+        { "name": "Light Lat Pulldown", "sets": 1, "reps": 15, "description": "Very light weight to activate lats" }
+      ],
+      "cooldowns": [
+        { "name": "Child's Pose", "duration": 45, "description": "Kneel and reach arms forward on ground" },
+        { "name": "Lat Stretch", "duration": 30, "sides": 2, "description": "Hang from bar or use doorway" },
+        { "name": "Foam Roll Upper Back", "duration": 60, "description": "Roll thoracic spine on foam roller" },
+        { "name": "Thread the Needle", "duration": 30, "sides": 2, "description": "Thoracic rotation stretch" }
+      ]
+    },
+    "shoulders": {
+      "warmups": [
+        { "name": "Arm Circles", "duration": 30, "description": "Small to large circles, forward and back" },
+        { "name": "Band Dislocations", "sets": 2, "reps": 10, "description": "Pass band over head and behind back" },
+        { "name": "Band Face Pulls", "sets": 2, "reps": 15, "description": "Warm up rear delts and rotator cuff" },
+        { "name": "External Rotations", "sets": 2, "reps": 12, "description": "Light band or dumbbell rotator cuff work" },
+        { "name": "Y-T-W Raises", "sets": 1, "reps": 8, "description": "Light weight raises in Y, T, and W patterns" }
+      ],
+      "cooldowns": [
+        { "name": "Cross-Body Shoulder Stretch", "duration": 30, "sides": 2, "description": "Pull arm across body" },
+        { "name": "Sleeper Stretch", "duration": 30, "sides": 2, "description": "Lie on side, push forearm down" },
+        { "name": "Behind-Back Stretch", "duration": 30, "sides": 2, "description": "Reach behind back and pull with other hand" },
+        { "name": "Neck Stretches", "duration": 30, "sides": 2, "description": "Tilt head to each side" }
+      ]
+    },
+    "biceps": {
+      "warmups": [
+        { "name": "Arm Circles", "duration": 30, "description": "Loosen up shoulder joint" },
+        { "name": "Wrist Circles", "duration": 20, "description": "Rotate wrists in both directions" },
+        { "name": "Light Band Curls", "sets": 2, "reps": 15, "description": "Get blood flowing to biceps" },
+        { "name": "Elbow Circles", "sets": 1, "reps": 10, "description": "Rotate forearms with hands on shoulders" }
+      ],
+      "cooldowns": [
+        { "name": "Bicep Wall Stretch", "duration": 30, "sides": 2, "description": "Place palm on wall, rotate body away" },
+        { "name": "Wrist Flexor Stretch", "duration": 30, "sides": 2, "description": "Extend arm, pull fingers back" },
+        { "name": "Prayer Stretch", "duration": 30, "description": "Press palms together, lower hands" }
+      ]
+    },
+    "triceps": {
+      "warmups": [
+        { "name": "Arm Circles", "duration": 30, "description": "Loosen up shoulder joint" },
+        { "name": "Overhead Tricep Stretch", "duration": 20, "sides": 2, "description": "Dynamic stretching before working" },
+        { "name": "Light Pushdowns", "sets": 2, "reps": 15, "description": "Very light cable or band pushdowns" },
+        { "name": "Diamond Push-ups", "sets": 1, "reps": 8, "description": "Light activation of triceps" }
+      ],
+      "cooldowns": [
+        { "name": "Overhead Tricep Stretch", "duration": 30, "sides": 2, "description": "Reach behind head, pull elbow" },
+        { "name": "Cross-Body Tricep Stretch", "duration": 30, "sides": 2, "description": "Pull elbow across body" },
+        { "name": "Foam Roll Triceps", "duration": 45, "description": "Roll triceps on foam roller" }
+      ]
+    },
+    "quadriceps": {
+      "warmups": [
+        { "name": "Leg Swings (Front-Back)", "sets": 1, "reps": 15, "sides": 2, "description": "Dynamic hip flexor activation" },
+        { "name": "Bodyweight Squats", "sets": 2, "reps": 15, "description": "Full range of motion squats" },
+        { "name": "Walking Lunges", "sets": 1, "reps": 10, "sides": 2, "description": "Activate quads and hip flexors" },
+        { "name": "Leg Extensions", "sets": 2, "reps": 15, "description": "Very light weight to warm up quads" },
+        { "name": "Hip Circles", "sets": 1, "reps": 10, "sides": 2, "description": "Open up hip joint" }
+      ],
+      "cooldowns": [
+        { "name": "Standing Quad Stretch", "duration": 30, "sides": 2, "description": "Pull heel to glutes" },
+        { "name": "Couch Stretch", "duration": 45, "sides": 2, "description": "Deep hip flexor and quad stretch" },
+        { "name": "Foam Roll Quads", "duration": 60, "description": "Roll entire quad from hip to knee" },
+        { "name": "Pigeon Pose", "duration": 45, "sides": 2, "description": "Deep hip and glute stretch" }
+      ]
+    },
+    "hamstrings": {
+      "warmups": [
+        { "name": "Leg Swings (Front-Back)", "sets": 1, "reps": 15, "sides": 2, "description": "Dynamic hamstring activation" },
+        { "name": "Inchworms", "sets": 1, "reps": 6, "description": "Walk hands out, walk feet in" },
+        { "name": "Good Mornings", "sets": 2, "reps": 12, "description": "Bodyweight hip hinge" },
+        { "name": "Romanian Deadlift", "sets": 1, "reps": 10, "description": "Light weight or bodyweight RDLs" },
+        { "name": "Lying Leg Curls", "sets": 2, "reps": 15, "description": "Very light weight to warm up hamstrings" }
+      ],
+      "cooldowns": [
+        { "name": "Standing Toe Touch", "duration": 30, "description": "Reach for toes with straight legs" },
+        { "name": "Seated Forward Fold", "duration": 45, "description": "Sit with legs extended, reach for toes" },
+        { "name": "Foam Roll Hamstrings", "duration": 60, "description": "Roll from glutes to behind knee" },
+        { "name": "Lying Hamstring Stretch", "duration": 30, "sides": 2, "description": "Pull leg toward chest with strap" }
+      ]
+    },
+    "glutes": {
+      "warmups": [
+        { "name": "Glute Bridges", "sets": 2, "reps": 15, "description": "Activate glutes by squeezing at top" },
+        { "name": "Clamshells", "sets": 2, "reps": 12, "sides": 2, "description": "Lie on side, open and close legs" },
+        { "name": "Fire Hydrants", "sets": 1, "reps": 10, "sides": 2, "description": "On all fours, lift leg to side" },
+        { "name": "Hip Circles", "sets": 1, "reps": 10, "sides": 2, "description": "Open up hip joint" },
+        { "name": "Monster Walks", "sets": 1, "reps": 10, "sides": 2, "description": "Walk sideways with band around ankles" }
+      ],
+      "cooldowns": [
+        { "name": "Pigeon Pose", "duration": 45, "sides": 2, "description": "Deep glute stretch" },
+        { "name": "Figure Four Stretch", "duration": 30, "sides": 2, "description": "Cross ankle over knee, pull toward chest" },
+        { "name": "Foam Roll Glutes", "duration": 60, "description": "Sit on roller and roll each side" },
+        { "name": "Supine Spinal Twist", "duration": 30, "sides": 2, "description": "Lie on back, drop knees to side" }
+      ]
+    },
+    "calves": {
+      "warmups": [
+        { "name": "Ankle Circles", "duration": 20, "sides": 2, "description": "Rotate ankles in both directions" },
+        { "name": "Calf Raises", "sets": 2, "reps": 15, "description": "Bodyweight calf raises" },
+        { "name": "Jump Rope", "duration": 60, "description": "Light jumping to warm up calves" },
+        { "name": "Walking on Toes", "duration": 30, "description": "Walk on tiptoes to activate calves" }
+      ],
+      "cooldowns": [
+        { "name": "Wall Calf Stretch", "duration": 30, "sides": 2, "description": "Push against wall with straight leg" },
+        { "name": "Soleus Stretch", "duration": 30, "sides": 2, "description": "Same position with bent knee" },
+        { "name": "Foam Roll Calves", "duration": 60, "description": "Roll from ankle to knee" },
+        { "name": "Downward Dog", "duration": 30, "description": "Pedal feet to stretch calves" }
+      ]
+    },
+    "abdominals": {
+      "warmups": [
+        { "name": "Cat-Cow Stretch", "sets": 1, "reps": 10, "description": "Warm up the spine" },
+        { "name": "Dead Bugs", "sets": 2, "reps": 10, "description": "Lie on back, extend opposite arm and leg" },
+        { "name": "Bird Dogs", "sets": 1, "reps": 8, "sides": 2, "description": "On all fours, extend opposite arm and leg" },
+        { "name": "Plank Hold", "duration": 30, "description": "Light plank to activate core" },
+        { "name": "Torso Rotations", "sets": 1, "reps": 10, "sides": 2, "description": "Twist torso side to side" }
+      ],
+      "cooldowns": [
+        { "name": "Cobra Stretch", "duration": 30, "description": "Lie face down, push chest up" },
+        { "name": "Child's Pose", "duration": 45, "description": "Kneel and reach arms forward" },
+        { "name": "Supine Spinal Twist", "duration": 30, "sides": 2, "description": "Lie on back, drop knees to side" },
+        { "name": "Foam Roll Lower Back", "duration": 45, "description": "Gently roll lower back" }
+      ]
+    },
+    "forearms": {
+      "warmups": [
+        { "name": "Wrist Circles", "duration": 20, "description": "Rotate wrists in both directions" },
+        { "name": "Finger Extensions", "sets": 2, "reps": 15, "description": "Spread fingers wide repeatedly" },
+        { "name": "Wrist Flexion/Extension", "sets": 1, "reps": 15, "description": "Flex and extend wrists" },
+        { "name": "Grip Squeezes", "sets": 2, "reps": 15, "description": "Squeeze and release a stress ball" }
+      ],
+      "cooldowns": [
+        { "name": "Wrist Flexor Stretch", "duration": 30, "sides": 2, "description": "Extend arm, pull fingers back" },
+        { "name": "Wrist Extensor Stretch", "duration": 30, "sides": 2, "description": "Flex wrist down, push with other hand" },
+        { "name": "Prayer Stretch", "duration": 30, "description": "Press palms together, lower hands" },
+        { "name": "Forearm Roll", "duration": 45, "description": "Roll forearms on foam roller" }
+      ]
+    }
+  },
+  "generalWarmup": {
+    "mobility": [
+      { "name": "Neck Rolls", "sets": 1, "reps": 5, "sides": 2, "description": "Gentle neck rotations" },
+      { "name": "Shoulder Shrugs", "sets": 2, "reps": 10, "description": "Raise shoulders toward ears" },
+      { "name": "Hip Circles", "sets": 1, "reps": 10, "sides": 2, "description": "Large circles with hips" },
+      { "name": "Torso Twists", "sets": 1, "reps": 10, "description": "Rotate upper body side to side" },
+      { "name": "Arm Circles", "duration": 30, "description": "Forward and backward arm circles" }
+    ]
+  },
+  "generalCooldown": [
+    { "name": "Slow Walk", "duration": 120, "description": "2 minutes of slow walking to bring heart rate down" },
+    { "name": "Deep Breathing", "duration": 60, "description": "Slow, deep breaths to promote recovery" },
+    { "name": "Full Body Stretch", "duration": 300, "description": "5 minutes of static stretching for all major muscle groups" }
+  ],
+  "tips": {
+    "warmup": [
+      {
+        "id": "warmup-1",
+        "category": "warmup",
+        "muscle": "general",
+        "title": "Why Warm Up?",
+        "content": "A proper warm-up increases blood flow to muscles, raises body temperature, and prepares your nervous system for the workout ahead. This can improve performance by 10-20% and significantly reduce injury risk."
+      },
+      {
+        "id": "warmup-2",
+        "category": "warmup",
+        "muscle": "chest",
+        "title": "Chest Day Prep",
+        "content": "Before pressing movements, focus on warming up your rotator cuff and scapular muscles. Healthy shoulders are essential for a strong chest workout."
+      },
+      {
+        "id": "warmup-3",
+        "category": "warmup",
+        "muscle": "back",
+        "title": "Protect Your Spine",
+        "content": "For back exercises, especially deadlifts and rows, thoracic mobility is crucial. Cat-cow stretches and thoracic rotations prepare your spine for heavy loads."
+      },
+      {
+        "id": "warmup-4",
+        "category": "warmup",
+        "muscle": "legs",
+        "title": "Never Skip Leg Warmups",
+        "content": "Your legs contain the largest muscles in your body. A thorough lower body warm-up, including hip circles and bodyweight squats, prevents strains and improves squat depth."
+      },
+      {
+        "id": "warmup-5",
+        "category": "warmup",
+        "muscle": "shoulders",
+        "title": "Shoulder Mobility Matters",
+        "content": "The shoulder is the most mobile joint in your body but also the most vulnerable. Band dislocations and external rotations keep your rotator cuff healthy."
+      }
+    ],
+    "cooldown": [
+      {
+        "id": "cooldown-1",
+        "category": "cooldown",
+        "muscle": "general",
+        "title": "Why Cool Down?",
+        "content": "Cooling down gradually lowers your heart rate, prevents blood pooling in your extremities, and starts the recovery process. Stretching while muscles are warm improves flexibility."
+      },
+      {
+        "id": "cooldown-2",
+        "category": "cooldown",
+        "muscle": "general",
+        "title": "Static Stretching Benefits",
+        "content": "Post-workout is the ideal time for static stretching. Hold each stretch for 30-60 seconds to promote muscle relaxation and reduce next-day soreness."
+      },
+      {
+        "id": "cooldown-3",
+        "category": "cooldown",
+        "muscle": "general",
+        "title": "Foam Rolling Recovery",
+        "content": "Foam rolling after your workout helps break up muscle adhesions, improves blood flow, and can reduce delayed onset muscle soreness (DOMS) by up to 20%."
+      }
+    ],
+    "recovery": [
+      {
+        "id": "recovery-1",
+        "category": "recovery",
+        "muscle": "general",
+        "title": "Sleep Is Gains",
+        "content": "Most muscle repair and growth hormone release occurs during deep sleep. Aim for 7-9 hours per night, especially after intense training sessions."
+      },
+      {
+        "id": "recovery-2",
+        "category": "recovery",
+        "muscle": "general",
+        "title": "Hydration Matters",
+        "content": "Even mild dehydration can reduce strength by 10-20%. Drink water throughout the day, not just during your workout."
+      }
+    ]
+  }
+}

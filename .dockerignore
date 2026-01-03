@@ -1,0 +1,77 @@
+# Docker ignore file for HomeFit
+# Prevents unnecessary files from being included in Docker build context
+
+# Git
+.git
+.gitignore
+
+# Node modules (we install fresh in container)
+node_modules
+src/client/node_modules
+src/server/node_modules
+
+# Development files
+*.log
+*.md
+!README.md
+.env
+.env.local
+.env.*.local
+
+# IDE/Editor
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist
+build
+coverage
+.nyc_output
+
+# Test files
+*.test.js
+*.spec.js
+__tests__
+tests
+test
+
+# Documentation
+docs
+*.pdf
+
+# Docker files (no need to copy these into container)
+docker
+production/Dockerfile
+production/docker-compose*.yml
+production/scripts
+production/backups
+production/.env*
+
+# Kaggle data (not needed in production)
+Kaggle
+
+# Logo source files
+logo/*.psd
+logo/*.ai
+logo/*.sketch
+
+# Backup files
+*.bak
+*.backup
+backups
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# TypeScript source maps (if any)
+*.map
+
+# Keep only what's needed
+!exercises-db/dist
+!exercises-db/schema.json
