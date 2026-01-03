@@ -65,9 +65,8 @@ Open your browser to: **http://localhost:3000**
 
 | Field | Value |
 |-------|-------|
-| **Username** | `admin` |
-| **Password** | `admin123` |
 | **Email** | `admin@homefit.local` |
+| **Password** | `admin123` |
 
 > ⚠️ **IMPORTANT:** Change the admin password immediately after first login!
 >
@@ -79,9 +78,8 @@ A demo user is also created for testing:
 
 | Field | Value |
 |-------|-------|
-| **Username** | `demo` |
-| **Password** | `demo123` |
 | **Email** | `demo@homefit.local` |
+| **Password** | `demo1234` |
 
 ---
 
