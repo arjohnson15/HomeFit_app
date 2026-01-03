@@ -1,245 +1,382 @@
 # HomeFit Production Deployment
 
-This folder contains everything needed to deploy HomeFit in a production environment using Docker.
+Deploy HomeFit using Docker containers for a production-ready workout tracking application.
 
 ## Quick Start
 
 ### Prerequisites
 - Docker Engine 20.10+
 - Docker Compose 2.0+
+- Git
 - 2GB RAM minimum
 - 10GB disk space
 
+### Download & Install
+
+**Linux/macOS:**
+```bash
+# Clone the repository
+git clone https://github.com/arjohnson15/HomeFit_app.git
+cd HomeFit_app
+
+# Navigate to production folder
+cd production
+
+# Copy and configure environment
+cp .env.example .env
+nano .env  # Edit with your settings
+
+# Deploy
+docker-compose up -d --build
+
+# Setup database (wait 30 seconds for containers to start)
+docker-compose exec app npx prisma db push --accept-data-loss
+docker-compose exec app npx prisma db seed
+```
+
+**Windows (PowerShell):**
+```powershell
+# Clone the repository
+git clone https://github.com/arjohnson15/HomeFit_app.git
+cd HomeFit_app
+
+# Navigate to production folder
+cd production
+
+# Copy and configure environment
+copy .env.example .env
+notepad .env  # Edit with your settings
+
+# Deploy
+docker-compose up -d --build
+
+# Setup database (wait 30 seconds for containers to start)
+docker-compose exec app npx prisma db push --accept-data-loss
+docker-compose exec app npx prisma db seed
+```
+
+### Access the Application
+
+Open your browser to: **http://localhost:3000**
+
+---
+
+## Default Admin Login
+
+| Field | Value |
+|-------|-------|
+| **Username** | `admin` |
+| **Password** | `admin123` |
+| **Email** | `admin@homefit.local` |
+
+> ⚠️ **IMPORTANT:** Change the admin password immediately after first login!
+>
+> Go to: **Settings → Account → Change Password**
+
+### Demo User (Optional)
+
+A demo user is also created for testing:
+
+| Field | Value |
+|-------|-------|
+| **Username** | `demo` |
+| **Password** | `demo123` |
+| **Email** | `demo@homefit.local` |
+
+---
+
+## Docker Compose Example
+
+Here's a minimal `docker-compose.yml` for reference:
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: homefit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: homefit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: homefit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homefit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: homefit-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ..
+      dockerfile: production/Dockerfile
+    image: homefit:latest
+    container_name: homefit-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://homefit:${POSTGRES_PASSWORD}@db:5432/homefit
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+---
+
+## Environment Configuration
+
+### Required Settings
+
+Edit `.env` with these required values:
+
+```bash
+# Database password (use a strong password!)
+POSTGRES_PASSWORD=your_secure_password_here
+
+# Security secrets (generate with: openssl rand -base64 32)
+JWT_SECRET=your_jwt_secret_here
+SESSION_SECRET=your_session_secret_here
+```
+
+### Generate Secure Secrets
+
+**Linux/macOS:**
+```bash
+openssl rand -base64 32
+```
+
+**Windows (PowerShell):**
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+```
+
+### All Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `APP_VERSION` | No | 1.0.0 | Application version |
+| `POSTGRES_USER` | No | homefit | Database username |
+| `POSTGRES_PASSWORD` | **Yes** | - | Database password |
+| `POSTGRES_DB` | No | homefit | Database name |
+| `JWT_SECRET` | **Yes** | - | JWT signing key (32+ chars) |
+| `SESSION_SECRET` | **Yes** | - | Session encryption key |
+| `HOST_PORT` | No | 3000 | Port exposed on host |
+| `SMTP_HOST` | No | - | Email server for notifications |
+| `SMTP_PORT` | No | 587 | Email server port |
+| `SMTP_USER` | No | - | Email username |
+| `SMTP_PASS` | No | - | Email password |
+| `SMTP_FROM` | No | - | Sender email address |
+
+---
+
+## Admin Setup Guide
+
 ### First-Time Setup
 
-1. **Copy environment file and configure:**
-   ```bash
-   cp .env.example .env
-   ```
+1. **Login** with default admin credentials (see above)
 
-2. **Edit `.env` with your settings:**
-   ```bash
-   # Generate secure secrets (run these commands)
-   openssl rand -base64 32  # Use for JWT_SECRET
-   openssl rand -base64 32  # Use for SESSION_SECRET
+2. **Change admin password:**
+   - Click your profile icon (top right)
+   - Go to Settings → Account
+   - Click "Change Password"
+   - Enter new secure password
 
-   # Update POSTGRES_PASSWORD with a strong password
-   ```
+3. **Configure app settings (Admin Dashboard):**
+   - Go to Admin → Settings
+   - Set your app name and branding
+   - Configure email/SMTP if needed
 
-3. **Deploy:**
-   ```bash
-   ./scripts/deploy.sh
-   ```
+4. **Create additional users:**
+   - Go to Admin → Users
+   - Click "Add User"
+   - Set role (User or Admin)
 
-4. **Access the app:**
-   Open http://localhost:3000 in your browser
+### Admin Dashboard Features
 
-### Default Admin Account
-- **Username:** admin
-- **Password:** admin123 (CHANGE THIS IMMEDIATELY!)
+Access via: **Menu → Admin**
 
-## Directory Structure
+| Feature | Description |
+|---------|-------------|
+| **Users** | Manage user accounts, roles, reset passwords |
+| **Settings** | App configuration, SMTP, branding |
+| **Feedback** | View user bug reports and feature requests |
+| **Backups** | Manual and scheduled database backups |
+| **Statistics** | User engagement and system metrics |
 
-```
-production/
-├── Dockerfile              # Multi-stage production Docker build
-├── docker-compose.yml      # Production compose configuration
-├── .env.example            # Environment template
-├── init-db/                # Database initialization scripts
-├── scripts/
-│   ├── deploy.sh           # Deploy/redeploy application
-│   ├── update.sh           # Update to new version
-│   ├── backup.sh           # Create database backup
-│   ├── restore.sh          # Restore from backup
-│   └── version.sh          # Manage version numbers
-└── backups/                # Backup storage (auto-created)
-```
+### Backup Configuration
 
-## Version Management
+1. Go to **Admin → Backups**
+2. Enable daily/weekly automatic backups
+3. Set retention period (default: 30 days)
+4. Backups stored in Docker volume `homefit_backups`
 
-### Bump Version (Development)
+---
+
+## Common Commands
+
+### Container Management
+
 ```bash
-# Patch release (1.0.0 -> 1.0.1)
-./scripts/version.sh patch
+# Start all services
+docker-compose up -d
 
-# Minor release (1.0.0 -> 1.1.0)
-./scripts/version.sh minor
+# Stop all services
+docker-compose down
 
-# Major release (1.0.0 -> 2.0.0)
-./scripts/version.sh major
+# View logs
+docker-compose logs -f
+docker-compose logs -f app    # App only
 
-# Create git tag
-./scripts/version.sh patch --tag
+# Restart app
+docker-compose restart app
 
-# Create tag and push to GitHub
-./scripts/version.sh patch --push
+# Rebuild after code changes
+docker-compose up -d --build
 ```
 
-### Update Deployed Instance
+### Database Operations
+
 ```bash
-# Update to latest version
+# Open database shell
+docker-compose exec db psql -U homefit -d homefit
+
+# Run migrations
+docker-compose exec app npx prisma db push
+
+# Re-seed database
+docker-compose exec app npx prisma db seed
+
+# Open Prisma Studio (database GUI)
+docker-compose exec app npx prisma studio
+```
+
+### Backup & Restore
+
+```bash
+# Create manual backup
+./scripts/backup.sh
+
+# Restore from backup
+./scripts/restore.sh backups/homefit_manual_20260101_120000.tar.gz
+
+# List backups
+ls -la backups/
+```
+
+---
+
+## Updating HomeFit
+
+### Using the Update Script
+
+```bash
+# Pull latest and redeploy
 ./scripts/update.sh
 
 # Update to specific version
 ./scripts/update.sh 1.2.0
 ```
 
-## Backup & Restore
+### Manual Update
 
-### Create Backup
 ```bash
-./scripts/backup.sh
+# Pull latest code
+git pull origin main
+
+# Rebuild and restart
+docker-compose up -d --build
+
+# Run any new migrations
+docker-compose exec app npx prisma db push
 ```
 
-### Restore from Backup
-```bash
-./scripts/restore.sh backups/homefit_manual_20240101_120000.tar.gz
-```
-
-### Automatic Backups
-Backups are automatically created:
-- Before each update
-- Daily at 2 AM (if configured in app settings)
-
-## Docker Commands
-
-### View Logs
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f app
-docker-compose logs -f db
-```
-
-### Restart Services
-```bash
-docker-compose restart
-docker-compose restart app
-```
-
-### Stop All Services
-```bash
-docker-compose down
-```
-
-### Remove All Data (DESTRUCTIVE)
-```bash
-docker-compose down -v
-```
-
-### Access Container Shell
-```bash
-docker-compose exec app sh
-docker-compose exec db psql -U homefit -d homefit
-```
-
-### Run Prisma Commands
-```bash
-docker-compose exec app npx prisma migrate deploy
-docker-compose exec app npx prisma db seed
-docker-compose exec app npx prisma studio
-```
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `APP_VERSION` | No | 1.0.0 | Current app version |
-| `POSTGRES_USER` | No | homefit | Database user |
-| `POSTGRES_PASSWORD` | **Yes** | - | Database password |
-| `POSTGRES_DB` | No | homefit | Database name |
-| `JWT_SECRET` | **Yes** | - | JWT signing key (32+ chars) |
-| `SESSION_SECRET` | **Yes** | - | Session encryption key |
-| `HOST_PORT` | No | 3000 | Host port mapping |
-| `SMTP_HOST` | No | - | Email server host |
-| `SMTP_PORT` | No | 587 | Email server port |
-| `SMTP_USER` | No | - | Email username |
-| `SMTP_PASS` | No | - | Email password |
-| `SMTP_FROM` | No | - | Sender email address |
-
-### Custom Domain / SSL
-
-For production with a custom domain, add a reverse proxy (nginx/traefik):
-
-```yaml
-# Add to docker-compose.yml
-nginx:
-  image: nginx:alpine
-  ports:
-    - "80:80"
-    - "443:443"
-  volumes:
-    - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    - ./ssl:/etc/nginx/ssl:ro
-  depends_on:
-    - app
-```
+---
 
 ## Troubleshooting
 
 ### Container won't start
+
 ```bash
-# Check logs
+# Check logs for errors
 docker-compose logs app
 
-# Check if ports are in use
-netstat -tlnp | grep 3000
+# Verify port is available
+netstat -tlnp | grep 3000   # Linux
+netstat -ano | findstr 3000  # Windows
 ```
 
 ### Database connection issues
-```bash
-# Check database is healthy
-docker-compose ps db
 
-# Check database logs
+```bash
+# Check database health
+docker-compose ps db
 docker-compose logs db
 
-# Verify database connection
+# Test connection
 docker-compose exec db pg_isready -U homefit
 ```
 
-### Out of disk space
-```bash
-# Clean up Docker
-docker system prune -a
+### Reset everything
 
-# Remove old backups
-find backups/ -mtime +30 -delete
-```
-
-### Reset to fresh state
 ```bash
-# Stop and remove everything
+# Stop and remove all data (DESTRUCTIVE!)
 docker-compose down -v
 
-# Redeploy
-./scripts/deploy.sh
+# Fresh start
+docker-compose up -d --build
+docker-compose exec app npx prisma db push --accept-data-loss
+docker-compose exec app npx prisma db seed
 ```
 
-## Updating the App
+### Permission issues (Linux)
 
-When a new version is released:
+```bash
+# Fix Docker socket permissions
+sudo chmod 666 /var/run/docker.sock
 
-1. **Check release notes** on GitHub
-2. **Create backup:** `./scripts/backup.sh`
-3. **Update:** `./scripts/update.sh`
-4. **Verify:** Check the app is working correctly
-5. **Rollback if needed:** `./scripts/restore.sh <backup_file>`
+# Or add user to docker group
+sudo usermod -aG docker $USER
+# Then logout and login again
+```
+
+---
 
 ## Security Recommendations
 
-1. **Change default admin password immediately**
-2. **Use strong, unique secrets** for JWT_SECRET and SESSION_SECRET
-3. **Enable HTTPS** in production with a reverse proxy
-4. **Regular backups** - configure automatic daily backups
-5. **Keep Docker updated** - run `docker-compose pull` periodically
-6. **Firewall** - only expose necessary ports (80, 443)
+1. **Change default passwords** immediately after setup
+2. **Use strong secrets** - generate with `openssl rand -base64 32`
+3. **Enable HTTPS** - use a reverse proxy like nginx or Traefik
+4. **Regular backups** - enable automatic daily/weekly backups
+5. **Keep updated** - pull latest releases for security patches
+6. **Firewall** - only expose ports 80/443, not 3000 directly
+
+---
 
 ## Support
 
-- GitHub Issues: https://github.com/arjohnson15/HomeFit_app/issues
-- Documentation: https://github.com/arjohnson15/HomeFit_app/wiki
+- **Issues:** https://github.com/arjohnson15/HomeFit_app/issues
+- **Wiki:** https://github.com/arjohnson15/HomeFit_app/wiki

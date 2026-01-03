@@ -42,8 +42,7 @@
 Template for new tasks:
 
 ### [TASK-XXX] Task Title
-- **Status**: New
-- **Agent**: [Agent ID if known]
+o- **Agent**: [Agent ID if known]
 - **Started**: YYYY-MM-DD
 - **Description**: Brief description of the feature/fix
 - **Files Adding**:

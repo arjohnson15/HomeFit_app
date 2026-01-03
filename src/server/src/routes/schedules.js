@@ -672,6 +672,15 @@ router.get('/warmup-suggestions', async (req, res, next) => {
       })
     }
 
+    // Generate workout hash for caching (based on workout ID)
+    const workoutHash = getWorkoutHash([workout.id])
+
+    // Check cache first - return cached warmups if available
+    const cached = getCachedSuggestions('warmup', req.user.id, workoutHash)
+    if (cached) {
+      return res.json(cached)
+    }
+
     // Load exercise data to get muscle groups
     const exercisesPath = process.env.NODE_ENV === 'production'
       ? path.join(__dirname, '../../data/exercises.json')
@@ -749,13 +758,18 @@ router.get('/warmup-suggestions', async (req, res, next) => {
       ? availableTips[Math.floor(Math.random() * availableTips.length)]
       : null
 
-    res.json({
+    const response = {
       warmups,
       tip,
       enabled: true,
       muscleGroups: muscleGroupsArray,
       isAI
-    })
+    }
+
+    // Cache the response for this workout
+    setCachedSuggestions('warmup', req.user.id, workoutHash, response)
+
+    res.json(response)
   } catch (error) {
     next(error)
   }
