@@ -4,67 +4,72 @@ import api from '../../services/api'
 
 function UpdatesSettings() {
   const [updateInfo, setUpdateInfo] = useState(null)
-  const [settings, setSettings] = useState({
-    autoUpdate: true,
-    checkInterval: 3600000,
-    branch: 'main'
-  })
+  const [releaseHistory, setReleaseHistory] = useState([])
   const [checking, setChecking] = useState(false)
-  const [updating, setUpdating] = useState(false)
-  const [logs, setLogs] = useState([])
+  const [showInstructions, setShowInstructions] = useState(false)
+  const [updateInstructions, setUpdateInstructions] = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     fetchStatus()
+    fetchHistory()
   }, [])
 
   const fetchStatus = async () => {
     try {
-      const [statusRes, logsRes] = await Promise.all([
-        api.get('/admin/updates/status').catch(() => ({ data: {} })),
-        api.get('/admin/updates/logs').catch(() => ({ data: { logs: [] } }))
-      ])
-      if (statusRes.data) {
-        setUpdateInfo(statusRes.data)
-      }
-      setLogs(logsRes.data.logs || [])
-    } catch (error) {
-      console.error('Error fetching update status:', error)
+      setError(null)
+      const response = await api.get('/admin/updates')
+      setUpdateInfo(response.data)
+    } catch (err) {
+      console.error('Error fetching update status:', err)
+      setError('Failed to check for updates')
+    }
+  }
+
+  const fetchHistory = async () => {
+    try {
+      const response = await api.get('/admin/updates/history')
+      setReleaseHistory(response.data.releases || [])
+    } catch (err) {
+      console.error('Error fetching release history:', err)
     }
   }
 
   const checkForUpdates = async () => {
     setChecking(true)
+    setError(null)
     try {
-      const response = await api.get('/admin/updates/check')
+      const response = await api.post('/admin/updates/check')
       setUpdateInfo(response.data)
-    } catch (error) {
-      console.error('Error checking for updates:', error)
+      // Also refresh history
+      fetchHistory()
+    } catch (err) {
+      console.error('Error checking for updates:', err)
+      setError('Failed to check for updates. Make sure you have internet access.')
     } finally {
       setChecking(false)
     }
   }
 
-  const installUpdate = async () => {
-    if (!confirm('This will restart the server. Continue?')) return
-    setUpdating(true)
+  const handleApplyUpdate = async () => {
     try {
-      await api.post('/admin/updates/install')
-      // Server will restart, so we'll lose connection
-      setTimeout(() => {
-        window.location.reload()
-      }, 5000)
-    } catch (error) {
-      console.error('Error installing update:', error)
-      setUpdating(false)
+      const response = await api.post('/admin/updates/apply')
+      setUpdateInstructions(response.data)
+      setShowInstructions(true)
+    } catch (err) {
+      console.error('Error getting update instructions:', err)
+      setError(err.response?.data?.message || 'Failed to get update instructions')
     }
   }
 
-  const saveSettings = async () => {
-    try {
-      await api.put('/admin/updates/settings', settings)
-    } catch (error) {
-      console.error('Error saving settings:', error)
-    }
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    return date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
   }
 
   return (
@@ -79,17 +84,26 @@ function UpdatesSettings() {
         <h1 className="text-2xl font-bold text-white">System Updates</h1>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-4 rounded-xl">
+          {error}
+        </div>
+      )}
+
       {/* Current Version */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-white font-medium">Current Version</h3>
-            <p className="text-gray-400 text-sm">HomeFit v{updateInfo?.currentVersion || '0.1.0'}</p>
+            <p className="text-gray-400 text-sm">HomeFit v{updateInfo?.currentVersion || '...'}</p>
           </div>
           <div className={`px-3 py-1 rounded-full text-sm ${
-            updateInfo?.available ? 'bg-accent/20 text-accent' : 'bg-green-500/20 text-green-400'
+            updateInfo?.updateAvailable
+              ? 'bg-accent/20 text-accent'
+              : 'bg-green-500/20 text-green-400'
           }`}>
-            {updateInfo?.available ? 'Update Available' : 'Up to Date'}
+            {updateInfo?.updateAvailable ? 'Update Available' : 'Up to Date'}
           </div>
         </div>
 
@@ -110,7 +124,7 @@ function UpdatesSettings() {
       </div>
 
       {/* Available Update */}
-      {updateInfo?.available && (
+      {updateInfo?.updateAvailable && (
         <div className="card border border-accent/30">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
@@ -119,70 +133,106 @@ function UpdatesSettings() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-white font-medium">Version {updateInfo.latestVersion}</h3>
-              <p className="text-gray-400 text-sm mt-1">{updateInfo.releaseNotes || 'Bug fixes and improvements'}</p>
-              <div className="mt-4">
+              <h3 className="text-white font-medium">{updateInfo.releaseName || `Version ${updateInfo.latestVersion}`}</h3>
+              <p className="text-gray-500 text-xs mt-0.5">
+                Released {formatDate(updateInfo.publishedAt)}
+              </p>
+              {updateInfo.releaseNotes && (
+                <div className="mt-3 p-3 bg-dark-elevated rounded-lg text-sm text-gray-300 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                  {updateInfo.releaseNotes}
+                </div>
+              )}
+              <div className="mt-4 flex gap-3">
                 <button
-                  onClick={installUpdate}
-                  disabled={updating}
+                  onClick={handleApplyUpdate}
                   className="btn-primary"
                 >
-                  {updating ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Installing...
-                    </span>
-                  ) : (
-                    'Install Update'
-                  )}
+                  View Update Instructions
                 </button>
+                {updateInfo.releaseUrl && (
+                  <a
+                    href={updateInfo.releaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                  >
+                    View on GitHub
+                  </a>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Auto Update Settings */}
-      <div className="card space-y-4">
-        <h3 className="text-white font-medium">Auto-Update</h3>
+      {/* Update Instructions Modal */}
+      {showInstructions && updateInstructions && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-medium text-lg">Update Instructions</h3>
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white">Automatic Updates</p>
-            <p className="text-gray-500 text-sm">Install updates automatically</p>
+            <div className="space-y-4">
+              <div className="bg-dark-elevated p-3 rounded-lg">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-400">Current</span>
+                  <span className="text-white">v{updateInstructions.updateInfo?.currentVersion}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">New</span>
+                  <span className="text-accent">v{updateInstructions.updateInfo?.newVersion}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-gray-300 text-sm mb-3">
+                  Run these commands on your server to apply the update:
+                </p>
+                <div className="bg-dark-base rounded-lg p-4 font-mono text-sm">
+                  {updateInstructions.instructions?.slice(1).map((cmd, idx) => (
+                    <div key={idx} className="text-green-400">
+                      {cmd.startsWith('cd ') || cmd.startsWith('git ') || cmd.startsWith('docker')
+                        ? <span className="text-gray-500">$ </span>
+                        : null}
+                      {cmd}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  const cmds = updateInstructions.instructions?.slice(1).join('\n')
+                  navigator.clipboard.writeText(cmds)
+                }}
+                className="btn-secondary w-full"
+              >
+                Copy Commands
+              </button>
+
+              {updateInstructions.updateInfo?.releaseUrl && (
+                <a
+                  href={updateInstructions.updateInfo.releaseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-ghost w-full text-center block"
+                >
+                  View Full Release Notes
+                </a>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => {
-              setSettings({ ...settings, autoUpdate: !settings.autoUpdate })
-              saveSettings()
-            }}
-            className={`w-12 h-7 rounded-full transition-colors relative ${
-              settings.autoUpdate ? 'bg-accent' : 'bg-dark-elevated'
-            }`}
-          >
-            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-              settings.autoUpdate ? 'translate-x-6' : 'translate-x-1'
-            }`} />
-          </button>
         </div>
-
-        <div>
-          <label className="text-gray-400 text-sm mb-2 block">Check Interval</label>
-          <select
-            value={settings.checkInterval}
-            onChange={(e) => {
-              setSettings({ ...settings, checkInterval: parseInt(e.target.value) })
-              saveSettings()
-            }}
-            className="input w-full"
-          >
-            <option value={3600000}>Every hour</option>
-            <option value={21600000}>Every 6 hours</option>
-            <option value={86400000}>Daily</option>
-            <option value={604800000}>Weekly</option>
-          </select>
-        </div>
-      </div>
+      )}
 
       {/* GitHub Info */}
       <div className="card">
@@ -201,32 +251,74 @@ function UpdatesSettings() {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-400">Branch</span>
-            <span className="text-white">{settings.branch}</span>
+            <span className="text-white">main</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Latest Version</span>
+            <span className="text-white">v{updateInfo?.latestVersion || '...'}</span>
           </div>
         </div>
       </div>
 
-      {/* Update History */}
-      {logs.length > 0 && (
+      {/* Release History */}
+      {releaseHistory.length > 0 && (
         <div className="card">
-          <h3 className="text-white font-medium mb-4">Update History</h3>
-          <div className="space-y-3 max-h-48 overflow-y-auto">
-            {logs.map((log, idx) => (
-              <div key={idx} className="flex items-start gap-3 text-sm">
-                <div className={`w-2 h-2 rounded-full mt-1.5 ${
-                  log.success ? 'bg-green-500' : 'bg-red-500'
+          <h3 className="text-white font-medium mb-4">Release History</h3>
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {releaseHistory.map((release, idx) => (
+              <div
+                key={idx}
+                className="flex items-start gap-3 p-3 bg-dark-elevated rounded-lg"
+              >
+                <div className={`w-2 h-2 rounded-full mt-2 ${
+                  idx === 0 ? 'bg-accent' : 'bg-gray-500'
                 }`} />
-                <div>
-                  <p className="text-white">{log.version}</p>
-                  <p className="text-gray-500 text-xs">
-                    {new Date(log.date).toLocaleString()}
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-white font-medium truncate">
+                      {release.name || `v${release.version}`}
+                    </p>
+                    <span className="text-gray-500 text-xs flex-shrink-0">
+                      {formatDate(release.publishedAt)}
+                    </span>
+                  </div>
+                  {release.notes && (
+                    <p className="text-gray-400 text-sm mt-1 line-clamp-2">
+                      {release.notes.split('\n')[0]}
+                    </p>
+                  )}
+                  {release.url && (
+                    <a
+                      href={release.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent text-xs hover:underline mt-1 inline-block"
+                    >
+                      View release
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Help Section */}
+      <div className="card bg-dark-elevated/50">
+        <h3 className="text-white font-medium mb-2">How Updates Work</h3>
+        <div className="text-gray-400 text-sm space-y-2">
+          <p>
+            HomeFit uses Docker for deployment. When an update is available, you'll need to run the update commands on your server.
+          </p>
+          <p>
+            Updates include new features, bug fixes, and security patches. We recommend keeping your installation up to date.
+          </p>
+          <p>
+            Before updating, it's a good idea to create a backup using the Backup Management page.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

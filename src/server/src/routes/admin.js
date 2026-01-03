@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client'
 import { requireAdmin } from '../middleware/auth.js'
 import notificationService, { SMS_GATEWAYS } from '../services/notifications.js'
 import achievementService from '../services/achievements.js'
+import updateService from '../services/updates.js'
 import webpush from 'web-push'
 
 const router = express.Router()
@@ -446,22 +447,72 @@ router.post('/notifications/test-sms', async (req, res, next) => {
 // GET /api/admin/updates - Check for updates
 router.get('/updates', async (req, res, next) => {
   try {
-    // TODO: Implement GitHub update check
-    res.json({
-      currentVersion: process.env.APP_VERSION || '0.1.0',
-      latestVersion: '0.1.0',
-      updateAvailable: false
-    })
+    const updateInfo = await updateService.checkForUpdates()
+    res.json(updateInfo)
   } catch (error) {
     next(error)
   }
 })
 
-// POST /api/admin/updates/apply
+// GET /api/admin/updates/history - Get version history
+router.get('/updates/history', async (req, res, next) => {
+  try {
+    const history = await updateService.getVersionHistory()
+    res.json({ releases: history })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/admin/updates/check - Force check for updates (clears cache)
+router.post('/updates/check', async (req, res, next) => {
+  try {
+    updateService.clearCache()
+    const updateInfo = await updateService.checkForUpdates()
+    res.json(updateInfo)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/admin/updates/apply - Apply update (Docker-based)
 router.post('/updates/apply', async (req, res, next) => {
   try {
-    // TODO: Implement update application
-    res.json({ message: 'Update feature coming soon' })
+    // Check if update is available first
+    const updateInfo = await updateService.checkForUpdates()
+
+    if (!updateInfo.updateAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: 'No update available'
+      })
+    }
+
+    // In Docker environment, updates are applied by:
+    // 1. Pulling the latest image
+    // 2. Recreating the container
+    // This must be done from outside the container (host machine)
+
+    // We can't actually restart ourselves from inside Docker
+    // Instead, return instructions for the admin
+    res.json({
+      success: true,
+      message: 'Update available',
+      instructions: [
+        'To apply the update, run these commands on your server:',
+        'cd /path/to/production',
+        'git pull origin main',
+        'docker-compose down',
+        'docker-compose up -d --build',
+        'docker-compose exec app npx prisma db push'
+      ],
+      updateInfo: {
+        currentVersion: updateInfo.currentVersion,
+        newVersion: updateInfo.latestVersion,
+        releaseNotes: updateInfo.releaseNotes,
+        releaseUrl: updateInfo.releaseUrl
+      }
+    })
   } catch (error) {
     next(error)
   }
