@@ -4,7 +4,7 @@
 FROM docker:24-cli
 
 # Install Node.js and other tools
-RUN apk add --no-cache nodejs npm git curl bash
+RUN apk add --no-cache nodejs npm git curl wget bash
 
 WORKDIR /updater
 

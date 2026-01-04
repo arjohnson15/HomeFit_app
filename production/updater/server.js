@@ -55,9 +55,20 @@ function runCommand(cmd, cwd = PROJECT_DIR, timeoutMs = 300000) {
   })
 }
 
-// Health check
+// Track if frontend is ready
+let frontendReady = false
+
+// Health check - only healthy when frontend is built
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'homefit-updater' })
+  const distPath = path.join(PROJECT_DIR, 'src', 'client', 'dist', 'index.html')
+  const ready = fs.existsSync(distPath)
+
+  if (ready) {
+    frontendReady = true
+    res.json({ status: 'ok', service: 'homefit-updater', frontendReady: true })
+  } else {
+    res.status(503).json({ status: 'waiting', service: 'homefit-updater', frontendReady: false, message: 'Building frontend...' })
+  }
 })
 
 // Get update status
@@ -147,7 +158,30 @@ app.post('/clear-logs', (req, res) => {
   res.json({ message: 'Logs cleared' })
 })
 
-app.listen(PORT, '0.0.0.0', () => {
+// Check if frontend needs initial build on startup
+async function ensureFrontendBuilt() {
+  const distPath = path.join(PROJECT_DIR, 'src', 'client', 'dist')
+  const indexPath = path.join(distPath, 'index.html')
+
+  if (!fs.existsSync(indexPath)) {
+    console.log('[Updater] Frontend not built yet, building now...')
+    try {
+      const clientDir = path.join(PROJECT_DIR, 'src', 'client')
+      await runCommand('npm install', clientDir, 180000)
+      await runCommand('npm run build', clientDir, 180000)
+      console.log('[Updater] Frontend built successfully!')
+    } catch (error) {
+      console.error('[Updater] Failed to build frontend:', error.message)
+    }
+  } else {
+    console.log('[Updater] Frontend already built')
+  }
+}
+
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`[Updater] HomeFit Updater Service running on port ${PORT}`)
   console.log(`[Updater] Project directory: ${PROJECT_DIR}`)
+
+  // Build frontend if needed
+  await ensureFrontendBuilt()
 })
