@@ -1,9 +1,71 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import achievementService from '../services/achievements.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
+
+// GET /api/social/discoverable - Get public users that can be added as friends
+router.get('/discoverable', async (req, res, next) => {
+  try {
+    // Get existing friendships (to exclude already connected users)
+    const existingFriendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { userId: req.user.id },
+          { friendId: req.user.id }
+        ]
+      },
+      select: {
+        userId: true,
+        friendId: true
+      }
+    })
+
+    // Build list of user IDs to exclude
+    const excludeIds = new Set([req.user.id])
+    existingFriendships.forEach(f => {
+      if (f.userId === req.user.id) {
+        excludeIds.add(f.friendId)
+      } else {
+        excludeIds.add(f.userId)
+      }
+    })
+
+    // Get public users (those with PUBLIC visibility)
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { notIn: Array.from(excludeIds) } },
+          {
+            settings: {
+              profileVisibility: 'PUBLIC'
+            }
+          }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        avatarUrl: true
+      },
+      orderBy: { name: 'asc' },
+      take: 50
+    })
+
+    const formattedUsers = users.map(u => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      avatarUrl: u.avatarUrl,
+      requiresApproval: false
+    }))
+
+    res.json({ users: formattedUsers })
+  } catch (error) {
+    next(error)
+  }
+})
 
 // GET /api/social/search - Search for users to add as friends
 router.get('/search', async (req, res, next) => {
@@ -169,17 +231,27 @@ router.get('/friends', async (req, res, next) => {
       },
       include: {
         user: {
-          select: { id: true, name: true, username: true }
+          select: { id: true, name: true, username: true, avatarUrl: true }
         },
         friend: {
-          select: { id: true, name: true, username: true }
+          select: { id: true, name: true, username: true, avatarUrl: true }
         }
       }
     })
 
-    // Extract friend info
+    // Get follows for current user
+    const follows = await prisma.friendFollow.findMany({
+      where: { followerId: req.user.id }
+    })
+    const followedIds = new Set(follows.map(f => f.followedId))
+
+    // Extract friend info with follow status
     const friends = friendships.map(f => {
-      return f.userId === req.user.id ? f.friend : f.user
+      const friendData = f.userId === req.user.id ? f.friend : f.user
+      return {
+        ...friendData,
+        isFollowing: followedIds.has(friendData.id)
+      }
     })
 
     res.json({ friends })
@@ -372,12 +444,124 @@ router.delete('/friend/:id', async (req, res, next) => {
       }
     })
 
+    // Also remove any follows
+    await prisma.friendFollow.deleteMany({
+      where: {
+        OR: [
+          { followerId: req.user.id, followedId: req.params.id },
+          { followerId: req.params.id, followedId: req.user.id }
+        ]
+      }
+    })
+
     // Update user stats to track friend removal
     await achievementService.checkAchievements(req.user.id, {
       friendRemoved: true
     })
 
     res.json({ message: 'Friend removed' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ===========================================
+// Follow Feature Routes
+// ===========================================
+
+// POST /api/social/follow/:friendId - Follow a friend
+router.post('/follow/:friendId', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+    const { notifyWorkouts = true, notifyAchievements = true, notifyStreaks = true } = req.body
+
+    // Verify friendship exists and is accepted
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Must be friends to follow' })
+    }
+
+    // Create or update follow
+    const follow = await prisma.friendFollow.upsert({
+      where: {
+        followerId_followedId: { followerId: req.user.id, followedId: friendId }
+      },
+      update: { notifyWorkouts, notifyAchievements, notifyStreaks },
+      create: {
+        followerId: req.user.id,
+        followedId: friendId,
+        notifyWorkouts,
+        notifyAchievements,
+        notifyStreaks
+      }
+    })
+
+    res.json({ follow, message: 'Now following' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/social/follow/:friendId - Unfollow a friend
+router.delete('/follow/:friendId', async (req, res, next) => {
+  try {
+    await prisma.friendFollow.deleteMany({
+      where: {
+        followerId: req.user.id,
+        followedId: req.params.friendId
+      }
+    })
+    res.json({ message: 'Unfollowed' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PATCH /api/social/follow/:friendId - Update follow notification preferences
+router.patch('/follow/:friendId', async (req, res, next) => {
+  try {
+    const { notifyWorkouts, notifyAchievements, notifyStreaks } = req.body
+
+    const follow = await prisma.friendFollow.update({
+      where: {
+        followerId_followedId: {
+          followerId: req.user.id,
+          followedId: req.params.friendId
+        }
+      },
+      data: {
+        ...(notifyWorkouts !== undefined && { notifyWorkouts }),
+        ...(notifyAchievements !== undefined && { notifyAchievements }),
+        ...(notifyStreaks !== undefined && { notifyStreaks })
+      }
+    })
+
+    res.json({ follow })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/social/following - Get users you follow with preferences
+router.get('/following', async (req, res, next) => {
+  try {
+    const following = await prisma.friendFollow.findMany({
+      where: { followerId: req.user.id },
+      include: {
+        followed: {
+          select: { id: true, name: true, username: true, avatarUrl: true }
+        }
+      }
+    })
+    res.json({ following })
   } catch (error) {
     next(error)
   }
@@ -872,9 +1056,7 @@ router.get('/leaderboard/global', async (req, res, next) => {
             userId: { in: userIds },
             date: { gte: startDate }
           },
-          exercise: {
-            name: { contains: cardioType, mode: 'insensitive' }
-          }
+          exerciseName: { contains: cardioType, mode: 'insensitive' }
         },
         include: {
           session: { select: { userId: true } },
@@ -1045,9 +1227,7 @@ router.get('/leaderboard/friends', async (req, res, next) => {
             userId: { in: friendIds },
             date: { gte: startDate }
           },
-          exercise: {
-            name: { contains: cardioType, mode: 'insensitive' }
-          }
+          exerciseName: { contains: cardioType, mode: 'insensitive' }
         },
         include: {
           session: { select: { userId: true } },
@@ -1101,6 +1281,200 @@ router.get('/leaderboard/friends', async (req, res, next) => {
     userRank = leaderboard.findIndex(u => u.id === req.user.id) + 1
 
     res.json({ leaderboard, userRank, category, metric, period })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/social/friend/:friendId/workouts - Get friend's recent workouts (if they share)
+router.get('/friend/:friendId/workouts', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+    const { limit = 10 } = req.query
+
+    // Check friendship status
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user', canView: false })
+    }
+
+    // Check if friend shares workouts
+    const friendSettings = await prisma.userSettings.findUnique({
+      where: { userId: friendId }
+    })
+
+    if (!friendSettings?.shareWorkouts) {
+      return res.json({ workouts: [], canView: false, message: 'This user keeps their workout details private' })
+    }
+
+    // Get recent workouts with exercises and sets
+    const workouts = await prisma.workoutSession.findMany({
+      where: {
+        userId: friendId,
+        endTime: { not: null }
+      },
+      include: {
+        exerciseLogs: {
+          include: {
+            sets: {
+              orderBy: { setNumber: 'asc' }
+            }
+          },
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: parseInt(limit)
+    })
+
+    // Format response with summary view (best set per exercise)
+    const formattedWorkouts = workouts.map(workout => ({
+      id: workout.id,
+      name: workout.name,
+      date: workout.date,
+      duration: workout.duration,
+      exercises: workout.exerciseLogs.map(log => {
+        // Find best set (highest weight or most reps)
+        const bestSet = log.sets.reduce((best, set) => {
+          if (!best) return set
+          if (set.weight > (best.weight || 0)) return set
+          if (set.weight === best.weight && set.reps > (best.reps || 0)) return set
+          return best
+        }, null)
+
+        return {
+          name: log.exerciseName,
+          setCount: log.sets.length,
+          bestSet: bestSet ? {
+            weight: bestSet.weight,
+            reps: bestSet.reps,
+            isPR: bestSet.isPR
+          } : null
+        }
+      })
+    }))
+
+    res.json({ workouts: formattedWorkouts, canView: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/social/friend/:friendId/schedule - Get friend's weekly schedule (if they share)
+router.get('/friend/:friendId/schedule', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+
+    // Check friendship status
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user', canView: false })
+    }
+
+    // Check if friend shares workouts
+    const friendSettings = await prisma.userSettings.findUnique({
+      where: { userId: friendId }
+    })
+
+    if (!friendSettings?.shareWorkouts) {
+      return res.json({ schedule: [], canView: false, message: 'This user keeps their workout schedule private' })
+    }
+
+    // Get weekly schedule
+    const schedule = await prisma.weeklySchedule.findMany({
+      where: { userId: friendId },
+      include: {
+        exercises: {
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { dayOfWeek: 'asc' }
+    })
+
+    // Format response
+    const formattedSchedule = schedule.map(day => ({
+      day: day.dayOfWeek,
+      name: day.name,
+      isRestDay: day.isRestDay,
+      exercises: day.exercises.map(ex => ({
+        name: ex.exerciseName,
+        sets: ex.sets,
+        reps: ex.reps
+      }))
+    }))
+
+    res.json({ schedule: formattedSchedule, canView: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/social/friend/:friendId/goals - Get friend's fitness goals (if they share progress)
+router.get('/friend/:friendId/goals', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+
+    // Check friendship status
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user', canView: false })
+    }
+
+    // Check if friend shares progress
+    const friendSettings = await prisma.userSettings.findUnique({
+      where: { userId: friendId }
+    })
+
+    if (!friendSettings?.shareProgress) {
+      return res.json({ goals: [], canView: false, message: 'This user keeps their goals private' })
+    }
+
+    // Get active goals
+    const goals = await prisma.fitnessGoal.findMany({
+      where: {
+        userId: friendId,
+        status: 'ACTIVE'
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    // Format response
+    const formattedGoals = goals.map(goal => ({
+      id: goal.id,
+      type: goal.type,
+      title: goal.title,
+      targetValue: goal.targetValue,
+      currentValue: goal.currentValue,
+      unit: goal.unit,
+      deadline: goal.deadline,
+      progress: goal.targetValue > 0 ? Math.round((goal.currentValue / goal.targetValue) * 100) : 0
+    }))
+
+    res.json({ goals: formattedGoals, canView: true })
   } catch (error) {
     next(error)
   }

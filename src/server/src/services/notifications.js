@@ -1,8 +1,17 @@
 import nodemailer from 'nodemailer'
 import webpush from 'web-push'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 
-const prisma = new PrismaClient()
+// HTML escape function to prevent XSS in email templates
+const escapeHtml = (str) => {
+  if (typeof str !== 'string') return str
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 // SMS Carrier Email-to-SMS Gateways
 const SMS_GATEWAYS = {
@@ -248,12 +257,13 @@ class NotificationService {
 
   // Send workout reminder
   async sendWorkoutReminder(userId, workoutName) {
+    const safeName = escapeHtml(workoutName)
     return this.notifyUser(userId, {
       title: 'Time to Work Out!',
-      body: `Your ${workoutName} workout is scheduled for today. Let's get moving!`,
+      body: `Your ${safeName} workout is scheduled for today. Let's get moving!`,
       html: `
         <h1>Time to Work Out!</h1>
-        <p>Your <strong>${workoutName}</strong> workout is scheduled for today.</p>
+        <p>Your <strong>${safeName}</strong> workout is scheduled for today.</p>
         <p>Let's get moving!</p>
         <a href="/today" style="display:inline-block;padding:10px 20px;background:#0a84ff;color:white;text-decoration:none;border-radius:8px;">Start Workout</a>
       `,
@@ -263,14 +273,16 @@ class NotificationService {
 
   // Send achievement notification
   async sendAchievement(userId, achievement) {
+    const safeName = escapeHtml(achievement.name)
+    const safeDesc = escapeHtml(achievement.description)
     return this.notifyUser(userId, {
       title: 'Achievement Unlocked!',
-      body: achievement.name,
+      body: safeName,
       html: `
         <h1>Achievement Unlocked!</h1>
         <p>Congratulations! You've earned:</p>
-        <h2>${achievement.name}</h2>
-        <p>${achievement.description}</p>
+        <h2>${safeName}</h2>
+        <p>${safeDesc}</p>
       `,
       url: '/profile'
     })
@@ -278,16 +290,19 @@ class NotificationService {
 
   // Send weekly progress summary
   async sendWeeklyProgress(userId, stats) {
+    const safeWorkouts = escapeHtml(String(stats.workouts))
+    const safeSets = escapeHtml(String(stats.sets))
+    const safeVolume = escapeHtml(String(stats.volume))
     return this.notifyUser(userId, {
       title: 'Your Weekly Progress',
-      body: `You completed ${stats.workouts} workouts this week!`,
+      body: `You completed ${safeWorkouts} workouts this week!`,
       html: `
         <h1>Your Weekly Progress</h1>
         <p>Great work this week!</p>
         <ul>
-          <li><strong>Workouts:</strong> ${stats.workouts}</li>
-          <li><strong>Total Sets:</strong> ${stats.sets}</li>
-          <li><strong>Total Volume:</strong> ${stats.volume} lbs</li>
+          <li><strong>Workouts:</strong> ${safeWorkouts}</li>
+          <li><strong>Total Sets:</strong> ${safeSets}</li>
+          <li><strong>Total Volume:</strong> ${safeVolume} lbs</li>
         </ul>
         <a href="/history" style="display:inline-block;padding:10px 20px;background:#0a84ff;color:white;text-decoration:none;border-radius:8px;">View Details</a>
       `,

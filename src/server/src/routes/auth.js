@@ -3,12 +3,11 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { body, validationResult } from 'express-validator'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { authenticateToken } from '../middleware/auth.js'
 import notificationService from '../services/notifications.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // Validation middleware
 const validateSignup = [
@@ -23,13 +22,30 @@ const validateLogin = [
   body('password').exists()
 ]
 
-// Generate JWT token
-const generateToken = (userId) => {
+// Generate short-lived access token (15 minutes)
+const generateAccessToken = (userId) => {
   return jwt.sign(
-    { userId },
+    { userId, type: 'access' },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: '15m' }
   )
+}
+
+// Generate long-lived refresh token (1 year)
+const generateRefreshToken = async (userId, deviceInfo = null) => {
+  const token = crypto.randomBytes(64).toString('hex')
+  const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+
+  await prisma.refreshToken.create({
+    data: {
+      token,
+      userId,
+      deviceInfo,
+      expiresAt
+    }
+  })
+
+  return token
 }
 
 // POST /api/auth/signup
@@ -40,7 +56,7 @@ router.post('/signup', validateSignup, async (req, res, next) => {
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() })
     }
 
-    const { email, username, password, name } = req.body
+    const { email, username, password, name, shareWorkouts } = req.body
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({
@@ -68,7 +84,9 @@ router.post('/signup', validateSignup, async (req, res, next) => {
         password: hashedPassword,
         name,
         settings: {
-          create: {} // Create default settings
+          create: {
+            shareWorkouts: shareWorkouts === true
+          }
         }
       },
       select: {
@@ -82,12 +100,15 @@ router.post('/signup', validateSignup, async (req, res, next) => {
       }
     })
 
-    const token = generateToken(user.id)
+    const deviceInfo = req.headers['user-agent'] || null
+    const token = generateAccessToken(user.id)
+    const refreshToken = await generateRefreshToken(user.id, deviceInfo)
 
     res.status(201).json({
       message: 'Account created successfully',
       user,
-      token
+      token,
+      refreshToken
     })
   } catch (error) {
     next(error)
@@ -128,7 +149,9 @@ router.post('/login', validateLogin, async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password' })
     }
 
-    const token = generateToken(user.id)
+    const deviceInfo = req.headers['user-agent'] || null
+    const token = generateAccessToken(user.id)
+    const refreshToken = await generateRefreshToken(user.id, deviceInfo)
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
@@ -136,8 +159,74 @@ router.post('/login', validateLogin, async (req, res, next) => {
     res.json({
       message: 'Login successful',
       user: userWithoutPassword,
-      token
+      token,
+      refreshToken
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/auth/refresh - Get new access token using refresh token
+router.post('/refresh', async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required' })
+    }
+
+    // Find the refresh token in database
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            name: true,
+            role: true,
+            trainingStyle: true
+          }
+        }
+      }
+    })
+
+    // Check if token exists and is not expired
+    if (!storedToken || storedToken.expiresAt < new Date()) {
+      // Clean up expired token if it exists
+      if (storedToken) {
+        await prisma.refreshToken.delete({ where: { id: storedToken.id } })
+      }
+      return res.status(401).json({ message: 'Invalid or expired refresh token' })
+    }
+
+    // Generate new access token
+    const newAccessToken = generateAccessToken(storedToken.userId)
+
+    res.json({
+      token: newAccessToken,
+      user: storedToken.user
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/auth/logout - Invalidate refresh token
+router.post('/logout', async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (refreshToken) {
+      // Delete the refresh token from database
+      await prisma.refreshToken.deleteMany({
+        where: { token: refreshToken }
+      })
+    }
+
+    res.json({ message: 'Logged out successfully' })
   } catch (error) {
     next(error)
   }
@@ -215,12 +304,12 @@ router.post('/forgot-password', [
 // POST /api/auth/reset-password - Reset password with token
 router.post('/reset-password', [
   body('token').exists(),
-  body('password').isLength({ min: 6 })
+  body('password').isLength({ min: 8 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' })
+      return res.status(400).json({ message: 'Password must be at least 8 characters' })
     }
 
     const { token, password } = req.body

@@ -6,8 +6,12 @@ function WarmupCooldownSettings() {
   const [settings, setSettings] = useState({
     showWarmupSuggestions: true,
     showCooldownSuggestions: true,
+    warmupDefaultOn: true,
+    cooldownDefaultOn: true,
     useAiForWarmups: false,
-    showDailyTips: true
+    showDailyTips: true,
+    showWeightTracking: false,
+    weightTrackingDefaultOn: true
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -28,8 +32,12 @@ function WarmupCooldownSettings() {
       setSettings({
         showWarmupSuggestions: warmupRes.data.showWarmupSuggestions,
         showCooldownSuggestions: warmupRes.data.showCooldownSuggestions,
+        warmupDefaultOn: warmupRes.data.warmupDefaultOn ?? true,
+        cooldownDefaultOn: warmupRes.data.cooldownDefaultOn ?? true,
         useAiForWarmups: warmupRes.data.useAiForWarmups,
-        showDailyTips: warmupRes.data.showDailyTips
+        showDailyTips: warmupRes.data.showDailyTips,
+        showWeightTracking: warmupRes.data.showWeightTracking ?? false,
+        weightTrackingDefaultOn: warmupRes.data.weightTrackingDefaultOn ?? true
       })
 
       // Check if user has API key configured
@@ -114,15 +122,12 @@ function WarmupCooldownSettings() {
 
       {/* Warmup Settings */}
       <div className="card space-y-4">
-        <h3 className="text-white font-medium flex items-center gap-2">
-          <span className="text-xl">🔥</span>
-          Warmup Suggestions
-        </h3>
+        <h3 className="text-white font-medium">Warmup Suggestions</h3>
 
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-white">Show Warmup Section</p>
-            <p className="text-gray-500 text-sm">Display warmup suggestions on the Today page</p>
+            <p className="text-white">Enable Warmup</p>
+            <p className="text-gray-500 text-sm">Show warmup toggle on the Today page</p>
           </div>
           <button
             onClick={() => toggleSetting('showWarmupSuggestions')}
@@ -136,19 +141,36 @@ function WarmupCooldownSettings() {
             }`} />
           </button>
         </div>
+
+        {settings.showWarmupSuggestions && (
+          <div className="flex items-center justify-between pl-4 border-l-2 border-orange-500/30">
+            <div>
+              <p className="text-white">Show by default</p>
+              <p className="text-gray-500 text-sm">Toggle starts ON when you open Today page</p>
+            </div>
+            <button
+              onClick={() => toggleSetting('warmupDefaultOn')}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.warmupDefaultOn ? 'bg-orange-500' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.warmupDefaultOn ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Cooldown Settings */}
       <div className="card space-y-4">
-        <h3 className="text-white font-medium flex items-center gap-2">
-          <span className="text-xl">🧊</span>
-          Cooldown Suggestions
-        </h3>
+        <h3 className="text-white font-medium">Cooldown Suggestions</h3>
 
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-white">Show Cooldown Section</p>
-            <p className="text-gray-500 text-sm">Display stretch suggestions after your workout</p>
+            <p className="text-white">Enable Cooldown</p>
+            <p className="text-gray-500 text-sm">Show cooldown toggle on the Today page</p>
           </div>
           <button
             onClick={() => toggleSetting('showCooldownSuggestions')}
@@ -162,6 +184,76 @@ function WarmupCooldownSettings() {
             }`} />
           </button>
         </div>
+
+        {settings.showCooldownSuggestions && (
+          <div className="flex items-center justify-between pl-4 border-l-2 border-cyan-500/30">
+            <div>
+              <p className="text-white">Show by default</p>
+              <p className="text-gray-500 text-sm">Toggle starts ON when you open Today page</p>
+            </div>
+            <button
+              onClick={() => toggleSetting('cooldownDefaultOn')}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.cooldownDefaultOn ? 'bg-cyan-500' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.cooldownDefaultOn ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Weight Tracking */}
+      <div className="card space-y-4">
+        <h3 className="text-white font-medium flex items-center gap-2">
+          <span className="text-xl">⚖️</span>
+          Daily Weight Tracking
+        </h3>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white">Enable Weight Tracking</p>
+            <p className="text-gray-500 text-sm">Show weight input on the Today page (once daily)</p>
+          </div>
+          <button
+            onClick={() => toggleSetting('showWeightTracking')}
+            disabled={saving}
+            className={`w-12 h-7 rounded-full transition-colors relative ${
+              settings.showWeightTracking ? 'bg-accent' : 'bg-dark-elevated'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+              settings.showWeightTracking ? 'translate-x-6' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+
+        {settings.showWeightTracking && (
+          <div className="flex items-center justify-between pl-4 border-l-2 border-blue-500/30">
+            <div>
+              <p className="text-white">Show by default</p>
+              <p className="text-gray-500 text-sm">Card visible when you open Today page</p>
+            </div>
+            <button
+              onClick={() => toggleSetting('weightTrackingDefaultOn')}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.weightTrackingDefaultOn ? 'bg-blue-500' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.weightTrackingDefaultOn ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        )}
+
+        <p className="text-gray-500 text-xs">
+          Track your weight daily to monitor progress. You can view your weight history in the Nutrition section.
+        </p>
       </div>
 
       {/* AI Enhancement */}
@@ -241,6 +333,18 @@ function WarmupCooldownSettings() {
         </p>
 
         <div className="space-y-3">
+          {settings.showWeightTracking && (
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
+              <div className="flex items-center gap-2 text-blue-400 font-medium text-sm">
+                <span>⚖️</span>
+                <span>Daily Weight</span>
+              </div>
+              <p className="text-gray-400 text-xs mt-1">
+                Log your weight once per day
+              </p>
+            </div>
+          )}
+
           {settings.showWarmupSuggestions && (
             <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/30">
               <div className="flex items-center gap-2 text-orange-400 font-medium text-sm">

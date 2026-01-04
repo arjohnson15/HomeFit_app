@@ -5,7 +5,11 @@ import api from '../../services/api'
 function AIAdminSettings() {
   const [settings, setSettings] = useState({
     globalOpenaiApiKey: '',
-    globalOpenaiEnabled: false
+    globalOpenaiEnabled: false,
+    globalAiProvider: 'openai',
+    globalOllamaEndpoint: '',
+    globalOllamaModel: '',
+    globalOllamaApiKey: ''
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -14,6 +18,9 @@ function AIAdminSettings() {
   const [testResult, setTestResult] = useState(null)
   const [testing, setTesting] = useState(false)
   const [error, setError] = useState(null)
+  const [ollamaModels, setOllamaModels] = useState([])
+
+  const ollamaModelSuggestions = ['llama2', 'llama3', 'mistral', 'codellama', 'gemma', 'phi', 'neural-chat', 'starling-lm']
 
   useEffect(() => {
     fetchSettings()
@@ -25,7 +32,11 @@ function AIAdminSettings() {
       const s = response.data.settings
       setSettings({
         globalOpenaiApiKey: s.globalOpenaiApiKey || '',
-        globalOpenaiEnabled: s.globalOpenaiEnabled || false
+        globalOpenaiEnabled: s.globalOpenaiEnabled || false,
+        globalAiProvider: s.globalAiProvider || 'openai',
+        globalOllamaEndpoint: s.globalOllamaEndpoint || '',
+        globalOllamaModel: s.globalOllamaModel || '',
+        globalOllamaApiKey: s.globalOllamaApiKey || ''
       })
     } catch (error) {
       console.error('Error fetching AI settings:', error)
@@ -50,25 +61,62 @@ function AIAdminSettings() {
   }
 
   const testConnection = async () => {
-    if (!settings.globalOpenaiApiKey) {
-      setTestResult({ success: false, message: 'Please enter an API key first' })
-      return
-    }
     setTesting(true)
     setTestResult(null)
+
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${settings.globalOpenaiApiKey}`
+      if (settings.globalAiProvider === 'openai') {
+        if (!settings.globalOpenaiApiKey) {
+          setTestResult({ success: false, message: 'Please enter an API key first' })
+          setTesting(false)
+          return
         }
-      })
-      if (response.ok) {
-        setTestResult({ success: true, message: 'API key is valid!' })
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${settings.globalOpenaiApiKey}`
+          }
+        })
+        if (response.ok) {
+          setTestResult({ success: true, message: 'API key is valid!' })
+        } else {
+          setTestResult({ success: false, message: 'Invalid API key' })
+        }
       } else {
-        setTestResult({ success: false, message: 'Invalid API key' })
+        // Test Ollama connection
+        if (!settings.globalOllamaEndpoint) {
+          setTestResult({ success: false, message: 'Please enter an Ollama endpoint first' })
+          setTesting(false)
+          return
+        }
+        try {
+          const headers = {}
+          if (settings.globalOllamaApiKey) {
+            headers['Authorization'] = `Bearer ${settings.globalOllamaApiKey}`
+          }
+          const response = await fetch(`${settings.globalOllamaEndpoint}/api/tags`, { headers })
+          if (response.ok) {
+            const data = await response.json()
+            const models = data.models || []
+            setOllamaModels(models)
+            setTestResult({
+              success: true,
+              message: `Connected! ${models.length} model${models.length !== 1 ? 's' : ''} available.`
+            })
+            // Auto-select first model if none selected
+            if (!settings.globalOllamaModel && models.length > 0) {
+              setSettings({ ...settings, globalOllamaModel: models[0].name })
+            }
+          } else if (response.status === 401) {
+            setTestResult({ success: false, message: 'Authentication required. Add your API key.' })
+          } else {
+            setTestResult({ success: false, message: 'Could not connect to Ollama' })
+          }
+        } catch (error) {
+          setTestResult({ success: false, message: 'Connection failed. Is Ollama running?' })
+        }
       }
     } catch (error) {
-      setTestResult({ success: false, message: 'Connection failed. Check your key.' })
+      setTestResult({ success: false, message: 'Connection failed. Check your settings.' })
     } finally {
       setTesting(false)
     }
@@ -111,7 +159,7 @@ function AIAdminSettings() {
           <div>
             <p className="text-white font-medium">Global AI Access</p>
             <p className="text-gray-400 text-sm mt-1">
-              Provide your OpenAI API key to enable AI features for all users. Users can still add their own key for privacy, which will override the global key.
+              Configure AI for all users. Choose OpenAI (cloud) or Ollama (self-hosted). Users can still add their own config for privacy.
             </p>
           </div>
         </div>
@@ -122,7 +170,7 @@ function AIAdminSettings() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-white font-medium">Enable Global AI for Users</p>
-            <p className="text-gray-500 text-sm">Share your API key with all users</p>
+            <p className="text-gray-500 text-sm">Share your AI configuration with all users</p>
           </div>
           <button
             onClick={() => setSettings({ ...settings, globalOpenaiEnabled: !settings.globalOpenaiEnabled })}
@@ -137,62 +185,171 @@ function AIAdminSettings() {
         </div>
       </div>
 
-      {/* API Key Input */}
+      {/* Provider Selection */}
       <div className="card space-y-4">
-        <h3 className="text-white font-medium">OpenAI API Key</h3>
-        <div className="relative">
-          <input
-            type={showKey ? 'text' : 'password'}
-            value={settings.globalOpenaiApiKey}
-            onChange={(e) => setSettings({ ...settings, globalOpenaiApiKey: e.target.value })}
-            placeholder="sk-..."
-            className="input w-full pr-20"
-          />
+        <h3 className="text-white font-medium">AI Provider</h3>
+        <p className="text-gray-400 text-sm">Choose the AI provider for all users</p>
+        <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => setShowKey(!showKey)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 btn-ghost p-2"
+            onClick={() => setSettings({ ...settings, globalAiProvider: 'openai' })}
+            className={`p-4 rounded-xl text-left transition-all ${
+              settings.globalAiProvider === 'openai'
+                ? 'bg-accent/20 border-2 border-accent'
+                : 'bg-dark-elevated border-2 border-transparent hover:border-gray-600'
+            }`}
           >
-            {showKey ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
+            <p className="text-white font-medium">OpenAI</p>
+            <p className="text-gray-400 text-sm mt-1">ChatGPT API (cloud)</p>
+          </button>
+          <button
+            onClick={() => setSettings({ ...settings, globalAiProvider: 'ollama' })}
+            className={`p-4 rounded-xl text-left transition-all ${
+              settings.globalAiProvider === 'ollama'
+                ? 'bg-accent/20 border-2 border-accent'
+                : 'bg-dark-elevated border-2 border-transparent hover:border-gray-600'
+            }`}
+          >
+            <p className="text-white font-medium">Ollama</p>
+            <p className="text-gray-400 text-sm mt-1">Self-hosted AI</p>
           </button>
         </div>
-        <div className="flex gap-3">
+      </div>
+
+      {/* OpenAI Configuration */}
+      {settings.globalAiProvider === 'openai' && (
+        <div className="card space-y-4">
+          <h3 className="text-white font-medium">OpenAI API Key</h3>
+          <div className="relative">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={settings.globalOpenaiApiKey}
+              onChange={(e) => setSettings({ ...settings, globalOpenaiApiKey: e.target.value })}
+              placeholder="sk-..."
+              className="input w-full pr-20"
+            />
+            <button
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 btn-ghost p-2"
+            >
+              {showKey ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={testConnection}
+              disabled={testing}
+              className="btn-secondary flex-1"
+            >
+              {testing ? 'Testing...' : 'Test Connection'}
+            </button>
+            <a
+              href="https://platform.openai.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost flex items-center gap-2"
+            >
+              Get Key
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+          {testResult && (
+            <div className={`p-3 rounded-xl ${testResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              {testResult.message}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ollama Configuration */}
+      {settings.globalAiProvider === 'ollama' && (
+        <div className="card space-y-4">
+          <h3 className="text-white font-medium">Ollama Server</h3>
+          <div>
+            <label className="text-gray-400 text-sm mb-2 block">Endpoint URL</label>
+            <input
+              type="text"
+              value={settings.globalOllamaEndpoint}
+              onChange={(e) => setSettings({ ...settings, globalOllamaEndpoint: e.target.value })}
+              placeholder="http://localhost:11434"
+              className="input w-full"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-sm mb-2 block">Model</label>
+            {ollamaModels.length > 0 ? (
+              <>
+                <select
+                  value={settings.globalOllamaModel}
+                  onChange={(e) => setSettings({ ...settings, globalOllamaModel: e.target.value })}
+                  className="input w-full"
+                >
+                  <option value="">Select a model...</option>
+                  {ollamaModels.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.name} ({(m.size / 1e9).toFixed(1)}GB)
+                    </option>
+                  ))}
+                </select>
+                <p className="text-gray-500 text-xs mt-2">{ollamaModels.length} models available on your server</p>
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={settings.globalOllamaModel}
+                  onChange={(e) => setSettings({ ...settings, globalOllamaModel: e.target.value })}
+                  placeholder="llama2"
+                  list="ollama-models-admin"
+                  className="input w-full"
+                />
+                <datalist id="ollama-models-admin">
+                  {ollamaModelSuggestions.map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+                <p className="text-gray-500 text-xs mt-2">Test connection to see available models</p>
+              </>
+            )}
+          </div>
+          <div>
+            <label className="text-gray-400 text-sm mb-2 block">API Key (Optional)</label>
+            <input
+              type="password"
+              value={settings.globalOllamaApiKey}
+              onChange={(e) => setSettings({ ...settings, globalOllamaApiKey: e.target.value })}
+              placeholder="Leave empty if no auth required"
+              className="input w-full"
+            />
+            <p className="text-gray-500 text-xs mt-2">Required only if your Ollama server uses proxy authentication</p>
+          </div>
           <button
             onClick={testConnection}
             disabled={testing}
-            className="btn-secondary flex-1"
+            className="btn-secondary w-full"
           >
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
-          <a
-            href="https://platform.openai.com/api-keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-ghost flex items-center gap-2"
-          >
-            Get Key
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
+          {testResult && (
+            <div className={`p-3 rounded-xl ${testResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              {testResult.message}
+            </div>
+          )}
         </div>
-        {testResult && (
-          <div className={`p-3 rounded-xl ${testResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-            {testResult.message}
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Usage Info */}
-      {settings.globalOpenaiEnabled && settings.globalOpenaiApiKey && (
+      {/* Usage Info - OpenAI */}
+      {settings.globalOpenaiEnabled && settings.globalAiProvider === 'openai' && settings.globalOpenaiApiKey && (
         <div className="card bg-yellow-500/10 border border-yellow-500/30">
           <div className="flex gap-3">
             <svg className="w-6 h-6 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,6 +359,23 @@ function AIAdminSettings() {
               <p className="text-yellow-400 font-medium">Cost Warning</p>
               <p className="text-yellow-400/80 text-sm mt-1">
                 All users will use your API key for AI features. Monitor your OpenAI usage to avoid unexpected charges.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Info - Ollama */}
+      {settings.globalOpenaiEnabled && settings.globalAiProvider === 'ollama' && settings.globalOllamaEndpoint && (
+        <div className="card bg-purple-500/10 border border-purple-500/30">
+          <div className="flex gap-3">
+            <svg className="w-6 h-6 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+            </svg>
+            <div>
+              <p className="text-purple-400 font-medium">Self-Hosted AI Active</p>
+              <p className="text-purple-400/80 text-sm mt-1">
+                All users will connect to your Ollama server. Ensure your server has enough resources and is accessible to all users.
               </p>
             </div>
           </div>

@@ -4,6 +4,9 @@ import api from '../services/api'
 import ChatWidget from '../components/ChatWidget'
 import { useWorkoutSocket } from '../hooks/useWorkoutSocket'
 import { SocialSection } from '../components/SocialCards'
+import WeightTrackingCard from '../components/WeightTrackingCard'
+import { SyncStatus } from '../components/SyncStatus'
+import { useOfflineWorkout } from '../hooks/useOfflineWorkout'
 
 function Today() {
   const [todayWorkout, setTodayWorkout] = useState(null)
@@ -38,10 +41,16 @@ function Today() {
   const [recurringWorkouts, setRecurringWorkouts] = useState([])
   const [warmupChecked, setWarmupChecked] = useState({})
   const [cooldownChecked, setCooldownChecked] = useState({})
-  const [warmupExpanded, setWarmupExpanded] = useState(false) // Start collapsed
-  const [cooldownExpanded, setCooldownExpanded] = useState(false) // Start collapsed, expand after workout
-  const [warmupDismissedToday, setWarmupDismissedToday] = useState(false)
-  const [cooldownDismissedToday, setCooldownDismissedToday] = useState(false)
+  const [warmupToggleOn, setWarmupToggleOn] = useState(() => {
+    const saved = localStorage.getItem('warmupToggleOn')
+    return saved === 'true'
+  }) // Toggle state (initialized from localStorage, then settings)
+  const [cooldownToggleOn, setCooldownToggleOn] = useState(() => {
+    const saved = localStorage.getItem('cooldownToggleOn')
+    return saved === 'true'
+  }) // Toggle state (initialized from localStorage, then settings)
+  const [showWeightTracking, setShowWeightTracking] = useState(false) // Weight tracking feature
+  const [weightUnit, setWeightUnit] = useState('LBS') // User's preferred weight unit
   const [showStillWorkingOut, setShowStillWorkingOut] = useState(false) // Runaway timer prompt
   const [showEditTimer, setShowEditTimer] = useState(false) // Edit timer modal
   const [editedTime, setEditedTime] = useState({ hours: 0, minutes: 0 }) // For editing elapsed time
@@ -50,6 +59,23 @@ function Today() {
   const restTimerRef = useRef(null)
   const isRemoteUpdateRef = useRef(false) // Track if update is from another tab/device
   const chatWidgetRef = useRef(null) // Ref to control ChatWidget programmatically
+
+  // Offline-first workout support
+  const {
+    isOnline,
+    pendingSyncCount,
+    cacheWorkoutData,
+    cacheHistory,
+    getCachedWorkout,
+    getCachedExerciseDetails,
+    getCachedHistory,
+    startWorkout: startWorkoutOffline,
+    logExercise: logExerciseOffline,
+    completeSet: completeSetOffline,
+    togglePause: togglePauseOffline,
+    endWorkout: endWorkoutOffline,
+    cancelWorkout: cancelWorkoutOffline
+  } = useOfflineWorkout()
 
   // Function to ask AI about an exercise/warmup/cooldown
   const askAIAbout = (exerciseName, type = 'exercise') => {
@@ -177,6 +203,12 @@ function Today() {
     try {
       const response = await api.get('/schedules/warmup-suggestions')
       setWarmupData(response.data)
+      // Initialize toggle state from settings (defaultOn controls initial state)
+      // Only set if no localStorage preference exists (first time user)
+      if (localStorage.getItem('warmupToggleOn') === null && response.data.enabled && response.data.warmups?.length > 0 && response.data.defaultOn) {
+        setWarmupToggleOn(true)
+        localStorage.setItem('warmupToggleOn', 'true')
+      }
     } catch (error) {
       console.error('Error fetching warmup suggestions:', error)
     }
@@ -186,6 +218,12 @@ function Today() {
     try {
       const response = await api.get('/schedules/cooldown-suggestions')
       setCooldownData(response.data)
+      // Initialize toggle state from settings (defaultOn controls initial state)
+      // Only set if no localStorage preference exists (first time user)
+      if (localStorage.getItem('cooldownToggleOn') === null && response.data.enabled && response.data.cooldowns?.length > 0 && response.data.defaultOn) {
+        setCooldownToggleOn(true)
+        localStorage.setItem('cooldownToggleOn', 'true')
+      }
     } catch (error) {
       console.error('Error fetching cooldown suggestions:', error)
     }
@@ -205,37 +243,60 @@ function Today() {
   // Fetch today's workout and check for active session
   useEffect(() => {
     const fetchTodayWorkout = async () => {
+      let workout = null
+      let recurringWkts = []
+
       try {
         const response = await api.get('/schedules/today')
-        setTodayWorkout(response.data.workout)
-        // Set recurring workouts from the response
-        setRecurringWorkouts(response.data.recurringWorkouts || [])
+        workout = response.data.workout
+        recurringWkts = response.data.recurringWorkouts || []
 
-        // Initialize exercise logs - start with just 1 set, dynamically add more
-        if (response.data.workout?.exercises) {
-          const logs = {}
-          response.data.workout.exercises.forEach(ex => {
-            logs[ex.id] = {
-              completed: false,
-              logId: null,
-              targetSets: ex.sets, // Keep track of planned sets
-              sets: [{
-                setNumber: 1,
-                reps: '',
-                weight: '',
-                completed: false,
-                isPR: false,
-                difficulty: null // Optional per-set difficulty
-              }]
-            }
-          })
-          setExerciseLogs(logs)
+        // Cache workout data for offline use
+        if (workout) {
+          cacheWorkoutData(workout, workout.exercises?.map(e => ({ id: e.exerciseId, ...e })))
         }
       } catch (error) {
         console.error('Error fetching today workout:', error)
-      } finally {
-        setLoading(false)
+
+        // Try to load from cache if offline
+        if (!isOnline || error.response?.status === 503) {
+          try {
+            const cachedWorkout = await getCachedWorkout()
+            if (cachedWorkout) {
+              workout = cachedWorkout
+              console.log('Loaded workout from offline cache')
+            }
+          } catch (cacheError) {
+            console.error('Error loading cached workout:', cacheError)
+          }
+        }
       }
+
+      setTodayWorkout(workout)
+      setRecurringWorkouts(recurringWkts)
+
+      // Initialize exercise logs - start with just 1 set, dynamically add more
+      if (workout?.exercises) {
+        const logs = {}
+        workout.exercises.forEach(ex => {
+          logs[ex.id] = {
+            completed: false,
+            logId: null,
+            targetSets: ex.sets, // Keep track of planned sets
+            sets: [{
+              setNumber: 1,
+              reps: '',
+              weight: '',
+              completed: false,
+              isPR: false,
+              difficulty: null // Optional per-set difficulty
+            }]
+          }
+        })
+        setExerciseLogs(logs)
+      }
+
+      setLoading(false)
     }
 
     const checkActiveWorkout = async () => {
@@ -324,6 +385,9 @@ function Today() {
         // Set social settings for the social cards section
         if (response.data.user.settings) {
           setSocialSettings(response.data.user.settings)
+          // Set weight tracking settings
+          setShowWeightTracking(response.data.user.settings.showWeightTracking || false)
+          setWeightUnit(response.data.user.settings.weightUnit || 'LBS')
         }
       } catch (error) {
         console.error('Error fetching user profile:', error)
@@ -397,16 +461,36 @@ function Today() {
 
     try {
       const response = await api.get(`/workouts/exercise/${exerciseId}/history?limit=5`)
+      const historyData = {
+        history: response.data.history || [],
+        lastSession: response.data.lastSession,
+        pr: response.data.pr
+      }
+
       setExerciseHistory(prev => ({
         ...prev,
-        [exerciseId]: {
-          history: response.data.history || [],
-          lastSession: response.data.lastSession,
-          pr: response.data.pr
-        }
+        [exerciseId]: historyData
       }))
+
+      // Cache for offline use
+      cacheHistory(exerciseId, historyData)
     } catch (error) {
       console.error('Error fetching exercise history:', error)
+
+      // Try to load from cache if offline
+      if (!isOnline) {
+        try {
+          const cachedHistory = await getCachedHistory(exerciseId)
+          if (cachedHistory) {
+            setExerciseHistory(prev => ({
+              ...prev,
+              [exerciseId]: cachedHistory
+            }))
+          }
+        } catch (cacheError) {
+          console.error('Error loading cached history:', cacheError)
+        }
+      }
     }
   }
 
@@ -421,6 +505,21 @@ function Today() {
         [exerciseId]: response.data.exercise
       }))
     } catch (error) {
+      // Try to load from cache if offline
+      if (!isOnline) {
+        try {
+          const cachedExercise = await getCachedExerciseDetails(exerciseId)
+          if (cachedExercise) {
+            setExerciseDetails(prev => ({
+              ...prev,
+              [exerciseId]: cachedExercise
+            }))
+            return
+          }
+        } catch (cacheError) {
+          console.error('Error loading cached exercise:', cacheError)
+        }
+      }
       console.error('Error fetching exercise details:', error)
     }
   }
@@ -663,38 +762,35 @@ function Today() {
   }
 
   const startWorkout = async () => {
-    try {
-      // First, clean up any orphaned active workouts
-      await api.post('/workouts/cleanup-orphaned')
+    // Reset local timer state before starting fresh
+    setRestTimer(0)
+    setRestTimerRunning(false)
+    setShowRestTimer(false)
+    setElapsedTime(0)
+    if (restTimerRef.current) {
+      clearInterval(restTimerRef.current)
+    }
 
-      // Reset local timer state before starting fresh
-      setRestTimer(0)
-      setRestTimerRunning(false)
-      setShowRestTimer(false)
-      setElapsedTime(0)
-      if (restTimerRef.current) {
-        clearInterval(restTimerRef.current)
-      }
+    // Use offline-first approach
+    const result = await startWorkoutOffline({
+      name: todayWorkout?.name || 'Workout',
+      scheduledWorkoutId: todayWorkout?.id
+    })
 
-      const response = await api.post('/workouts', {
-        name: todayWorkout?.name || 'Workout',
-        scheduledWorkoutId: todayWorkout?.id
-      })
-      setActiveSession(response.data.workout)
+    if (result.success) {
+      setActiveSession(result.workout)
       setWorkoutStarted(true)
       setWorkoutPaused(false)
       setNewPRs([])
 
-      // Emit socket event for real-time sync
-      emitWorkoutStart(
-        response.data.workout.id,
-        response.data.workout.startTime,
-        todayWorkout?.name || 'Workout'
-      )
-    } catch (error) {
-      console.error('Error starting workout:', error)
-      setWorkoutStarted(true)
-      setWorkoutPaused(false)
+      // Emit socket event for real-time sync (only if online)
+      if (!result.offline) {
+        emitWorkoutStart(
+          result.workout.id,
+          result.workout.startTime,
+          todayWorkout?.name || 'Workout'
+        )
+      }
     }
   }
 
@@ -726,18 +822,17 @@ function Today() {
   const endWorkout = async () => {
     const sessionId = activeSession?.id
     if (activeSession) {
-      try {
-        await api.patch(`/workouts/${activeSession.id}`, {
-          endTime: new Date().toISOString(),
-          startTime: activeSession.startTime
-        })
+      const completionData = {
+        endTime: new Date().toISOString(),
+        startTime: activeSession.startTime
+      }
 
-        // Emit socket event for real-time sync
-        if (!isRemoteUpdateRef.current && sessionId) {
-          emitWorkoutEnd(sessionId, new Date().toISOString())
-        }
-      } catch (error) {
-        console.error('Error ending workout:', error)
+      // Use offline-first approach
+      const result = await endWorkoutOffline(sessionId, completionData)
+
+      // Emit socket event for real-time sync (only if online)
+      if (!result.offline && !isRemoteUpdateRef.current && sessionId) {
+        emitWorkoutEnd(sessionId, new Date().toISOString())
       }
     }
     resetWorkoutState()
@@ -747,31 +842,15 @@ function Today() {
 
   const cancelWorkout = async () => {
     const sessionId = activeSession?.id
-    try {
-      // Clean up ALL orphaned workouts (including the current one)
-      await api.post('/workouts/cleanup-orphaned')
 
-      // Emit socket event for real-time sync
-      if (!isRemoteUpdateRef.current && sessionId) {
-        emitWorkoutCancel(sessionId)
-      }
-    } catch (error) {
-      // If cleanup fails, try to delete just this one
-      if (activeSession) {
-        try {
-          await api.delete(`/workouts/${activeSession.id}`)
-          // Emit cancel even on fallback delete
-          if (!isRemoteUpdateRef.current && sessionId) {
-            emitWorkoutCancel(sessionId)
-          }
-        } catch (deleteError) {
-          // Ignore 404 - workout already deleted
-          if (deleteError.response?.status !== 404) {
-            console.error('Error canceling workout:', deleteError)
-          }
-        }
-      }
+    // Use offline-first approach
+    const result = await cancelWorkoutOffline(sessionId)
+
+    // Emit socket event for real-time sync (only if online)
+    if (!result.offline && !isRemoteUpdateRef.current && sessionId) {
+      emitWorkoutCancel(sessionId)
     }
+
     resetWorkoutState()
     setShowCancelConfirm(false)
   }
@@ -937,101 +1016,77 @@ function Today() {
 
     if (!set.reps) return // Need at least reps
 
-    // Log to backend
-    if (activeSession && log.logId) {
-      try {
-        const response = await api.post(`/workouts/${activeSession.id}/exercises/${log.logId}/sets`, {
-          setNumber: setIndex + 1,
-          reps: parseInt(set.reps),
-          weight: set.weight ? parseFloat(set.weight) : 0,
-          rpe: difficulty ? difficulty * 2 : null // Convert 1-5 difficulty to 2-10 RPE scale
-        })
+    const setData = {
+      setNumber: setIndex + 1,
+      reps: parseInt(set.reps),
+      weight: set.weight ? parseFloat(set.weight) : 0,
+      rpe: difficulty ? difficulty * 2 : null // Convert 1-5 difficulty to 2-10 RPE scale
+    }
 
-        // Update set with PR status and difficulty, then add a new set
-        const isPR = response.data.isPR
+    // Use offline-first approach
+    const result = await completeSetOffline(
+      activeSession?.id,
+      log.logId,
+      exercise.exerciseId,
+      setData
+    )
 
-        setExerciseLogs(prev => {
-          const currentLog = prev[exerciseId]
-          const updatedSets = currentLog.sets.map((s, i) =>
-            i === setIndex ? { ...s, completed: true, isPR, difficulty } : s
-          )
+    // Update local state immediately (optimistic update)
+    const isPR = result.isPR || false
 
-          // Auto-add next set
-          const newSetNumber = updatedSets.length + 1
-          updatedSets.push({
-            setNumber: newSetNumber,
-            reps: '',
-            weight: '',
-            completed: false,
-            isPR: false,
-            difficulty: null
-          })
+    setExerciseLogs(prev => {
+      const currentLog = prev[exerciseId]
+      const updatedSets = currentLog.sets.map((s, i) =>
+        i === setIndex ? { ...s, completed: true, isPR, difficulty } : s
+      )
 
-          return {
-            ...prev,
-            [exerciseId]: {
-              ...currentLog,
-              sets: updatedSets
-            }
-          }
-        })
-
-        // Track new PRs
-        if (isPR) {
-          setNewPRs(prev => [...prev, {
-            exerciseName: exercise.exerciseName,
-            weight: set.weight,
-            reps: set.reps
-          }])
-        }
-
-        // Build completed sets array including the one we just completed
-        const completedSets = [...log.sets.filter(s => s.completed), { ...set, difficulty }]
-          .map(s => ({ weight: parseFloat(s.weight) || 0, reps: parseInt(s.reps) || 0, difficulty: s.difficulty }))
-
-        // Auto-suggest for the new set (which is at index setIndex + 1)
-        await getRuleBasedSuggestion(exercise, completedSets, setIndex + 1)
-
-        // Emit socket event for real-time sync
-        if (!isRemoteUpdateRef.current && activeSession?.id) {
-          emitSetLogged(activeSession.id, exerciseId, {
-            setNumber: setIndex + 1,
-            reps: parseInt(set.reps),
-            weight: set.weight ? parseFloat(set.weight) : 0,
-            isPR,
-            difficulty
-          }, exerciseLogs)
-        }
-
-      } catch (error) {
-        console.error('Error logging set:', error)
-      }
-    } else {
-      // Offline mode - mark complete and add new set
-      setExerciseLogs(prev => {
-        const currentLog = prev[exerciseId]
-        const updatedSets = currentLog.sets.map((s, i) =>
-          i === setIndex ? { ...s, completed: true, difficulty } : s
-        )
-
-        // Auto-add next set
-        updatedSets.push({
-          setNumber: updatedSets.length + 1,
-          reps: '',
-          weight: '',
-          completed: false,
-          isPR: false,
-          difficulty: null
-        })
-
-        return {
-          ...prev,
-          [exerciseId]: {
-            ...currentLog,
-            sets: updatedSets
-          }
-        }
+      // Auto-add next set
+      const newSetNumber = updatedSets.length + 1
+      updatedSets.push({
+        setNumber: newSetNumber,
+        reps: '',
+        weight: '',
+        completed: false,
+        isPR: false,
+        difficulty: null
       })
+
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...currentLog,
+          sets: updatedSets
+        }
+      }
+    })
+
+    // Track new PRs
+    if (isPR) {
+      setNewPRs(prev => [...prev, {
+        exerciseName: exercise.exerciseName,
+        weight: set.weight,
+        reps: set.reps
+      }])
+    }
+
+    // Build completed sets array including the one we just completed
+    const completedSets = [...log.sets.filter(s => s.completed), { ...set, difficulty }]
+      .map(s => ({ weight: parseFloat(s.weight) || 0, reps: parseInt(s.reps) || 0, difficulty: s.difficulty }))
+
+    // Auto-suggest for the new set (only if online - AI requires network)
+    if (isOnline) {
+      await getRuleBasedSuggestion(exercise, completedSets, setIndex + 1)
+    }
+
+    // Emit socket event for real-time sync (only if online and not offline result)
+    if (!result.offline && !isRemoteUpdateRef.current && activeSession?.id) {
+      emitSetLogged(activeSession.id, exerciseId, {
+        setNumber: setIndex + 1,
+        reps: parseInt(set.reps),
+        weight: set.weight ? parseFloat(set.weight) : 0,
+        isPR,
+        difficulty
+      }, exerciseLogs)
     }
 
     // Start rest timer after completing a set
@@ -1071,28 +1126,114 @@ function Today() {
   return (
     <div className="p-4 space-y-6 pb-24">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">
-            {todayWorkout?.name || 'Today'}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">
+              {todayWorkout?.name || 'Today'}
+            </h1>
+            <SyncStatus />
+          </div>
           <p className="text-gray-400">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
+          {/* Warmup/Cooldown Toggle Switches - Mobile */}
+          {!loading && (warmupData.warmups?.length > 0 || cooldownData.cooldowns?.length > 0) && (
+            <div className="flex items-center gap-4 mt-2 md:hidden">
+              {warmupData.warmups?.length > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={warmupToggleOn}
+                      onChange={(e) => { setWarmupToggleOn(e.target.checked); localStorage.setItem('warmupToggleOn', e.target.checked) }}
+                      className="sr-only"
+                    />
+                    <div className={`w-9 h-5 rounded-full transition-colors ${warmupToggleOn ? 'bg-orange-500' : 'bg-dark-elevated'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${warmupToggleOn ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                  <span className={`text-xs ${warmupToggleOn ? 'text-orange-400' : 'text-gray-500'}`}>
+                    Warmup
+                  </span>
+                </label>
+              )}
+              {cooldownData.cooldowns?.length > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={cooldownToggleOn}
+                      onChange={(e) => { setCooldownToggleOn(e.target.checked); localStorage.setItem('cooldownToggleOn', e.target.checked) }}
+                      className="sr-only"
+                    />
+                    <div className={`w-9 h-5 rounded-full transition-colors ${cooldownToggleOn ? 'bg-cyan-500' : 'bg-dark-elevated'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${cooldownToggleOn ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                  <span className={`text-xs ${cooldownToggleOn ? 'text-cyan-400' : 'text-gray-500'}`}>
+                    Cooldown
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
         </div>
-        {socialSettings?.showSocialSection !== false && (
-          <button
-            onClick={() => document.getElementById('social-section')?.scrollIntoView({ behavior: 'smooth' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-elevated rounded-full text-gray-400 hover:text-white hover:bg-dark-card transition-colors text-sm"
-          >
-            <span>Community</span>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Warmup/Cooldown Toggle Switches - Desktop */}
+          {!loading && (warmupData.warmups?.length > 0 || cooldownData.cooldowns?.length > 0) && (
+            <div className="hidden md:flex items-center gap-3">
+              {warmupData.warmups?.length > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className={`text-sm ${warmupToggleOn ? 'text-orange-400' : 'text-gray-500'}`}>
+                    Warmup
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={warmupToggleOn}
+                      onChange={(e) => { setWarmupToggleOn(e.target.checked); localStorage.setItem('warmupToggleOn', e.target.checked) }}
+                      className="sr-only"
+                    />
+                    <div className={`w-9 h-5 rounded-full transition-colors ${warmupToggleOn ? 'bg-orange-500' : 'bg-dark-elevated'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${warmupToggleOn ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                </label>
+              )}
+              {cooldownData.cooldowns?.length > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className={`text-sm ${cooldownToggleOn ? 'text-cyan-400' : 'text-gray-500'}`}>
+                    Cooldown
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={cooldownToggleOn}
+                      onChange={(e) => { setCooldownToggleOn(e.target.checked); localStorage.setItem('cooldownToggleOn', e.target.checked) }}
+                      className="sr-only"
+                    />
+                    <div className={`w-9 h-5 rounded-full transition-colors ${cooldownToggleOn ? 'bg-cyan-500' : 'bg-dark-elevated'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${cooldownToggleOn ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                </label>
+              )}
+            </div>
+          )}
+          {socialSettings?.showSocialSection !== false && (
+            <button
+              onClick={() => document.getElementById('social-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-elevated rounded-full text-gray-400 hover:text-white hover:bg-dark-card transition-colors text-sm"
+            >
+              <span>Community</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
-
 
       {/* PR Celebration */}
       {newPRs.length > 0 && (
@@ -1491,94 +1632,77 @@ function Today() {
         </div>
       )}
 
-      {/* Warmup Section - Compact */}
-      {!loading && warmupData.enabled && warmupData.warmups.length > 0 && !workoutStarted && !warmupDismissedToday && (
+      {/* Weight Tracking Card */}
+      {showWeightTracking && !workoutStarted && (
+        <WeightTrackingCard
+          weightUnit={weightUnit}
+          onWeightLogged={() => fetchStats()}
+        />
+      )}
+
+      {/* Warmup Section */}
+      {warmupToggleOn && warmupData.warmups.length > 0 && !workoutStarted && (
         <div className="card p-3 bg-orange-500/10 border border-orange-500/30">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setWarmupExpanded(!warmupExpanded)}
-              className="flex-1 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🔥</span>
-                <span className="text-white font-medium text-sm">Warmup</span>
-                <span className="text-orange-400/60 text-xs">
-                  {warmupData.muscleGroups?.length > 0 ? `• ${warmupData.muscleGroups.slice(0, 2).join(', ')}` : ''}
-                </span>
-              </div>
-              <svg className={`w-4 h-4 text-orange-400 transition-transform ${warmupExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setWarmupDismissedToday(true)}
-              className="ml-2 p-1 text-orange-400/50 hover:text-orange-400 rounded transition-colors"
-              title="Dismiss for today"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-orange-400 font-medium text-sm">Warmup</span>
+              <span className="text-orange-400/60 text-xs">
+                {warmupData.muscleGroups?.length > 0 ? `• ${warmupData.muscleGroups.slice(0, 2).join(', ')}` : ''}
+              </span>
+            </div>
+            {/* Source indicator */}
+            <div className="flex items-center gap-1 text-[10px] text-orange-400/50">
+              {warmupData.isAI ? 'AI' : 'Standard'}
+            </div>
           </div>
 
-          {warmupExpanded && (
-            <div className="mt-2 space-y-2">
-              {/* Source indicator */}
-              <div className="flex items-center gap-1 text-[10px] text-orange-400/50">
-                {warmupData.isAI ? (
-                  <><span>🤖</span><span>AI Generated</span></>
-                ) : (
-                  <><span>📋</span><span>Standard suggestions</span></>
-                )}
-              </div>
-              {/* Warmup Exercises */}
-              {warmupData.warmups.map((warmup, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${warmupChecked[idx] ? 'bg-orange-500/5' : 'hover:bg-orange-500/10'}`}
+          <div className="space-y-2">
+            {warmupData.warmups.map((warmup, idx) => (
+              <div
+                key={idx}
+                className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${warmupChecked[idx] ? 'bg-orange-500/5' : 'hover:bg-orange-500/10'}`}
+              >
+                <button
+                  onClick={() => setWarmupChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                  className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                    warmupChecked[idx] ? 'bg-orange-500 border-orange-500' : 'border-orange-500/50'
+                  }`}
                 >
-                  <button
-                    onClick={() => setWarmupChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                      warmupChecked[idx] ? 'bg-orange-500 border-orange-500' : 'border-orange-500/50'
-                    }`}
-                  >
-                    {warmupChecked[idx] && (
-                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-white text-xs font-medium ${warmupChecked[idx] ? 'line-through opacity-60' : ''}`}>
-                        {warmup.name}
+                  {warmupChecked[idx] && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-white text-xs font-medium ${warmupChecked[idx] ? 'line-through opacity-60' : ''}`}>
+                      {warmup.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-orange-400/50 text-[10px]">
+                        {warmup.duration ? `${warmup.duration}s` : warmup.sets && warmup.reps ? `${warmup.sets}×${warmup.reps}` : warmup.reps ? `${warmup.reps}` : ''}
                       </span>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-orange-400/50 text-[10px]">
-                          {warmup.duration ? `${warmup.duration}s` : warmup.sets && warmup.reps ? `${warmup.sets}×${warmup.reps}` : warmup.reps ? `${warmup.reps}` : ''}
-                        </span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); askAIAbout(warmup.name, 'warmup'); }}
-                          className="p-0.5 text-orange-400/40 hover:text-orange-400 transition-colors"
-                          title="Ask AI for more info"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); askAIAbout(warmup.name, 'warmup'); }}
+                        className="p-0.5 text-orange-400/40 hover:text-orange-400 transition-colors"
+                        title="Ask AI for more info"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
                     </div>
-                    {warmup.description && (
-                      <p className={`text-orange-400/60 text-[10px] mt-0.5 leading-tight ${warmupChecked[idx] ? 'opacity-60' : ''}`}>
-                        {warmup.description}
-                      </p>
-                    )}
                   </div>
+                  {warmup.description && (
+                    <p className={`text-orange-400/60 text-[10px] mt-0.5 leading-tight ${warmupChecked[idx] ? 'opacity-60' : ''}`}>
+                      {warmup.description}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1956,125 +2080,91 @@ function Today() {
         </div>
       )}
 
-      {/* Cooldown Section - Compact */}
-      {!loading && cooldownData.enabled && cooldownData.cooldowns.length > 0 && (workoutStarted || completedWorkouts.length > 0) && !cooldownDismissedToday && (
+      {/* Cooldown Section */}
+      {cooldownToggleOn && cooldownData.cooldowns.length > 0 && (
         <div className="card p-3 bg-cyan-500/10 border border-cyan-500/30">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setCooldownExpanded(!cooldownExpanded)}
-              className="flex-1 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🧊</span>
-                <span className="text-white font-medium text-sm">Cooldown</span>
-                <span className="text-cyan-400/60 text-xs">
-                  {cooldownData.muscleGroups?.length > 0 ? `• ${cooldownData.muscleGroups.slice(0, 2).join(', ')}` : ''}
-                </span>
-              </div>
-              <svg className={`w-4 h-4 text-cyan-400 transition-transform ${cooldownExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCooldownDismissedToday(true)}
-              className="ml-2 p-1 text-cyan-400/50 hover:text-cyan-400 rounded transition-colors"
-              title="Dismiss for today"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-400 font-medium text-sm">Cooldown</span>
+              <span className="text-cyan-400/60 text-xs">
+                {cooldownData.muscleGroups?.length > 0 ? `• ${cooldownData.muscleGroups.slice(0, 2).join(', ')}` : ''}
+              </span>
+            </div>
+            {/* Source indicator */}
+            <div className="flex items-center gap-1 text-[10px] text-cyan-400/50">
+              {cooldownData.isAI ? 'AI' : 'Standard'}
+            </div>
           </div>
 
-          {cooldownExpanded && (
-            <div className="mt-2 space-y-2">
-              {/* Source indicator */}
-              <div className="flex items-center gap-1 text-[10px] text-cyan-400/50">
-                {cooldownData.isAI ? (
-                  <><span>🤖</span><span>AI Generated</span></>
-                ) : (
-                  <><span>📋</span><span>Standard suggestions</span></>
-                )}
-              </div>
-              {/* Cooldown Exercises */}
-              {cooldownData.cooldowns.map((cooldown, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${cooldownChecked[idx] ? 'bg-cyan-500/5' : 'hover:bg-cyan-500/10'}`}
+          <div className="space-y-2">
+            {cooldownData.cooldowns.map((cooldown, idx) => (
+              <div
+                key={idx}
+                className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${cooldownChecked[idx] ? 'bg-cyan-500/5' : 'hover:bg-cyan-500/10'}`}
+              >
+                <button
+                  onClick={() => setCooldownChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                  className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                    cooldownChecked[idx] ? 'bg-cyan-500 border-cyan-500' : 'border-cyan-500/50'
+                  }`}
                 >
-                  <button
-                    onClick={() => setCooldownChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                      cooldownChecked[idx] ? 'bg-cyan-500 border-cyan-500' : 'border-cyan-500/50'
-                    }`}
-                  >
-                    {cooldownChecked[idx] && (
-                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-white text-xs font-medium ${cooldownChecked[idx] ? 'line-through opacity-60' : ''}`}>
-                        {cooldown.name}
+                  {cooldownChecked[idx] && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-white text-xs font-medium ${cooldownChecked[idx] ? 'line-through opacity-60' : ''}`}>
+                      {cooldown.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-cyan-400/50 text-[10px]">
+                        {cooldown.duration ? `${cooldown.duration}s` : ''}{cooldown.sides ? ' ea side' : ''}
                       </span>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-cyan-400/50 text-[10px]">
-                          {cooldown.duration ? `${cooldown.duration}s` : ''}{cooldown.sides ? ' ea side' : ''}
-                        </span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); askAIAbout(cooldown.name, 'cooldown'); }}
-                          className="p-0.5 text-cyan-400/40 hover:text-cyan-400 transition-colors"
-                          title="Ask AI for more info"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); askAIAbout(cooldown.name, 'cooldown'); }}
+                        className="p-0.5 text-cyan-400/40 hover:text-cyan-400 transition-colors"
+                        title="Ask AI for more info"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
                     </div>
-                    {cooldown.description && (
-                      <p className={`text-cyan-400/60 text-[10px] mt-0.5 leading-tight ${cooldownChecked[idx] ? 'opacity-60' : ''}`}>
-                        {cooldown.description}
-                      </p>
-                    )}
                   </div>
+                  {cooldown.description && (
+                    <p className={`text-cyan-400/60 text-[10px] mt-0.5 leading-tight ${cooldownChecked[idx] ? 'opacity-60' : ''}`}>
+                      {cooldown.description}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Separator between workouts and stats */}
-      <div className="border-t border-dark-border my-2" />
-
-      {/* Quick Stats - Condensed Card */}
-      <div className="card p-3">
+      {/* Quick Stats - Compact inline */}
+      <div className="card px-3 py-2">
         <div className="flex items-center justify-around">
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">📅</span>
-              <p className="text-white font-bold text-lg">{stats.thisWeek}</p>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">📅</span>
+            <p className="text-white font-bold">{stats.thisWeek}</p>
             <p className="text-gray-500 text-xs">this week</p>
           </div>
-          <div className="w-px h-10 bg-dark-border" />
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">🔥</span>
-              <p className="text-accent font-bold text-lg">{stats.streak}</p>
-            </div>
+          <div className="w-px h-5 bg-dark-border" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">🔥</span>
+            <p className="text-accent font-bold">{stats.streak}</p>
             <p className="text-gray-500 text-xs">day streak</p>
           </div>
-          <div className="w-px h-10 bg-dark-border" />
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">🏆</span>
-              <p className="text-success font-bold text-lg">{stats.prs}</p>
-            </div>
-            <p className="text-gray-500 text-xs">total PRs</p>
+          <div className="w-px h-5 bg-dark-border" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">🏆</span>
+            <p className="text-success font-bold">{stats.prs}</p>
+            <p className="text-gray-500 text-xs">PRs</p>
           </div>
         </div>
       </div>

@@ -1,10 +1,9 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { authenticateToken } from '../middleware/auth.js'
 import notificationService from '../services/notifications.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // All routes require auth
 router.use(authenticateToken)
@@ -234,6 +233,87 @@ router.patch('/settings', async (req, res, next) => {
       workoutReminders: settings.workoutReminders,
       socialNotifications: settings.socialNotifications
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ===========================================
+// In-App Notification Routes
+// ===========================================
+
+// GET /api/notifications - Fetch user's in-app notifications
+router.get('/', async (req, res, next) => {
+  try {
+    const { limit = 20, cursor, unreadOnly = 'false' } = req.query
+
+    const where = { userId: req.user.id }
+    if (unreadOnly === 'true') {
+      where.read = false
+    }
+    if (cursor) {
+      where.createdAt = { lt: new Date(cursor) }
+    }
+
+    const notifications = await prisma.inAppNotification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit) + 1 // Fetch one extra to check for more
+    })
+
+    const hasMore = notifications.length > parseInt(limit)
+    if (hasMore) notifications.pop()
+
+    const unreadCount = await prisma.inAppNotification.count({
+      where: { userId: req.user.id, read: false }
+    })
+
+    res.json({
+      notifications,
+      hasMore,
+      unreadCount,
+      nextCursor: notifications.length > 0
+        ? notifications[notifications.length - 1].createdAt.toISOString()
+        : null
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PATCH /api/notifications/:id/read - Mark notification as read
+router.patch('/:id/read', async (req, res, next) => {
+  try {
+    const notification = await prisma.inAppNotification.update({
+      where: { id: req.params.id, userId: req.user.id },
+      data: { read: true, readAt: new Date() }
+    })
+    res.json({ notification })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/notifications/mark-all-read - Mark all as read
+router.post('/mark-all-read', async (req, res, next) => {
+  try {
+    await prisma.inAppNotification.updateMany({
+      where: { userId: req.user.id, read: false },
+      data: { read: true, readAt: new Date() }
+    })
+    res.json({ message: 'All notifications marked as read' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/notifications/:id - Delete a notification
+router.delete('/:id', async (req, res, next) => {
+  try {
+    await prisma.inAppNotification.delete({
+      where: { id: req.params.id, userId: req.user.id }
+    })
+    res.json({ message: 'Notification deleted' })
   } catch (error) {
     next(error)
   }

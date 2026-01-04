@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import HistoryCalendar from '../components/HistoryCalendar'
+import HistoryCharts from '../components/HistoryCharts'
+import EditWorkoutModal from '../components/EditWorkoutModal'
 
 function History() {
-  const [timeRange, setTimeRange] = useState('week')
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('historyTab') || 'charts'
+  })
+  const [timeRange, setTimeRange] = useState('month')
   const [workouts, setWorkouts] = useState([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
@@ -12,6 +18,10 @@ function History() {
     avgDuration: 0
   })
   const [selectedWorkout, setSelectedWorkout] = useState(null)
+
+  useEffect(() => {
+    localStorage.setItem('historyTab', activeTab)
+  }, [activeTab])
 
   useEffect(() => {
     fetchWorkouts()
@@ -113,236 +123,200 @@ function History() {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
+  const handleWorkoutUpdate = (updatedWorkout) => {
+    setWorkouts(prev => prev.map(w => w.id === updatedWorkout.id ? updatedWorkout : w))
+    setSelectedWorkout(updatedWorkout)
+  }
+
+  const handleWorkoutDelete = (workoutId) => {
+    setWorkouts(prev => prev.filter(w => w.id !== workoutId))
+    setSelectedWorkout(null)
+  }
+
+  const tabs = [
+    { id: 'calendar', label: 'Calendar', icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    )},
+    { id: 'list', label: 'List', icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+      </svg>
+    )},
+    { id: 'charts', label: 'Charts', icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    )}
+  ]
+
   return (
-    <div className="p-4 space-y-6 pb-24">
+    <div className="p-4 space-y-4 pb-24">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">History</h1>
         <p className="text-gray-400">Track your progress</p>
       </div>
 
-      {/* Time Range Filter */}
-      <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-        {['week', 'month', '3months', 'year', 'all'].map((range) => (
+      {/* Tab Navigation */}
+      <div className="flex gap-1 bg-dark-elevated p-1 rounded-xl">
+        {tabs.map((tab) => (
           <button
-            key={range}
-            onClick={() => setTimeRange(range)}
-            className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
-              timeRange === range
-                ? 'bg-accent text-white'
-                : 'bg-dark-elevated text-gray-400 hover:text-white'
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-accent text-white shadow-lg'
+                : 'text-gray-400 hover:text-white hover:bg-dark-card'
             }`}
           >
-            {range === 'week' ? 'This Week' :
-             range === 'month' ? 'This Month' :
-             range === '3months' ? '3 Months' :
-             range === 'year' ? 'This Year' : 'All Time'}
+            {tab.icon}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+      {/* Time Range Filter - shown for List and Charts */}
+      {activeTab !== 'calendar' && (
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+          {['week', 'month', '3months', 'year', 'all'].map((range) => (
+            <button
+              key={range}
+              onClick={() => setTimeRange(range)}
+              className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
+                timeRange === range
+                  ? 'bg-accent text-white'
+                  : 'bg-dark-elevated text-gray-400 hover:text-white'
+              }`}
+            >
+              {range === 'week' ? 'This Week' :
+               range === 'month' ? 'This Month' :
+               range === '3months' ? '3 Months' :
+               range === 'year' ? 'This Year' : 'All Time'}
+            </button>
+          ))}
         </div>
-      ) : (
+      )}
+
+      {/* Calendar View */}
+      {activeTab === 'calendar' && (
+        <HistoryCalendar
+          onSelectWorkout={setSelectedWorkout}
+          formatDuration={formatDuration}
+          formatVolume={formatVolume}
+        />
+      )}
+
+      {/* List View */}
+      {activeTab === 'list' && (
         <>
-          {/* Stats Overview */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="card">
-              <p className="text-gray-400 text-sm">Workouts</p>
-              <p className="text-2xl font-bold text-white">{stats.totalWorkouts}</p>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <div className="card">
-              <p className="text-gray-400 text-sm">Total Time</p>
-              <p className="text-2xl font-bold text-white">{formatDuration(stats.totalTime)}</p>
-            </div>
-            <div className="card">
-              <p className="text-gray-400 text-sm">Total Volume</p>
-              <p className="text-2xl font-bold text-white">{formatVolume(stats.totalVolume)}</p>
-            </div>
-            <div className="card">
-              <p className="text-gray-400 text-sm">Avg Duration</p>
-              <p className="text-2xl font-bold text-white">{formatDuration(stats.avgDuration)}</p>
-            </div>
-          </div>
-
-          {/* Volume Chart Placeholder */}
-          <div className="card">
-            <h3 className="text-white font-medium mb-4">Volume Over Time</h3>
-            <div className="h-32 flex items-end justify-between gap-1">
-              {workouts.slice(-14).map((workout, idx) => {
-                let volume = 0
-                workout.exerciseLogs?.forEach(log => {
-                  log.sets?.forEach(set => {
-                    if (set.weight && set.reps) {
-                      volume += set.weight * set.reps
-                    }
-                  })
-                })
-                const maxVolume = Math.max(...workouts.map(w => {
-                  let v = 0
-                  w.exerciseLogs?.forEach(log => {
-                    log.sets?.forEach(set => {
-                      if (set.weight && set.reps) v += set.weight * set.reps
-                    })
-                  })
-                  return v
-                }), 1)
-                const height = (volume / maxVolume) * 100
-
-                return (
-                  <div
-                    key={workout.id || idx}
-                    className="flex-1 bg-accent/30 rounded-t-sm transition-all hover:bg-accent/50"
-                    style={{ height: `${Math.max(height, 5)}%` }}
-                    title={`${formatDate(workout.date)}: ${formatVolume(volume)}`}
-                  />
-                )
-              })}
-              {workouts.length === 0 && (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
-                  No data yet
+          ) : (
+            <>
+              {/* Stats Overview */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="card">
+                  <p className="text-gray-400 text-sm">Workouts</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalWorkouts}</p>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Workout History List */}
-          <div>
-            <h3 className="text-white font-medium mb-3">Recent Workouts</h3>
-            {workouts.length === 0 ? (
-              <div className="card text-center py-8">
-                <svg className="w-16 h-16 mx-auto text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <p className="text-gray-400">No workouts yet</p>
-                <p className="text-gray-500 text-sm mt-1">Complete your first workout to see it here</p>
+                <div className="card">
+                  <p className="text-gray-400 text-sm">Total Time</p>
+                  <p className="text-2xl font-bold text-white">{formatDuration(stats.totalTime)}</p>
+                </div>
+                <div className="card">
+                  <p className="text-gray-400 text-sm">Total Volume</p>
+                  <p className="text-2xl font-bold text-white">{formatVolume(stats.totalVolume)}</p>
+                </div>
+                <div className="card">
+                  <p className="text-gray-400 text-sm">Avg Duration</p>
+                  <p className="text-2xl font-bold text-white">{formatDuration(stats.avgDuration)}</p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {workouts.map((workout) => {
-                  let volume = 0
-                  let exerciseCount = workout.exerciseLogs?.length || 0
-                  workout.exerciseLogs?.forEach(log => {
-                    log.sets?.forEach(set => {
-                      if (set.weight && set.reps) {
-                        volume += set.weight * set.reps
-                      }
-                    })
-                  })
 
-                  return (
-                    <div
-                      key={workout.id}
-                      className="card cursor-pointer hover:bg-dark-elevated transition-colors"
-                      onClick={() => setSelectedWorkout(workout)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-white font-medium">{workout.name}</h4>
-                        <span className="text-gray-400 text-sm">{formatDate(workout.date)}</span>
-                      </div>
-                      <div className="flex gap-4 text-sm">
-                        <span className="text-gray-400">
-                          <span className="text-white">{formatDuration(workout.duration)}</span>
-                        </span>
-                        <span className="text-gray-400">
-                          <span className="text-white">{exerciseCount}</span> exercises
-                        </span>
-                        {volume > 0 && (
-                          <span className="text-gray-400">
-                            <span className="text-white">{formatVolume(volume)}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+              {/* Workout History List */}
+              <div>
+                <h3 className="text-white font-medium mb-3">Recent Workouts</h3>
+                {workouts.length === 0 ? (
+                  <div className="card text-center py-8">
+                    <svg className="w-16 h-16 mx-auto text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p className="text-gray-400">No workouts yet</p>
+                    <p className="text-gray-500 text-sm mt-1">Complete your first workout to see it here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {workouts.map((workout) => {
+                      let volume = 0
+                      let exerciseCount = workout.exerciseLogs?.length || 0
+                      workout.exerciseLogs?.forEach(log => {
+                        log.sets?.forEach(set => {
+                          if (set.weight && set.reps) {
+                            volume += set.weight * set.reps
+                          }
+                        })
+                      })
+
+                      return (
+                        <div
+                          key={workout.id}
+                          className="card cursor-pointer hover:bg-dark-elevated transition-colors"
+                          onClick={() => setSelectedWorkout(workout)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-white font-medium">{workout.name}</h4>
+                            <span className="text-gray-400 text-sm">{formatDate(workout.date)}</span>
+                          </div>
+                          <div className="flex gap-4 text-sm">
+                            <span className="text-gray-400">
+                              <span className="text-white">{formatDuration(workout.duration)}</span>
+                            </span>
+                            <span className="text-gray-400">
+                              <span className="text-white">{exerciseCount}</span> exercises
+                            </span>
+                            {volume > 0 && (
+                              <span className="text-gray-400">
+                                <span className="text-white">{formatVolume(volume)}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </>
       )}
 
-      {/* Workout Detail Modal */}
+      {/* Charts View */}
+      {activeTab === 'charts' && (
+        <HistoryCharts
+          workouts={workouts}
+          loading={loading}
+          timeRange={timeRange}
+          formatDuration={formatDuration}
+          formatVolume={formatVolume}
+        />
+      )}
+
+      {/* Editable Workout Modal */}
       {selectedWorkout && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => setSelectedWorkout(null)}>
-          <div
-            className="bg-dark-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-white">{selectedWorkout.name}</h2>
-                <p className="text-gray-400 text-sm">{formatDate(selectedWorkout.date)}</p>
-              </div>
-              <button onClick={() => setSelectedWorkout(null)} className="btn-ghost p-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-4 space-y-6">
-              {/* Summary Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="card text-center">
-                  <p className="text-gray-400 text-xs">Duration</p>
-                  <p className="text-lg font-bold text-white">{formatDuration(selectedWorkout.duration)}</p>
-                </div>
-                <div className="card text-center">
-                  <p className="text-gray-400 text-xs">Exercises</p>
-                  <p className="text-lg font-bold text-white">{selectedWorkout.exerciseLogs?.length || 0}</p>
-                </div>
-                <div className="card text-center">
-                  <p className="text-gray-400 text-xs">Rating</p>
-                  <p className="text-lg font-bold text-white">{selectedWorkout.rating || '-'}/5</p>
-                </div>
-              </div>
-
-              {/* Exercise Details */}
-              <div>
-                <h3 className="text-white font-medium mb-3">Exercises</h3>
-                <div className="space-y-3">
-                  {selectedWorkout.exerciseLogs?.map((log, idx) => (
-                    <div key={log.id || idx} className="card">
-                      <h4 className="text-white font-medium mb-2">{log.exerciseName}</h4>
-                      {log.sets?.length > 0 ? (
-                        <div className="space-y-1">
-                          {log.sets.map((set, setIdx) => (
-                            <div key={set.id || setIdx} className="flex justify-between text-sm">
-                              <span className="text-gray-400">Set {setIdx + 1}</span>
-                              <span className="text-white">
-                                {set.weight ? `${set.weight} lbs × ` : ''}{set.reps || '-'} reps
-                                {set.rpe && <span className="text-gray-400 ml-2">RPE {set.rpe}</span>}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">No sets logged</p>
-                      )}
-                    </div>
-                  ))}
-
-                  {(!selectedWorkout.exerciseLogs || selectedWorkout.exerciseLogs.length === 0) && (
-                    <p className="text-gray-500 text-center py-4">No exercises logged</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Notes */}
-              {selectedWorkout.notes && (
-                <div>
-                  <h3 className="text-white font-medium mb-2">Notes</h3>
-                  <p className="text-gray-400">{selectedWorkout.notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <EditWorkoutModal
+          workout={selectedWorkout}
+          onClose={() => setSelectedWorkout(null)}
+          onUpdate={handleWorkoutUpdate}
+          onDelete={handleWorkoutDelete}
+          formatDuration={formatDuration}
+          formatVolume={formatVolume}
+          formatDate={formatDate}
+        />
       )}
     </div>
   )

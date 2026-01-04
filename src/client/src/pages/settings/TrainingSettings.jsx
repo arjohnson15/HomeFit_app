@@ -1,6 +1,75 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
+
+// Display labels for equipment from the catalog
+const equipmentLabels = {
+  'barbell': 'Barbell',
+  'dumbbell': 'Dumbbells',
+  'kettlebells': 'Kettlebells',
+  'cable': 'Cable Machine',
+  'machine': 'Machines (General)',
+  'bands': 'Resistance Bands',
+  'medicine ball': 'Medicine Ball',
+  'exercise ball': 'Exercise/Stability Ball',
+  'foam roll': 'Foam Roller',
+  'e-z curl bar': 'EZ Curl Bar',
+  'body only': 'Bodyweight Only',
+  'other': 'Other Equipment',
+  // Benches
+  'flat bench': 'Flat Bench',
+  'incline bench': 'Incline Bench',
+  'decline bench': 'Decline Bench',
+  // Pull/Dip stations
+  'pull-up bar': 'Pull-Up Bar',
+  'dip bars': 'Dip Bars/Station',
+  // Specific Machines - Legs
+  'leg extension machine': 'Leg Extension Machine',
+  'leg curl machine': 'Leg Curl Machine',
+  'leg press': 'Leg Press',
+  'hack squat machine': 'Hack Squat Machine',
+  'hip abductor/adductor': 'Hip Abductor/Adductor',
+  'seated calf raise machine': 'Seated Calf Raise',
+  'standing calf raise machine': 'Standing Calf Raise',
+  'glute ham raise': 'Glute Ham Raise (GHD)',
+  // Specific Machines - Upper Body
+  'smith machine': 'Smith Machine',
+  'chest press machine': 'Chest Press Machine',
+  'shoulder press machine': 'Shoulder Press Machine',
+  'pec deck machine': 'Pec Deck / Rear Delt Fly',
+  'lat pulldown': 'Lat Pulldown',
+  'row machine': 'Seated Row Machine',
+  't-bar row': 'T-Bar Row',
+  'bicep curl machine': 'Bicep Curl Machine',
+  'preacher curl machine': 'Preacher Curl Machine',
+  'tricep extension machine': 'Tricep Extension Machine',
+  'assisted dip machine': 'Assisted Dip/Pull-Up',
+  'ab crunch machine': 'Ab Crunch Machine',
+  'reverse hyper machine': 'Reverse Hyper',
+  // Cardio
+  'treadmill': 'Treadmill',
+  'stationary bike': 'Stationary Bike',
+  'elliptical': 'Elliptical',
+  'rowing machine': 'Rowing Machine',
+  'stair climber': 'Stair Climber'
+}
+
+// Categorize equipment for display
+const getEquipmentCategory = (equipment) => {
+  const categories = {
+    'Free Weights': ['barbell', 'dumbbell', 'kettlebells', 'e-z curl bar'],
+    'Benches': ['flat bench', 'incline bench', 'decline bench'],
+    'Leg Machines': ['leg extension machine', 'leg curl machine', 'leg press', 'hack squat machine', 'hip abductor/adductor', 'seated calf raise machine', 'standing calf raise machine', 'glute ham raise'],
+    'Upper Body Machines': ['smith machine', 'chest press machine', 'shoulder press machine', 'pec deck machine', 'lat pulldown', 'row machine', 't-bar row', 'bicep curl machine', 'preacher curl machine', 'tricep extension machine', 'assisted dip machine', 'ab crunch machine', 'reverse hyper machine', 'cable', 'machine'],
+    'Cardio': ['treadmill', 'stationary bike', 'elliptical', 'rowing machine', 'stair climber'],
+    'Bars & Stations': ['pull-up bar', 'dip bars'],
+    'Accessories': ['bands', 'medicine ball', 'exercise ball', 'foam roll', 'other']
+  }
+  for (const [category, items] of Object.entries(categories)) {
+    if (items.includes(equipment)) return category
+  }
+  return 'Other'
+}
 
 function TrainingSettings() {
   const [settings, setSettings] = useState({
@@ -8,7 +77,7 @@ function TrainingSettings() {
     primaryGoal: 'strength',
     workoutDays: 4,
     sessionLength: 60,
-    equipmentAccess: ['barbell', 'dumbbell', 'flat_bench', 'squat_rack'],
+    equipmentAccess: ['barbell', 'dumbbell'],
     // Rest timer settings
     defaultRestTime: 90,
     autoStartRest: true,
@@ -20,6 +89,10 @@ function TrainingSettings() {
   const restTimeOptions = [30, 45, 60, 90, 120, 180, 240, 300]
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [equipmentOptions, setEquipmentOptions] = useState([])
+  const [loadingEquipment, setLoadingEquipment] = useState(true)
+  const [equipmentSearch, setEquipmentSearch] = useState('')
+  const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false)
 
   const experienceLevels = [
     {
@@ -75,68 +148,33 @@ function TrainingSettings() {
     }
   ]
 
-  const equipmentCategories = [
-    {
-      category: 'Free Weights',
-      items: [
-        { id: 'barbell', label: 'Barbell (Olympic)' },
-        { id: 'ez_barbell', label: 'EZ Curl Bar' },
-        { id: 'trap_bar', label: 'Trap/Hex Bar' },
-        { id: 'dumbbell', label: 'Dumbbells' },
-        { id: 'kettlebell', label: 'Kettlebells' },
-        { id: 'weight_plates', label: 'Weight Plates' }
-      ]
-    },
-    {
-      category: 'Benches & Racks',
-      items: [
-        { id: 'flat_bench', label: 'Flat Bench' },
-        { id: 'incline_bench', label: 'Incline Bench' },
-        { id: 'decline_bench', label: 'Decline Bench' },
-        { id: 'adjustable_bench', label: 'Adjustable Bench' },
-        { id: 'squat_rack', label: 'Squat Rack/Power Cage' },
-        { id: 'smith_machine', label: 'Smith Machine' }
-      ]
-    },
-    {
-      category: 'Machines',
-      items: [
-        { id: 'cable_machine', label: 'Cable Machine' },
-        { id: 'lat_pulldown', label: 'Lat Pulldown' },
-        { id: 'leg_press', label: 'Leg Press' },
-        { id: 'leg_curl', label: 'Leg Curl Machine' },
-        { id: 'leg_extension', label: 'Leg Extension' },
-        { id: 'chest_press', label: 'Chest Press Machine' },
-        { id: 'pec_deck', label: 'Pec Deck/Fly Machine' },
-        { id: 'shoulder_press', label: 'Shoulder Press Machine' },
-        { id: 'rowing_machine', label: 'Seated Row Machine' }
-      ]
-    },
-    {
-      category: 'Bodyweight & Accessories',
-      items: [
-        { id: 'pullup_bar', label: 'Pull-up Bar' },
-        { id: 'dip_station', label: 'Dip Station' },
-        { id: 'resistance_bands', label: 'Resistance Bands' },
-        { id: 'suspension_trainer', label: 'Suspension Trainer (TRX)' },
-        { id: 'ab_wheel', label: 'Ab Wheel' },
-        { id: 'medicine_ball', label: 'Medicine Ball' },
-        { id: 'stability_ball', label: 'Stability Ball' },
-        { id: 'foam_roller', label: 'Foam Roller' }
-      ]
-    },
-    {
-      category: 'Cardio',
-      items: [
-        { id: 'treadmill', label: 'Treadmill' },
-        { id: 'stationary_bike', label: 'Stationary Bike' },
-        { id: 'elliptical', label: 'Elliptical' },
-        { id: 'rowing_erg', label: 'Rowing Ergometer' },
-        { id: 'stair_climber', label: 'Stair Climber' },
-        { id: 'jump_rope', label: 'Jump Rope' }
-      ]
+  useEffect(() => {
+    // Fetch available equipment from catalog
+    const fetchEquipment = async () => {
+      try {
+        const response = await api.get('/exercises/filters/options')
+        // Filter out 'body only' since those exercises are always available
+        // Sort to put common equipment first
+        const sortOrder = ['barbell', 'dumbbell', 'kettlebells', 'cable', 'machine', 'bands', 'e-z curl bar', 'medicine ball', 'exercise ball', 'foam roll', 'other']
+        const equipment = (response.data.equipment || [])
+          .filter(e => e !== 'body only') // Bodyweight exercises don't need equipment selection
+          .sort((a, b) => {
+            const aIdx = sortOrder.indexOf(a)
+            const bIdx = sortOrder.indexOf(b)
+            if (aIdx === -1 && bIdx === -1) return a.localeCompare(b)
+            if (aIdx === -1) return 1
+            if (bIdx === -1) return -1
+            return aIdx - bIdx
+          })
+        setEquipmentOptions(equipment)
+      } catch (error) {
+        console.error('Error fetching equipment options:', error)
+      } finally {
+        setLoadingEquipment(false)
+      }
     }
-  ]
+    fetchEquipment()
+  }, [])
 
   useEffect(() => {
     // Load training settings
@@ -155,6 +193,45 @@ function TrainingSettings() {
       setSettings(prev => ({ ...prev, ...merged }))
     }
   }, [])
+
+  // Filter equipment options based on search and exclude already selected
+  const filteredEquipmentOptions = useMemo(() => {
+    const search = equipmentSearch.toLowerCase()
+    return equipmentOptions.filter(equip => {
+      // Don't show already selected equipment
+      if (settings.equipmentAccess.includes(equip)) return false
+      // Filter by search
+      const label = equipmentLabels[equip] || equip
+      return label.toLowerCase().includes(search) || equip.toLowerCase().includes(search)
+    })
+  }, [equipmentOptions, equipmentSearch, settings.equipmentAccess])
+
+  // Group selected equipment by category
+  const groupedSelectedEquipment = useMemo(() => {
+    const groups = {}
+    settings.equipmentAccess.forEach(equip => {
+      const category = getEquipmentCategory(equip)
+      if (!groups[category]) groups[category] = []
+      groups[category].push(equip)
+    })
+    return groups
+  }, [settings.equipmentAccess])
+
+  const addEquipment = (equip) => {
+    setSettings(prev => ({
+      ...prev,
+      equipmentAccess: [...prev.equipmentAccess, equip]
+    }))
+    setEquipmentSearch('')
+    setShowEquipmentDropdown(false)
+  }
+
+  const removeEquipment = (equip) => {
+    setSettings(prev => ({
+      ...prev,
+      equipmentAccess: prev.equipmentAccess.filter(e => e !== equip)
+    }))
+  }
 
   const toggleEquipment = (id) => {
     setSettings(prev => ({
@@ -180,7 +257,13 @@ function TrainingSettings() {
         countdownBeep: settings.countdownBeep
       }
       localStorage.setItem('timerSettings', JSON.stringify(timerSettings))
-      await api.put('/users/settings', { trainingPreferences: settings }).catch(() => {})
+
+      // Save to server - include equipment for AI personalization
+      await api.put('/users/settings', {
+        trainingPreferences: settings,
+        availableEquipment: settings.equipmentAccess // Sync equipment to database for AI
+      }).catch(() => {})
+
       setSaved(true)
       // Auto-hide after 2 seconds
       setTimeout(() => setSaved(false), 2000)
@@ -211,21 +294,18 @@ function TrainingSettings() {
             <button
               key={level.id}
               onClick={() => setSettings({ ...settings, experienceLevel: level.id })}
-              className={`w-full p-4 rounded-xl text-left transition-colors ${
+              className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors ${
                 settings.experienceLevel === level.id
                   ? 'bg-accent text-white ring-2 ring-accent'
                   : 'bg-dark-elevated text-gray-400 hover:text-white'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <p className="font-medium">{level.label}</p>
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-sm">{level.label}</p>
                 <p className={`text-xs ${settings.experienceLevel === level.id ? 'text-white/70' : 'text-gray-500'}`}>
                   {level.desc}
                 </p>
               </div>
-              <p className={`text-sm ${settings.experienceLevel === level.id ? 'text-white/80' : 'text-gray-500'}`}>
-                {level.details}
-              </p>
             </button>
           ))}
         </div>
@@ -239,19 +319,16 @@ function TrainingSettings() {
             <button
               key={style.id}
               onClick={() => setSettings({ ...settings, primaryGoal: style.id })}
-              className={`w-full p-4 rounded-xl text-left transition-colors ${
+              className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors ${
                 settings.primaryGoal === style.id
                   ? 'bg-accent text-white ring-2 ring-accent'
                   : 'bg-dark-elevated text-gray-400 hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-xl">{style.icon}</span>
-                <p className="font-medium">{style.label}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-base">{style.icon}</span>
+                <p className="font-medium text-sm">{style.label}</p>
               </div>
-              <p className={`text-sm ml-9 ${settings.primaryGoal === style.id ? 'text-white/80' : 'text-gray-500'}`}>
-                {style.desc}
-              </p>
             </button>
           ))}
         </div>
@@ -405,60 +482,117 @@ function TrainingSettings() {
       {/* Equipment */}
       <div className="card">
         <h3 className="text-white font-medium mb-4">Available Equipment</h3>
-        <p className="text-gray-500 text-sm mb-4">Select all equipment you have access to. This helps filter exercises to match your setup.</p>
+        <p className="text-gray-500 text-sm mb-4">Search and add equipment you have access to. This helps filter exercises and personalize AI suggestions. Bodyweight exercises are always available.</p>
 
-        <div className="space-y-6">
-          {equipmentCategories.map((category) => (
-            <div key={category.category}>
-              <h4 className="text-gray-400 text-sm font-medium mb-2">{category.category}</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {category.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => toggleEquipment(item.id)}
-                    className={`p-3 rounded-xl text-sm text-left transition-colors flex items-center gap-2 ${
-                      settings.equipmentAccess.includes(item.id)
-                        ? 'bg-accent text-white'
-                        : 'bg-dark-elevated text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <svg
-                      className={`w-4 h-4 flex-shrink-0 ${settings.equipmentAccess.includes(item.id) ? 'text-white' : 'text-gray-600'}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+        {loadingEquipment ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <>
+            {/* Search and Add */}
+            <div className="relative mb-4">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={equipmentSearch}
+                  onChange={(e) => {
+                    setEquipmentSearch(e.target.value)
+                    setShowEquipmentDropdown(true)
+                  }}
+                  onFocus={() => setShowEquipmentDropdown(true)}
+                  placeholder="Search equipment to add..."
+                  className="input w-full pl-10 pr-4"
+                />
+              </div>
+
+              {/* Dropdown */}
+              {showEquipmentDropdown && filteredEquipmentOptions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-dark-card border border-dark-border rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  {filteredEquipmentOptions.map((equip) => (
+                    <button
+                      key={equip}
+                      onClick={() => addEquipment(equip)}
+                      className="w-full px-4 py-3 text-left text-gray-300 hover:bg-dark-elevated hover:text-white flex items-center gap-3 transition-colors"
                     >
-                      {settings.equipmentAccess.includes(item.id) ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      ) : (
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      )}
-                    </svg>
-                    <span className="truncate">{item.label}</span>
-                  </button>
+                      </svg>
+                      <span>{equipmentLabels[equip] || equip}</span>
+                      <span className="ml-auto text-xs text-gray-500">{getEquipmentCategory(equip)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showEquipmentDropdown && equipmentSearch && filteredEquipmentOptions.length === 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-dark-card border border-dark-border rounded-xl shadow-lg p-4 text-center text-gray-500">
+                  No equipment found matching "{equipmentSearch}"
+                </div>
+              )}
+            </div>
+
+            {/* Click outside to close dropdown */}
+            {showEquipmentDropdown && (
+              <div
+                className="fixed inset-0 z-0"
+                onClick={() => setShowEquipmentDropdown(false)}
+              />
+            )}
+
+            {/* Selected Equipment by Category */}
+            {settings.equipmentAccess.length > 0 ? (
+              <div className="space-y-4">
+                {Object.entries(groupedSelectedEquipment).map(([category, items]) => (
+                  <div key={category}>
+                    <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">{category}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {items.map((equip) => (
+                        <div
+                          key={equip}
+                          className="bg-accent/20 border border-accent/40 text-accent px-3 py-2 rounded-lg flex items-center gap-2 text-sm"
+                        >
+                          <span>{equipmentLabels[equip] || equip}</span>
+                          <button
+                            onClick={() => removeEquipment(equip)}
+                            className="hover:text-white transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                <p>No equipment added yet</p>
+                <p className="text-sm mt-1">Search above to add your equipment</p>
+              </div>
+            )}
 
-        <div className="mt-4 pt-4 border-t border-dark-border flex gap-2">
-          <button
-            onClick={() => {
-              const allIds = equipmentCategories.flatMap(c => c.items.map(i => i.id))
-              setSettings({ ...settings, equipmentAccess: allIds })
-            }}
-            className="btn-secondary flex-1 text-sm"
-          >
-            Select All
-          </button>
-          <button
-            onClick={() => setSettings({ ...settings, equipmentAccess: [] })}
-            className="btn-secondary flex-1 text-sm"
-          >
-            Clear All
-          </button>
-        </div>
+            {/* Quick actions */}
+            {settings.equipmentAccess.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-dark-border">
+                <button
+                  onClick={() => setSettings({ ...settings, equipmentAccess: [] })}
+                  className="btn-ghost text-sm text-gray-400 hover:text-red-400"
+                >
+                  Clear All Equipment
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Save Button */}

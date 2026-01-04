@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import notificationService from './notifications.js'
-
-const prisma = new PrismaClient()
+import followNotificationService from './followNotifications.js'
 
 // Default achievements to seed
 const DEFAULT_ACHIEVEMENTS = [
@@ -255,6 +254,12 @@ class AchievementService {
       const { currentStreak, longestStreak } = await this.calculateStreaks(userId)
       updates.currentStreak = currentStreak
       updates.longestStreak = Math.max(longestStreak, currentStats.longestStreak)
+
+      // Check for streak milestone and notify followers
+      const streakMilestones = [7, 30, 90, 180, 365]
+      if (streakMilestones.includes(currentStreak) && currentStreak > (currentStats.currentStreak || 0)) {
+        followNotificationService.notifyStreakMilestone(userId, currentStreak)
+      }
     }
 
     if (context.prSet) {
@@ -271,6 +276,20 @@ class AchievementService {
 
     if (context.friendRemoved) {
       updates.totalFriends = { decrement: 1 }
+    }
+
+    // Goal completions
+    if (context.goalCompleted) {
+      updates.totalGoalsCompleted = { increment: 1 }
+
+      // Track specific goal type completions
+      if (context.goalType === 'WEIGHT_LOSS' || context.goalType === 'WEIGHT_GAIN') {
+        updates.weightGoalsCompleted = { increment: 1 }
+      } else if (context.goalType === 'EXERCISE_STRENGTH') {
+        updates.strengthGoalsCompleted = { increment: 1 }
+      } else if (context.goalType === 'CARDIO_TIME' || context.goalType === 'CARDIO_DISTANCE') {
+        updates.cardioGoalsCompleted = { increment: 1 }
+      }
     }
 
     if (Object.keys(updates).length > 0) {
@@ -359,6 +378,14 @@ class AchievementService {
         return userStats.calorieGoalStreak || 0
       case 'TOTAL_FRIENDS':
         return userStats.totalFriends || 0
+      case 'TOTAL_GOALS_COMPLETED':
+        return userStats.totalGoalsCompleted || 0
+      case 'WEIGHT_GOALS_COMPLETED':
+        return userStats.weightGoalsCompleted || 0
+      case 'STRENGTH_GOALS_COMPLETED':
+        return userStats.strengthGoalsCompleted || 0
+      case 'CARDIO_GOALS_COMPLETED':
+        return userStats.cardioGoalsCompleted || 0
       default:
         return 0
     }
@@ -375,6 +402,14 @@ class AchievementService {
         name: userAchievement.achievement.name,
         description: userAchievement.achievement.description,
         icon: userAchievement.achievement.icon
+      })
+
+      // Notify followers of achievement unlock
+      followNotificationService.notifyAchievementUnlocked(userId, {
+        id: userAchievement.achievement.id,
+        name: userAchievement.achievement.name,
+        icon: userAchievement.achievement.icon,
+        rarity: userAchievement.achievement.rarity
       })
 
       await prisma.userAchievement.update({

@@ -8,6 +8,15 @@ import { Server as SocketServer } from 'socket.io'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+// Validate required environment variables at startup
+const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL']
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`FATAL: ${envVar} environment variable is required`)
+    process.exit(1)
+  }
+}
+
 // Routes
 import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
@@ -22,9 +31,11 @@ import nutritionRoutes from './routes/nutrition.js'
 import achievementRoutes from './routes/achievements.js'
 import feedbackRoutes from './routes/feedback.js'
 import backupRoutes from './routes/backup.js'
+import goalRoutes from './routes/goals.js'
 
 // Services
 import backupScheduler from './services/scheduler.js'
+import followNotificationService from './services/followNotifications.js'
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -45,6 +56,9 @@ const io = new SocketServer(httpServer, {
     methods: ['GET', 'POST']
   }
 })
+
+// Initialize follow notification service with socket.io
+followNotificationService.setSocketIO(io)
 
 // Trust proxy for production behind nginx/docker
 app.set('trust proxy', 1)
@@ -111,6 +125,7 @@ app.use('/api/nutrition', authenticateToken, nutritionRoutes)
 app.use('/api/achievements', authenticateToken, achievementRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/backup', authenticateToken, backupRoutes)
+app.use('/api/goals', authenticateToken, goalRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -179,78 +194,106 @@ io.on('connection', (socket) => {
 
   // Workout started - broadcast to all user's sessions
   socket.on('workout:start', (data) => {
-    if (!socket.userId) return
-    // Broadcast to all OTHER tabs/devices for this user
-    socket.to(`user-${socket.userId}`).emit('workout:started', {
-      sessionId: data.sessionId,
-      startTime: data.startTime,
-      workoutName: data.workoutName
-    })
-    logger.info(`User ${socket.userId} started workout ${data.sessionId}`)
+    try {
+      if (!socket.userId) return
+      // Broadcast to all OTHER tabs/devices for this user
+      socket.to(`user-${socket.userId}`).emit('workout:started', {
+        sessionId: data.sessionId,
+        startTime: data.startTime,
+        workoutName: data.workoutName
+      })
+      logger.info(`User ${socket.userId} started workout ${data.sessionId}`)
+    } catch (error) {
+      logger.error('Error in workout:start handler:', error)
+    }
   })
 
   // Workout paused/resumed - sync across all sessions
   socket.on('workout:pause', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:paused', {
-      sessionId: data.sessionId,
-      isPaused: data.isPaused,
-      elapsedTime: data.elapsedTime,
-      pausedAt: data.pausedAt
-    })
-    logger.info(`User ${socket.userId} ${data.isPaused ? 'paused' : 'resumed'} workout`)
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:paused', {
+        sessionId: data.sessionId,
+        isPaused: data.isPaused,
+        elapsedTime: data.elapsedTime,
+        pausedAt: data.pausedAt
+      })
+      logger.info(`User ${socket.userId} ${data.isPaused ? 'paused' : 'resumed'} workout`)
+    } catch (error) {
+      logger.error('Error in workout:pause handler:', error)
+    }
   })
 
   // Rest timer started/updated - sync across all sessions
   socket.on('workout:rest-timer', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:rest-timer-sync', {
-      sessionId: data.sessionId,
-      restTimer: data.restTimer,
-      restTimerRunning: data.restTimerRunning,
-      showRestTimer: data.showRestTimer
-    })
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:rest-timer-sync', {
+        sessionId: data.sessionId,
+        restTimer: data.restTimer,
+        restTimerRunning: data.restTimerRunning,
+        showRestTimer: data.showRestTimer
+      })
+    } catch (error) {
+      logger.error('Error in workout:rest-timer handler:', error)
+    }
   })
 
   // Exercise/set logged - sync across all sessions
   socket.on('workout:set-logged', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:set-logged-sync', {
-      sessionId: data.sessionId,
-      exerciseId: data.exerciseId,
-      setData: data.setData,
-      exerciseLogs: data.exerciseLogs
-    })
-    logger.info(`User ${socket.userId} logged set for exercise ${data.exerciseId}`)
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:set-logged-sync', {
+        sessionId: data.sessionId,
+        exerciseId: data.exerciseId,
+        setData: data.setData,
+        exerciseLogs: data.exerciseLogs
+      })
+      logger.info(`User ${socket.userId} logged set for exercise ${data.exerciseId}`)
+    } catch (error) {
+      logger.error('Error in workout:set-logged handler:', error)
+    }
   })
 
   // Workout ended - sync across all sessions
   socket.on('workout:end', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:ended', {
-      sessionId: data.sessionId,
-      endTime: data.endTime
-    })
-    logger.info(`User ${socket.userId} ended workout ${data.sessionId}`)
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:ended', {
+        sessionId: data.sessionId,
+        endTime: data.endTime
+      })
+      logger.info(`User ${socket.userId} ended workout ${data.sessionId}`)
+    } catch (error) {
+      logger.error('Error in workout:end handler:', error)
+    }
   })
 
   // Workout canceled - sync across all sessions
   socket.on('workout:cancel', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:canceled', {
-      sessionId: data.sessionId
-    })
-    logger.info(`User ${socket.userId} canceled workout ${data.sessionId}`)
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:canceled', {
+        sessionId: data.sessionId
+      })
+      logger.info(`User ${socket.userId} canceled workout ${data.sessionId}`)
+    } catch (error) {
+      logger.error('Error in workout:cancel handler:', error)
+    }
   })
 
   // Timer sync request - for periodic sync to keep all tabs in sync
   socket.on('workout:timer-sync', (data) => {
-    if (!socket.userId) return
-    socket.to(`user-${socket.userId}`).emit('workout:timer-update', {
-      sessionId: data.sessionId,
-      elapsedTime: data.elapsedTime,
-      isPaused: data.isPaused
-    })
+    try {
+      if (!socket.userId) return
+      socket.to(`user-${socket.userId}`).emit('workout:timer-update', {
+        sessionId: data.sessionId,
+        elapsedTime: data.elapsedTime,
+        isPaused: data.isPaused
+      })
+    } catch (error) {
+      logger.error('Error in workout:timer-sync handler:', error)
+    }
   })
 
   socket.on('disconnect', () => {

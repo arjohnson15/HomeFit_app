@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
 import * as nutritionApi from '../services/nutritionApi'
+import ChatWidget from '../components/ChatWidget'
 
 const MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK']
 
@@ -253,6 +254,9 @@ function Nutrition() {
             Change tracking mode in settings
           </Link>
         </div>
+
+        {/* AI Coach Chat */}
+        <ChatWidget context="nutrition" />
       </div>
     )
   }
@@ -729,6 +733,9 @@ function Nutrition() {
           </div>
         </div>
       )}
+
+      {/* AI Coach Chat */}
+      <ChatWidget context="nutrition" />
     </div>
   )
 }

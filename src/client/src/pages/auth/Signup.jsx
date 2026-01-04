@@ -8,14 +8,16 @@ function Signup() {
     email: '',
     username: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    shareWorkouts: true
   })
   const [validationError, setValidationError] = useState('')
   const { signup, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
+    setFormData({ ...formData, [e.target.name]: value })
     setValidationError('')
   }
 
@@ -39,7 +41,8 @@ function Signup() {
       name: formData.name,
       email: formData.email,
       username: formData.username,
-      password: formData.password
+      password: formData.password,
+      shareWorkouts: formData.shareWorkouts
     })
 
     if (result.success) {
@@ -145,6 +148,25 @@ function Signup() {
             autoComplete="new-password"
           />
         </div>
+      </div>
+
+      {/* Social Sharing Option */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="shareWorkouts"
+            checked={formData.shareWorkouts}
+            onChange={handleChange}
+            className="mt-1 w-5 h-5 rounded border-dark-border bg-dark text-accent focus:ring-accent focus:ring-offset-0"
+          />
+          <div>
+            <span className="text-white font-medium">Share my workouts with friends</span>
+            <p className="text-gray-400 text-sm mt-1">
+              Let your friends see your workout schedule and session stats. You can change this anytime in Settings.
+            </p>
+          </div>
+        </label>
       </div>
 
       <button

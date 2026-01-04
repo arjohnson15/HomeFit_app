@@ -1,12 +1,11 @@
 import express from 'express'
 import { body, validationResult } from 'express-validator'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { authenticateToken } from '../middleware/auth.js'
 import logger from '../utils/logger.js'
 import notificationService from '../services/notifications.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // Helper function to send feedback notifications to admins
 async function sendFeedbackNotifications(type, title, severity = null) {

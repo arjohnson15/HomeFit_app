@@ -2,21 +2,33 @@ import { useEffect, useRef, useCallback } from 'react'
 import { io } from 'socket.io-client'
 import { useAuthStore } from '../services/authStore'
 
-// Singleton socket instance
+// Singleton socket instance with connection state tracking
 let socketInstance = null
 let connectionPromise = null
+let connectionState = 'disconnected' // 'disconnected', 'connecting', 'connected'
 
 // Get or create socket connection
 const getSocket = (token) => {
-  if (socketInstance?.connected) {
+  // Return existing connected socket
+  if (socketInstance?.connected && connectionState === 'connected') {
     return Promise.resolve(socketInstance)
   }
 
-  if (connectionPromise) {
+  // Return pending connection promise if already connecting
+  if (connectionState === 'connecting' && connectionPromise) {
     return connectionPromise
   }
 
-  connectionPromise = new Promise((resolve) => {
+  // Clean up stale socket if exists but not connected
+  if (socketInstance && !socketInstance.connected) {
+    socketInstance.removeAllListeners()
+    socketInstance.disconnect()
+    socketInstance = null
+  }
+
+  connectionState = 'connecting'
+
+  connectionPromise = new Promise((resolve, reject) => {
     const socketUrl = import.meta.env.VITE_API_URL || ''
 
     socketInstance = io(socketUrl, {
@@ -29,30 +41,37 @@ const getSocket = (token) => {
       timeout: 20000
     })
 
+    const timeoutId = setTimeout(() => {
+      if (connectionState === 'connecting') {
+        connectionState = 'disconnected'
+        connectionPromise = null
+        // Still resolve with socket - it may connect later via reconnection
+        resolve(socketInstance)
+      }
+    }, 5000)
+
     socketInstance.on('connect', () => {
-      console.log('[Socket] Connected:', socketInstance.id)
+      clearTimeout(timeoutId)
+      connectionState = 'connected'
       connectionPromise = null
+      console.log('[Socket] Connected:', socketInstance.id)
       resolve(socketInstance)
     })
 
     socketInstance.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message)
-      connectionPromise = null
+      // Don't reset state here - let reconnection handle it
     })
 
     socketInstance.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason)
+      connectionState = 'disconnected'
     })
 
     socketInstance.on('reconnect', (attemptNumber) => {
       console.log('[Socket] Reconnected after', attemptNumber, 'attempts')
+      connectionState = 'connected'
     })
-
-    // Resolve after timeout even if not connected
-    setTimeout(() => {
-      connectionPromise = null
-      resolve(socketInstance)
-    }, 5000)
   })
 
   return connectionPromise

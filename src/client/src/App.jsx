@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './services/authStore'
 
 // Layouts
@@ -22,6 +23,11 @@ import Recipes from './pages/Recipes'
 import MealPlans from './pages/MealPlans'
 import FeatureSuggestion from './pages/FeatureSuggestion'
 import BugReport from './pages/BugReport'
+import Goals from './pages/Goals'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
+import FriendProfile from './pages/FriendProfile'
+import Notifications from './pages/Notifications'
 
 // Settings Sub-pages
 import TimerSettings from './pages/settings/TimerSettings'
@@ -107,6 +113,21 @@ function PublicRoute({ children }) {
 }
 
 function App() {
+  const navigate = useNavigate()
+  const logout = useAuthStore((state) => state.logout)
+
+  // Listen for auth:logout events from API interceptor
+  useEffect(() => {
+    const handleLogout = (event) => {
+      console.log('Auth logout event received:', event.detail?.reason)
+      logout()
+      navigate('/login', { replace: true })
+    }
+
+    window.addEventListener('auth:logout', handleLogout)
+    return () => window.removeEventListener('auth:logout', handleLogout)
+  }, [logout, navigate])
+
   return (
     <Routes>
       {/* Auth Routes */}
@@ -144,12 +165,15 @@ function App() {
         <Route path="/schedule" element={<Schedule />} />
         <Route path="/history" element={<History />} />
         <Route path="/social" element={<Social />} />
+        <Route path="/friend/:friendId" element={<FriendProfile />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/meal-plans" element={<MealPlans />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/achievements" element={<Achievements />} />
+        <Route path="/goals" element={<Goals />} />
         <Route path="/feature-suggestion" element={<FeatureSuggestion />} />
         <Route path="/bug-report" element={<BugReport />} />
 
@@ -177,6 +201,10 @@ function App() {
         <Route path="/admin/feedback" element={<FeedbackSettings />} />
         <Route path="/admin/backup" element={<BackupManagement />} />
       </Route>
+
+      {/* Public Legal Pages (accessible with or without auth) */}
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
 
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/today" replace />} />

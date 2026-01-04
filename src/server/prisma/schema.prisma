@@ -48,8 +48,12 @@ model User {
   recurringWorkouts RecurringWorkout[]
   friendships       Friendship[]  @relation("UserFriendships")
   friendOf          Friendship[]  @relation("FriendOf")
+  following         FriendFollow[] @relation("UserFollowing")
+  followers         FriendFollow[] @relation("UserFollowers")
+  inAppNotifications InAppNotification[]
   exerciseNotes     ExerciseNote[]
   pushSubscriptions PushSubscription[]
+  refreshTokens     RefreshToken[]
 
   // Meal Planning Relations
   recipes           Recipe[]
@@ -62,7 +66,24 @@ model User {
   achievements      UserAchievement[]
   stats             UserStats?
 
+  // Goals
+  goals             Goal[]
+
   @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceInfo  String?  // Browser/device identifier
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model WeightLog {
@@ -100,11 +121,21 @@ model UserSettings {
   aiNutritionAdvice    Boolean @default(false)
   aiProgressAnalysis   Boolean @default(true)
   aiModel              String  @default("gpt-4o-mini") // gpt-4o-mini, gpt-4o, gpt-4-turbo
+  aiProvider           String  @default("openai") // "openai" or "ollama"
+  ollamaEndpoint       String? // e.g., "http://localhost:11434"
+  ollamaModel          String? // e.g., "llama2", "mistral", "codellama"
+  ollamaApiKey         String? // Optional API key for authenticated Ollama proxies
 
   // Warmup & Cooldown Settings
   showWarmupSuggestions   Boolean @default(true)
   showCooldownSuggestions Boolean @default(true)
+  warmupDefaultOn         Boolean @default(true)   // Toggle starts ON when opening Today page
+  cooldownDefaultOn       Boolean @default(true)   // Toggle starts ON when opening Today page
   useAiForWarmups         Boolean @default(false)  // Use AI to generate warmup/cooldown suggestions
+
+  // Weight Tracking on Today Page
+  showWeightTracking      Boolean @default(false)  // Show weight input on Today page
+  weightTrackingDefaultOn Boolean @default(true)   // Toggle starts ON when weight tracking is enabled
 
   // Daily Tips Settings
   showDailyTips           Boolean @default(true)
@@ -159,6 +190,10 @@ model UserSettings {
   allergies              String[] @default([])  // e.g., ["gluten", "dairy", "nuts", "shellfish", "soy", "eggs"]
   preferredProteins      String[] @default([])  // e.g., ["chicken", "beef", "pork", "fish", "tofu", "eggs"]
   dislikedFoods          String[] @default([])  // Foods to exclude from suggestions
+
+  // Available Equipment (for AI workout suggestions)
+  availableEquipment     String[] @default([])  // e.g., ["barbell", "dumbbells", "cables", "bench", "squat_rack"]
+  gymType                String?  // "home", "commercial", "outdoor", "bodyweight_only"
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -385,6 +420,55 @@ model Friendship {
   @@map("friendships")
 }
 
+model FriendFollow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followedId  String
+  followed    User     @relation("UserFollowers", fields: [followedId], references: [id], onDelete: Cascade)
+
+  // Granular notification preferences
+  notifyWorkouts      Boolean @default(true)
+  notifyAchievements  Boolean @default(true)
+  notifyStreaks       Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([followerId, followedId])
+  @@index([followerId])
+  @@index([followedId])
+  @@map("friend_follows")
+}
+
+model InAppNotification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+
+  read      Boolean  @default(false)
+  readAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("in_app_notifications")
+}
+
+enum NotificationType {
+  FRIEND_WORKOUT_COMPLETED
+  FRIEND_ACHIEVEMENT_UNLOCKED
+  FRIEND_STREAK_MILESTONE
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+}
+
 // ===========================================
 // Exercise Notes (User-specific notes on exercises)
 // ===========================================
@@ -506,10 +590,88 @@ model UserStats {
   // Social stats
   totalFriends        Int      @default(0)
 
+  // Goal stats
+  totalGoalsCompleted     Int      @default(0)
+  weightGoalsCompleted    Int      @default(0)
+  strengthGoalsCompleted  Int      @default(0)
+  cardioGoalsCompleted    Int      @default(0)
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@map("user_stats")
+}
+
+// ===========================================
+// User Goals System
+// ===========================================
+
+model Goal {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Goal type
+  type          GoalType
+
+  // Target values
+  targetValue   Float
+  currentValue  Float     @default(0)
+  startValue    Float
+
+  // Dates
+  startDate     DateTime  @default(now())
+  targetDate    DateTime?
+
+  // For exercise-specific goals
+  exerciseId    String?   // Reference to exercise from JSON database
+  exerciseName  String?   // Cached for display
+
+  // Settings
+  isPublic      Boolean   @default(true)
+  isCompleted   Boolean   @default(false)
+  completedAt   DateTime?
+
+  // Progress history
+  progressLogs  GoalProgress[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, isCompleted])
+  @@map("goals")
+}
+
+model GoalProgress {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  value     Float
+  date      DateTime @default(now())
+  source    GoalProgressSource @default(MANUAL)
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([goalId, date])
+  @@map("goal_progress")
+}
+
+enum GoalType {
+  WEIGHT_LOSS
+  WEIGHT_GAIN
+  EXERCISE_STRENGTH   // e.g., Bench 225 lbs
+  CARDIO_TIME         // Best time for a distance (e.g., Mile in 7:00) - lower is better
+  CARDIO_DISTANCE     // Best distance in set time (e.g., 3 miles in 30 min) - higher is better
+  MONTHLY_WORKOUTS    // Target workouts per month (auto-tracked)
+  YEARLY_WORKOUTS     // Target workouts for the year (auto-tracked)
+}
+
+enum GoalProgressSource {
+  MANUAL
+  AUTO_WEIGHT_LOG
+  AUTO_WORKOUT_LOG
 }
 
 enum AchievementCategory {
@@ -519,6 +681,7 @@ enum AchievementCategory {
   TIME        // Time-based (total hours)
   NUTRITION   // Meal logging, calorie goals
   SOCIAL      // Friends, sharing
+  GOALS       // Goal completions
 }
 
 enum AchievementMetricType {
@@ -530,6 +693,10 @@ enum AchievementMetricType {
   TOTAL_MEALS_LOGGED      // Food log entries
   CALORIE_GOAL_STREAK     // Days hitting calorie goal
   TOTAL_FRIENDS           // Friend count
+  TOTAL_GOALS_COMPLETED   // Total goals completed
+  WEIGHT_GOALS_COMPLETED  // Weight loss/gain goals completed
+  STRENGTH_GOALS_COMPLETED // Strength PR goals completed
+  CARDIO_GOALS_COMPLETED  // Cardio time/distance goals completed
 }
 
 enum AchievementRarity {
@@ -573,6 +740,12 @@ model AppSettings {
   // Global OpenAI API Key (shared with all users)
   globalOpenaiApiKey    String?  // Admin-provided API key
   globalOpenaiEnabled   Boolean  @default(false)  // Whether to share with users
+
+  // Global Ollama Configuration (self-hosted AI)
+  globalAiProvider      String   @default("openai") // "openai" or "ollama"
+  globalOllamaEndpoint  String?  // e.g., "http://localhost:11434"
+  globalOllamaModel     String?  // e.g., "llama2", "mistral"
+  globalOllamaApiKey    String?  // Optional API key for authenticated Ollama proxies
 
   // FatSecret API Configuration
   fatSecretClientId     String?

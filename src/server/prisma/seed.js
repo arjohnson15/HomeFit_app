@@ -103,6 +103,51 @@ async function main() {
   })
 
   console.log('Created app settings')
+
+  // Create goal achievements
+  const goalAchievements = [
+    // Total goals completed
+    { name: 'Goal Setter', description: 'Complete your first goal', icon: '🎯', category: 'GOALS', metricType: 'TOTAL_GOALS_COMPLETED', threshold: 1, points: 25, rarity: 'COMMON', sortOrder: 1 },
+    { name: 'Goal Crusher', description: 'Complete 5 goals', icon: '💪', category: 'GOALS', metricType: 'TOTAL_GOALS_COMPLETED', threshold: 5, points: 50, rarity: 'UNCOMMON', sortOrder: 2 },
+    { name: 'Goal Machine', description: 'Complete 10 goals', icon: '🏆', category: 'GOALS', metricType: 'TOTAL_GOALS_COMPLETED', threshold: 10, points: 100, rarity: 'RARE', sortOrder: 3 },
+    { name: 'Goal Legend', description: 'Complete 25 goals', icon: '👑', category: 'GOALS', metricType: 'TOTAL_GOALS_COMPLETED', threshold: 25, points: 250, rarity: 'EPIC', sortOrder: 4 },
+
+    // Weight goals
+    { name: 'Weight Winner', description: 'Complete your first weight goal', icon: '⚖️', category: 'GOALS', metricType: 'WEIGHT_GOALS_COMPLETED', threshold: 1, points: 50, rarity: 'UNCOMMON', sortOrder: 5 },
+    { name: 'Body Transformer', description: 'Complete 3 weight goals', icon: '🔄', category: 'GOALS', metricType: 'WEIGHT_GOALS_COMPLETED', threshold: 3, points: 150, rarity: 'RARE', sortOrder: 6 },
+
+    // Strength goals
+    { name: 'Strength Unlocked', description: 'Complete your first strength PR goal', icon: '🏋️', category: 'GOALS', metricType: 'STRENGTH_GOALS_COMPLETED', threshold: 1, points: 50, rarity: 'UNCOMMON', sortOrder: 7 },
+    { name: 'PR Hunter', description: 'Complete 5 strength PR goals', icon: '💥', category: 'GOALS', metricType: 'STRENGTH_GOALS_COMPLETED', threshold: 5, points: 150, rarity: 'RARE', sortOrder: 8 },
+    { name: 'Strength Master', description: 'Complete 10 strength PR goals', icon: '🦾', category: 'GOALS', metricType: 'STRENGTH_GOALS_COMPLETED', threshold: 10, points: 300, rarity: 'EPIC', sortOrder: 9 },
+
+    // Cardio goals
+    { name: 'Cardio Conqueror', description: 'Complete your first cardio goal', icon: '🏃', category: 'GOALS', metricType: 'CARDIO_GOALS_COMPLETED', threshold: 1, points: 50, rarity: 'UNCOMMON', sortOrder: 10 },
+    { name: 'Speed Demon', description: 'Complete 5 cardio goals', icon: '⚡', category: 'GOALS', metricType: 'CARDIO_GOALS_COMPLETED', threshold: 5, points: 150, rarity: 'RARE', sortOrder: 11 },
+    { name: 'Endurance Elite', description: 'Complete 10 cardio goals', icon: '🥇', category: 'GOALS', metricType: 'CARDIO_GOALS_COMPLETED', threshold: 10, points: 300, rarity: 'EPIC', sortOrder: 12 },
+  ]
+
+  for (const achievement of goalAchievements) {
+    const existing = await prisma.achievement.findFirst({
+      where: {
+        name: achievement.name,
+        metricType: achievement.metricType,
+        threshold: achievement.threshold
+      }
+    })
+
+    if (!existing) {
+      await prisma.achievement.create({
+        data: {
+          ...achievement,
+          isDefault: true,
+          isActive: true
+        }
+      })
+    }
+  }
+
+  console.log('Created goal achievements')
   console.log('Seeding complete!')
 }
 

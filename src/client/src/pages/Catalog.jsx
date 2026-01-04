@@ -1,6 +1,57 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../services/authStore'
+import ChatWidget from '../components/ChatWidget'
+
+// Display labels for equipment
+const equipmentLabels = {
+  'barbell': 'Barbell',
+  'dumbbell': 'Dumbbells',
+  'kettlebells': 'Kettlebells',
+  'cable': 'Cable Machine',
+  'machine': 'Machines (General)',
+  'bands': 'Resistance Bands',
+  'medicine ball': 'Medicine Ball',
+  'exercise ball': 'Exercise/Stability Ball',
+  'foam roll': 'Foam Roller',
+  'e-z curl bar': 'EZ Curl Bar',
+  'body only': 'Bodyweight Only',
+  'other': 'Other Equipment',
+  'flat bench': 'Flat Bench',
+  'incline bench': 'Incline Bench',
+  'decline bench': 'Decline Bench',
+  'pull-up bar': 'Pull-Up Bar',
+  'dip bars': 'Dip Bars/Station',
+  // Specific Machines - Legs
+  'leg extension machine': 'Leg Extension Machine',
+  'leg curl machine': 'Leg Curl Machine',
+  'leg press': 'Leg Press',
+  'hack squat machine': 'Hack Squat Machine',
+  'hip abductor/adductor': 'Hip Abductor/Adductor',
+  'seated calf raise machine': 'Seated Calf Raise',
+  'standing calf raise machine': 'Standing Calf Raise',
+  'glute ham raise': 'Glute Ham Raise (GHD)',
+  // Specific Machines - Upper Body
+  'smith machine': 'Smith Machine',
+  'chest press machine': 'Chest Press Machine',
+  'shoulder press machine': 'Shoulder Press Machine',
+  'pec deck machine': 'Pec Deck / Rear Delt Fly',
+  'lat pulldown': 'Lat Pulldown',
+  'row machine': 'Seated Row Machine',
+  't-bar row': 'T-Bar Row',
+  'bicep curl machine': 'Bicep Curl Machine',
+  'preacher curl machine': 'Preacher Curl Machine',
+  'tricep extension machine': 'Tricep Extension Machine',
+  'assisted dip machine': 'Assisted Dip/Pull-Up',
+  'ab crunch machine': 'Ab Crunch Machine',
+  'reverse hyper machine': 'Reverse Hyper',
+  // Cardio
+  'treadmill': 'Treadmill',
+  'stationary bike': 'Stationary Bike',
+  'elliptical': 'Elliptical',
+  'rowing machine': 'Rowing Machine',
+  'stair climber': 'Stair Climber'
+}
 
 function Catalog() {
   const user = useAuthStore((state) => state.user)
@@ -14,10 +65,23 @@ function Catalog() {
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
   const [selectedExercise, setSelectedExercise] = useState(null)
+  const [myEquipmentOnly, setMyEquipmentOnly] = useState(false)
+  const [userEquipment, setUserEquipment] = useState([])
+  const [equipmentSearch, setEquipmentSearch] = useState('')
+  const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false)
   const limit = 30
 
-  // Fetch filter options on mount
+  // Load user equipment from localStorage and fetch filter options on mount
   useEffect(() => {
+    // Load user's equipment settings
+    const savedTraining = localStorage.getItem('trainingSettings')
+    if (savedTraining) {
+      const parsed = JSON.parse(savedTraining)
+      if (parsed.equipmentAccess) {
+        setUserEquipment(parsed.equipmentAccess)
+      }
+    }
+
     const fetchFilters = async () => {
       try {
         const response = await api.get('/exercises/filters/options')
@@ -29,6 +93,13 @@ function Catalog() {
     fetchFilters()
   }, [])
 
+  // Get equipment filter from user's selected equipment
+  // Equipment values now match the catalog directly (e.g., 'barbell', 'dumbbell', 'cable')
+  const getMyEquipmentFilter = useCallback(() => {
+    if (!myEquipmentOnly || userEquipment.length === 0) return null
+    return userEquipment.join(',')
+  }, [myEquipmentOnly, userEquipment])
+
   // Fetch exercises
   const fetchExercises = useCallback(async () => {
     setLoading(true)
@@ -39,7 +110,15 @@ function Catalog() {
       })
       if (searchQuery) params.append('search', searchQuery)
       if (selectedMuscle) params.append('muscle', selectedMuscle)
-      if (selectedEquipment) params.append('equipment', selectedEquipment)
+
+      // Use my equipment filter if enabled, otherwise use selected equipment dropdown
+      const myEquipmentFilter = getMyEquipmentFilter()
+      if (myEquipmentFilter) {
+        params.append('equipment', myEquipmentFilter)
+      } else if (selectedEquipment) {
+        params.append('equipment', selectedEquipment)
+      }
+
       if (selectedLevel) params.append('level', selectedLevel)
 
       const response = await api.get(`/exercises?${params}`)
@@ -50,7 +129,7 @@ function Catalog() {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter])
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -58,7 +137,7 @@ function Catalog() {
       fetchExercises()
     }, 300)
     return () => clearTimeout(debounce)
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly])
 
   useEffect(() => {
     fetchExercises()
@@ -84,6 +163,15 @@ function Catalog() {
     intermediate: 'bg-warning/20 text-warning',
     expert: 'bg-error/20 text-error'
   }
+
+  // Filter equipment options based on search
+  const filteredEquipmentOptions = useMemo(() => {
+    const search = equipmentSearch.toLowerCase()
+    return (filterOptions.equipment || []).filter(equip => {
+      const label = equipmentLabels[equip] || equip
+      return label.toLowerCase().includes(search) || equip.toLowerCase().includes(search)
+    })
+  }, [filterOptions.equipment, equipmentSearch])
 
   return (
     <div className="p-4 space-y-4 pb-24">
@@ -124,18 +212,104 @@ function Catalog() {
         ))}
       </div>
 
+      {/* My Equipment Toggle */}
+      {userEquipment.length > 0 && (
+        <div className="flex items-center justify-between bg-dark-card rounded-xl p-3">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <div>
+              <p className="text-white text-sm font-medium">My Equipment Only</p>
+              <p className="text-gray-500 text-xs">Hide exercises requiring equipment I don't have</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMyEquipmentOnly(!myEquipmentOnly)}
+            className={`w-12 h-7 rounded-full transition-colors relative ${
+              myEquipmentOnly ? 'bg-accent' : 'bg-dark-elevated'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+              myEquipmentOnly ? 'translate-x-6' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+      )}
+
       {/* Additional Filters */}
       <div className="flex gap-2">
-        <select
-          value={selectedEquipment}
-          onChange={(e) => setSelectedEquipment(e.target.value)}
-          className="input flex-1 text-sm"
-        >
-          <option value="">All Equipment</option>
-          {filterOptions.equipment?.map(eq => (
-            <option key={eq} value={eq}>{eq}</option>
-          ))}
-        </select>
+        {/* Equipment Searchable Dropdown */}
+        <div className="relative flex-1">
+          <div
+            className={`input text-sm cursor-pointer flex items-center justify-between ${myEquipmentOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => !myEquipmentOnly && setShowEquipmentDropdown(!showEquipmentDropdown)}
+          >
+            <span className={selectedEquipment ? 'text-white' : 'text-gray-400'}>
+              {selectedEquipment ? (equipmentLabels[selectedEquipment] || selectedEquipment) : 'All Equipment'}
+            </span>
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          {showEquipmentDropdown && !myEquipmentOnly && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowEquipmentDropdown(false)} />
+              <div className="absolute z-20 w-full mt-1 bg-dark-card border border-dark-border rounded-xl shadow-lg max-h-64 overflow-hidden">
+                {/* Search Input */}
+                <div className="p-2 border-b border-dark-border">
+                  <input
+                    type="text"
+                    value={equipmentSearch}
+                    onChange={(e) => setEquipmentSearch(e.target.value)}
+                    placeholder="Search equipment..."
+                    className="input w-full text-sm py-2"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                {/* Options List */}
+                <div className="max-h-48 overflow-y-auto">
+                  <button
+                    onClick={() => {
+                      setSelectedEquipment('')
+                      setShowEquipmentDropdown(false)
+                      setEquipmentSearch('')
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-dark-elevated transition-colors ${
+                      !selectedEquipment ? 'text-accent' : 'text-gray-300'
+                    }`}
+                  >
+                    All Equipment
+                  </button>
+                  {filteredEquipmentOptions.map(eq => (
+                    <button
+                      key={eq}
+                      onClick={() => {
+                        setSelectedEquipment(eq)
+                        setShowEquipmentDropdown(false)
+                        setEquipmentSearch('')
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-dark-elevated transition-colors ${
+                        selectedEquipment === eq ? 'text-accent' : 'text-gray-300'
+                      }`}
+                    >
+                      {equipmentLabels[eq] || eq}
+                    </button>
+                  ))}
+                  {filteredEquipmentOptions.length === 0 && equipmentSearch && (
+                    <div className="px-4 py-3 text-gray-500 text-sm text-center">
+                      No equipment found
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         <select
           value={selectedLevel}
           onChange={(e) => setSelectedLevel(e.target.value)}
@@ -238,6 +412,9 @@ function Catalog() {
           onExerciseUpdated={fetchExercises}
         />
       )}
+
+      {/* AI Coach Chat */}
+      <ChatWidget context="catalog" />
     </div>
   )
 }

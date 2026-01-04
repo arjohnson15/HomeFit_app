@@ -9,6 +9,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [aiAvailable, setAiAvailable] = useState(null)
+  const [aiProvider, setAiProvider] = useState(null)
   const [checkingAi, setCheckingAi] = useState(true)
   const [pendingQuestion, setPendingQuestion] = useState(null)
   const messagesEndRef = useRef(null)
@@ -68,6 +69,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
     try {
       const response = await api.get('/ai/status')
       setAiAvailable(response.data.available)
+      setAiProvider(response.data.provider)
     } catch (error) {
       setAiAvailable(false)
     } finally {
@@ -159,7 +161,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
             </div>
             <div className="flex-1">
               <h3 className="text-white font-semibold">AI Fitness Assistant</h3>
-              <p className="text-white/70 text-xs">Powered by ChatGPT</p>
+              <p className="text-white/70 text-xs">Powered by {aiProvider === 'ollama' ? 'Ollama' : 'ChatGPT'}</p>
             </div>
             <button
               onClick={() => setIsOpen(false)}

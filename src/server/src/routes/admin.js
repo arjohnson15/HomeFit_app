@@ -1,6 +1,6 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { requireAdmin } from '../middleware/auth.js'
 import notificationService, { SMS_GATEWAYS } from '../services/notifications.js'
 import achievementService from '../services/achievements.js'
@@ -8,7 +8,6 @@ import updateService from '../services/updates.js'
 import webpush from 'web-push'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // All admin routes require admin role
 router.use(requireAdmin)
@@ -83,6 +82,14 @@ router.patch('/users/:id', async (req, res, next) => {
 router.post('/users/:id/reset-password', async (req, res, next) => {
   try {
     const { newPassword } = req.body
+
+    // Validate password
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ message: 'Password is required' })
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' })
+    }
 
     const hashedPassword = await bcrypt.hash(
       newPassword,
@@ -291,6 +298,10 @@ router.patch('/settings', async (req, res, next) => {
       smsSenderName,
       globalOpenaiApiKey,
       globalOpenaiEnabled,
+      globalAiProvider,
+      globalOllamaEndpoint,
+      globalOllamaModel,
+      globalOllamaApiKey,
       fatSecretClientId,
       fatSecretClientSecret,
       fatSecretTier,
@@ -338,6 +349,10 @@ router.patch('/settings', async (req, res, next) => {
         ...(smsSenderName !== undefined && { smsSenderName }),
         ...(globalOpenaiApiKey !== undefined && { globalOpenaiApiKey }),
         ...(globalOpenaiEnabled !== undefined && { globalOpenaiEnabled }),
+        ...(globalAiProvider !== undefined && { globalAiProvider }),
+        ...(globalOllamaEndpoint !== undefined && { globalOllamaEndpoint }),
+        ...(globalOllamaModel !== undefined && { globalOllamaModel }),
+        ...(globalOllamaApiKey !== undefined && { globalOllamaApiKey }),
         ...(fatSecretClientId !== undefined && { fatSecretClientId }),
         ...(fatSecretClientSecret !== undefined && { fatSecretClientSecret }),
         ...(fatSecretTier !== undefined && { fatSecretTier }),
@@ -352,6 +367,10 @@ router.patch('/settings', async (req, res, next) => {
         accentColor: accentColor || '#30d158',
         ...(globalOpenaiApiKey !== undefined && { globalOpenaiApiKey }),
         ...(globalOpenaiEnabled !== undefined && { globalOpenaiEnabled }),
+        ...(globalAiProvider !== undefined && { globalAiProvider }),
+        ...(globalOllamaEndpoint !== undefined && { globalOllamaEndpoint }),
+        ...(globalOllamaModel !== undefined && { globalOllamaModel }),
+        ...(globalOllamaApiKey !== undefined && { globalOllamaApiKey }),
         ...vapidData
       }
     })

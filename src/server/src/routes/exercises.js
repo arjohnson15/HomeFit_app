@@ -2,10 +2,9 @@ import express from 'express'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -69,10 +68,14 @@ router.get('/', async (req, res, next) => {
     }
 
     if (equipment) {
-      const equipmentLower = equipment.toLowerCase()
-      exercises = exercises.filter(e =>
-        e.equipment?.toLowerCase() === equipmentLower
-      )
+      // Support comma-separated list of equipment types
+      const equipmentList = equipment.toLowerCase().split(',').map(e => e.trim())
+      exercises = exercises.filter(e => {
+        const exerciseEquipment = e.equipment?.toLowerCase()
+        // Always include "body only" exercises when filtering by equipment
+        if (exerciseEquipment === 'body only') return true
+        return equipmentList.includes(exerciseEquipment)
+      })
     }
 
     if (level) {
@@ -102,23 +105,7 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-// GET /api/exercises/:id
-router.get('/:id', async (req, res, next) => {
-  try {
-    const exercises = await loadExercises()
-    const exercise = exercises.find(e => e.id === req.params.id)
-
-    if (!exercise) {
-      return res.status(404).json({ message: 'Exercise not found' })
-    }
-
-    res.json({ exercise })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// GET /api/exercises/filters/options
+// GET /api/exercises/filters/options - Must be before /:id to avoid route conflict
 router.get('/filters/options', async (req, res, next) => {
   try {
     const exercises = await loadExercises()
@@ -142,6 +129,22 @@ router.get('/filters/options', async (req, res, next) => {
       levels: Array.from(levels),
       categories: Array.from(categories).sort()
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/exercises/:id
+router.get('/:id', async (req, res, next) => {
+  try {
+    const exercises = await loadExercises()
+    const exercise = exercises.find(e => e.id === req.params.id)
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    res.json({ exercise })
   } catch (error) {
     next(error)
   }

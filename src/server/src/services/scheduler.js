@@ -1,8 +1,6 @@
 import cron from 'node-cron'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import backupService from './backup.js'
-
-const prisma = new PrismaClient()
 
 class BackupScheduler {
   constructor() {

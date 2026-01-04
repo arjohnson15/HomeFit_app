@@ -8,13 +8,7 @@ function PrivacySettings() {
     shareWorkouts: true,
     showOnLeaderboard: true,
     shareProgress: false,
-    // Social cards on Today page
-    showSocialSection: true,
-    showFriendsWorkoutsToday: true,
-    showFriendsPRsToday: true,
-    showFriendsStreaks: true,
-    showFriendsAchievements: true,
-    showGlobalLeaderboard: true
+    showSocialSection: true
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -31,12 +25,7 @@ function PrivacySettings() {
             shareWorkouts: userSettings.shareWorkouts ?? true,
             showOnLeaderboard: userSettings.showOnLeaderboard ?? true,
             shareProgress: userSettings.shareProgress ?? false,
-            showSocialSection: userSettings.showSocialSection ?? true,
-            showFriendsWorkoutsToday: userSettings.showFriendsWorkoutsToday ?? true,
-            showFriendsPRsToday: userSettings.showFriendsPRsToday ?? true,
-            showFriendsStreaks: userSettings.showFriendsStreaks ?? true,
-            showFriendsAchievements: userSettings.showFriendsAchievements ?? true,
-            showGlobalLeaderboard: userSettings.showGlobalLeaderboard ?? true
+            showSocialSection: userSettings.showSocialSection ?? true
           })
         }
       } catch (error) {
@@ -57,12 +46,7 @@ function PrivacySettings() {
         shareWorkouts: settings.shareWorkouts,
         showOnLeaderboard: settings.showOnLeaderboard,
         shareProgress: settings.shareProgress,
-        showSocialSection: settings.showSocialSection,
-        showFriendsWorkoutsToday: settings.showFriendsWorkoutsToday,
-        showFriendsPRsToday: settings.showFriendsPRsToday,
-        showFriendsStreaks: settings.showFriendsStreaks,
-        showFriendsAchievements: settings.showFriendsAchievements,
-        showGlobalLeaderboard: settings.showGlobalLeaderboard
+        showSocialSection: settings.showSocialSection
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -175,18 +159,14 @@ function PrivacySettings() {
             </div>
           </div>
 
-          {/* Social Cards on Today Page */}
+          {/* Today Page Community Section */}
           <div className="card space-y-4">
-            <div>
-              <h3 className="text-white font-medium">Today Page Social Cards</h3>
-              <p className="text-gray-500 text-sm">Choose which community cards appear on your Today page</p>
-            </div>
+            <h3 className="text-white font-medium">Today Page</h3>
 
-            {/* Master Toggle */}
-            <div className="flex items-center justify-between pb-3 border-b border-dark-border">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-medium">Show Social Section</p>
-                <p className="text-gray-500 text-sm">Master toggle for all social cards</p>
+                <p className="text-white">Show Community Section</p>
+                <p className="text-gray-500 text-sm">Display leaderboards and social features</p>
               </div>
               <button
                 onClick={() => setSettings({ ...settings, showSocialSection: !settings.showSocialSection })}
@@ -198,94 +178,6 @@ function PrivacySettings() {
                   settings.showSocialSection ? 'translate-x-6' : 'translate-x-1'
                 }`} />
               </button>
-            </div>
-
-            {/* Individual Card Toggles */}
-            <div className={`space-y-4 transition-opacity ${settings.showSocialSection ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Friends Working Out Today</p>
-                  <p className="text-gray-500 text-sm">See which friends completed a workout</p>
-                </div>
-                <button
-                  onClick={() => setSettings({ ...settings, showFriendsWorkoutsToday: !settings.showFriendsWorkoutsToday })}
-                  className={`w-12 h-7 rounded-full transition-colors relative ${
-                    settings.showFriendsWorkoutsToday ? 'bg-accent' : 'bg-dark-elevated'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.showFriendsWorkoutsToday ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Friends PRs Today</p>
-                  <p className="text-gray-500 text-sm">See friends who hit personal records</p>
-                </div>
-                <button
-                  onClick={() => setSettings({ ...settings, showFriendsPRsToday: !settings.showFriendsPRsToday })}
-                  className={`w-12 h-7 rounded-full transition-colors relative ${
-                    settings.showFriendsPRsToday ? 'bg-accent' : 'bg-dark-elevated'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.showFriendsPRsToday ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Friend Streaks</p>
-                  <p className="text-gray-500 text-sm">See your friends' workout streaks</p>
-                </div>
-                <button
-                  onClick={() => setSettings({ ...settings, showFriendsStreaks: !settings.showFriendsStreaks })}
-                  className={`w-12 h-7 rounded-full transition-colors relative ${
-                    settings.showFriendsStreaks ? 'bg-accent' : 'bg-dark-elevated'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.showFriendsStreaks ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Friend Achievements</p>
-                  <p className="text-gray-500 text-sm">See friends' milestone achievements</p>
-                </div>
-                <button
-                  onClick={() => setSettings({ ...settings, showFriendsAchievements: !settings.showFriendsAchievements })}
-                  className={`w-12 h-7 rounded-full transition-colors relative ${
-                    settings.showFriendsAchievements ? 'bg-accent' : 'bg-dark-elevated'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.showFriendsAchievements ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Global Leaderboard</p>
-                  <p className="text-gray-500 text-sm">See app-wide streak and workout rankings</p>
-                </div>
-                <button
-                  onClick={() => setSettings({ ...settings, showGlobalLeaderboard: !settings.showGlobalLeaderboard })}
-                  className={`w-12 h-7 rounded-full transition-colors relative ${
-                    settings.showGlobalLeaderboard ? 'bg-accent' : 'bg-dark-elevated'
-                  }`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.showGlobalLeaderboard ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
             </div>
           </div>
 

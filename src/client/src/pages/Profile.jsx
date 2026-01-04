@@ -15,6 +15,7 @@ function Profile() {
     favoriteExercise: null
   })
   const [achievements, setAchievements] = useState([])
+  const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
@@ -90,9 +91,10 @@ function Profile() {
   const fetchStats = async () => {
     setLoading(true)
     try {
-      const [statsRes, achievementsRes] = await Promise.all([
+      const [statsRes, achievementsRes, goalsRes] = await Promise.all([
         api.get('/users/stats').catch(() => ({ data: {} })),
-        api.get('/achievements/recent?limit=10').catch(() => ({ data: { recent: [] } }))
+        api.get('/achievements/recent?limit=10').catch(() => ({ data: { recent: [] } })),
+        api.get('/goals').catch(() => ({ data: [] }))
       ])
 
       setStats({
@@ -111,6 +113,9 @@ function Profile() {
         earned: true
       }))
       setAchievements(recentAchievements)
+      // Filter to show only public active goals
+      const publicGoals = (goalsRes.data || []).filter(g => g.isPublic && !g.isCompleted)
+      setGoals(publicGoals.slice(0, 3)) // Show up to 3 goals
     } catch (error) {
       console.error('Error fetching stats:', error)
     } finally {
@@ -198,8 +203,8 @@ function Profile() {
       return
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters')
+    if (passwordData.newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters')
       return
     }
 
@@ -460,27 +465,69 @@ function Profile() {
             <h3 className="text-white font-medium mb-3">Statistics</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="card">
-                <p className="text-gray-400 text-sm">Total Workouts</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Total Workouts</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="Total number of completed workout sessions">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-2xl font-bold text-white">{stats.totalWorkouts}</p>
               </div>
               <div className="card">
-                <p className="text-gray-400 text-sm">Total Time</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Total Time</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="Cumulative time spent in active workouts">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-2xl font-bold text-white">{formatDuration(stats.totalTime)}</p>
               </div>
               <div className="card">
-                <p className="text-gray-400 text-sm">Current Streak</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Current Streak</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="Consecutive workout days. Resets if you take more than 2 consecutive rest days or more than 2 rest days in a week.">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-2xl font-bold text-accent">{stats.currentStreak} days</p>
               </div>
               <div className="card">
-                <p className="text-gray-400 text-sm">Longest Streak</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Longest Streak</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="Your best streak ever achieved">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-2xl font-bold text-white">{stats.longestStreak} days</p>
               </div>
               <div className="card">
-                <p className="text-gray-400 text-sm">Personal Records</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Personal Records</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="PRs are set when you lift heavier weight than your previous best for an exercise">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-2xl font-bold text-green-400">{stats.prs}</p>
               </div>
               <div className="card">
-                <p className="text-gray-400 text-sm">Favorite Exercise</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-gray-400 text-sm">Favorite Exercise</p>
+                  <button className="text-gray-500 hover:text-accent transition-colors" title="Your most frequently logged exercise">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-lg font-bold text-white truncate">{stats.favoriteExercise || '-'}</p>
               </div>
             </div>
@@ -506,6 +553,65 @@ function Profile() {
               View All Achievements
             </Link>
           </div>
+
+          {/* Goals */}
+          {goals.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-medium flex items-center gap-2">
+                  <span>🎯</span> Active Goals
+                </h3>
+                <Link to="/goals" className="text-accent text-sm">View All</Link>
+              </div>
+              <div className="space-y-3">
+                {goals.map((goal) => {
+                  const goalTypes = {
+                    WEIGHT_LOSS: { icon: '⬇️', color: 'blue', unit: 'lbs' },
+                    WEIGHT_GAIN: { icon: '⬆️', color: 'green', unit: 'lbs' },
+                    EXERCISE_STRENGTH: { icon: '💪', color: 'orange', unit: 'lbs' },
+                    EXERCISE_CARDIO: { icon: '🏃', color: 'cyan', unit: '' },
+                    WORKOUT_COUNT: { icon: '📊', color: 'purple', unit: 'workouts' },
+                    STREAK: { icon: '🔥', color: 'red', unit: 'days' }
+                  }
+                  const typeInfo = goalTypes[goal.type] || { icon: '🎯', color: 'gray', unit: '' }
+                  const denominator = Math.abs(goal.targetValue - goal.startValue)
+                  const progress = denominator > 0
+                    ? Math.min(100, Math.round((Math.abs(goal.currentValue - goal.startValue) / denominator) * 100))
+                    : 0
+                  const colorClasses = {
+                    blue: 'bg-blue-500',
+                    green: 'bg-green-500',
+                    orange: 'bg-orange-500',
+                    cyan: 'bg-cyan-500',
+                    purple: 'bg-purple-500',
+                    red: 'bg-red-500',
+                    gray: 'bg-gray-500'
+                  }
+
+                  return (
+                    <div key={goal.id} className="p-3 rounded-xl bg-dark-elevated">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span>{typeInfo.icon}</span>
+                        <span className="text-white text-sm font-medium truncate">
+                          {goal.exerciseName || goal.type.replace(/_/g, ' ').toLowerCase()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>{goal.currentValue} {typeInfo.unit}</span>
+                        <span>{goal.targetValue} {typeInfo.unit}</span>
+                      </div>
+                      <div className="h-1.5 bg-dark-card rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${colorClasses[typeInfo.color]} transition-all duration-500`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

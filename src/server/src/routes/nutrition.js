@@ -1,10 +1,9 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import fatSecretService from '../services/fatsecret.js'
 import achievementService from '../services/achievements.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // ===========================================
 // FatSecret API Endpoints
@@ -1240,9 +1239,25 @@ router.put('/food-log/:id', async (req, res, next) => {
       return res.status(403).json({ message: 'Not authorized' })
     }
 
+    // Whitelist allowed fields to prevent prototype pollution
+    const { date, mealType, name, calories, protein, carbs, fat, fiber, sodium, notes, servingSize, servingUnit } = req.body
+    const allowedData = {}
+    if (date !== undefined) allowedData.date = new Date(date)
+    if (mealType !== undefined) allowedData.mealType = mealType
+    if (name !== undefined) allowedData.name = name
+    if (calories !== undefined) allowedData.calories = calories
+    if (protein !== undefined) allowedData.protein = protein
+    if (carbs !== undefined) allowedData.carbs = carbs
+    if (fat !== undefined) allowedData.fat = fat
+    if (fiber !== undefined) allowedData.fiber = fiber
+    if (sodium !== undefined) allowedData.sodium = sodium
+    if (notes !== undefined) allowedData.notes = notes
+    if (servingSize !== undefined) allowedData.servingSize = servingSize
+    if (servingUnit !== undefined) allowedData.servingUnit = servingUnit
+
     const updated = await prisma.foodLogEntry.update({
       where: { id: req.params.id },
-      data: req.body
+      data: allowedData
     })
 
     res.json(updated)
@@ -1610,6 +1625,53 @@ router.post('/weight-log', async (req, res, next) => {
       where: { id: req.user.id },
       data: { weightKg: parseFloat(weightKg) }
     })
+
+    // Auto-track weight goals (WEIGHT_LOSS and WEIGHT_GAIN)
+    const weightGoals = await prisma.goal.findMany({
+      where: {
+        userId: req.user.id,
+        type: { in: ['WEIGHT_LOSS', 'WEIGHT_GAIN'] },
+        isCompleted: false
+      }
+    })
+
+    for (const goal of weightGoals) {
+      // Update current value
+      await prisma.goal.update({
+        where: { id: goal.id },
+        data: { currentValue: parseFloat(weightKg) }
+      })
+
+      // Log progress
+      await prisma.goalProgress.create({
+        data: {
+          goalId: goal.id,
+          value: parseFloat(weightKg),
+          source: 'AUTO_WEIGHT_LOG'
+        }
+      })
+
+      // Check if goal is completed
+      const isCompleted = goal.type === 'WEIGHT_LOSS'
+        ? parseFloat(weightKg) <= goal.targetValue
+        : parseFloat(weightKg) >= goal.targetValue
+
+      if (isCompleted && !goal.isCompleted) {
+        await prisma.goal.update({
+          where: { id: goal.id },
+          data: {
+            isCompleted: true,
+            completedAt: new Date()
+          }
+        })
+
+        // Check achievements for goal completion
+        await achievementService.checkAchievements(req.user.id, {
+          goalCompleted: true,
+          goalType: goal.type
+        })
+      }
+    }
 
     res.status(201).json(entry)
   } catch (error) {

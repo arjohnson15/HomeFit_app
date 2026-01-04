@@ -1,9 +1,9 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import achievementService from '../services/achievements.js'
+import followNotificationService from '../services/followNotifications.js'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // GET /api/workouts/today/completed - Get today's completed workouts
 router.get('/today/completed', async (req, res, next) => {
@@ -390,10 +390,10 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// PATCH /api/workouts/:id - Update workout (end, add notes, etc)
+// PATCH /api/workouts/:id - Update workout (end, add notes, name, duration, etc)
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { endTime, notes, rating } = req.body
+    const { endTime, notes, rating, name, duration } = req.body
 
     // Get current workout to check if it's being completed
     const currentWorkout = await prisma.workoutSession.findUnique({
@@ -411,7 +411,9 @@ router.patch('/:id', async (req, res, next) => {
           duration: Math.floor((new Date(endTime) - new Date(currentWorkout?.startTime || req.body.startTime)) / 1000)
         }),
         ...(notes !== undefined && { notes }),
-        ...(rating !== undefined && { rating })
+        ...(rating !== undefined && { rating }),
+        ...(name !== undefined && { name }),
+        ...(duration !== undefined && !endTime && { duration }) // Allow direct duration edit if not setting endTime
       }
     })
 
@@ -421,6 +423,19 @@ router.patch('/:id', async (req, res, next) => {
       newAchievements = await achievementService.checkAchievements(currentWorkout.userId, {
         workoutCompleted: true,
         duration: workout.duration || 0
+      })
+
+      // Auto-track workout goals (MONTHLY_WORKOUTS and YEARLY_WORKOUTS)
+      await updateWorkoutGoals(currentWorkout.userId)
+
+      // Notify followers of workout completion
+      const exerciseCount = await prisma.exerciseLog.count({
+        where: { sessionId: workout.id }
+      })
+      followNotificationService.notifyWorkoutCompleted(currentWorkout.userId, {
+        workoutName: workout.name,
+        duration: workout.duration || 0,
+        exerciseCount
       })
     }
 
@@ -762,6 +777,169 @@ router.patch('/:id/exercises/:logId/difficulty', async (req, res, next) => {
   }
 })
 
+// PATCH /api/workouts/:id/exercises/:logId - Update exercise log (notes, difficulty)
+router.patch('/:id/exercises/:logId', async (req, res, next) => {
+  try {
+    const { notes, difficultyRating } = req.body
+
+    // Verify workout belongs to user
+    const exerciseLog = await prisma.exerciseLog.findFirst({
+      where: {
+        id: req.params.logId,
+        session: {
+          id: req.params.id,
+          userId: req.user.id
+        }
+      }
+    })
+
+    if (!exerciseLog) {
+      return res.status(404).json({ message: 'Exercise log not found' })
+    }
+
+    const updateData = {}
+    if (notes !== undefined) updateData.notes = notes
+    if (difficultyRating !== undefined) {
+      if (difficultyRating < 1 || difficultyRating > 5) {
+        return res.status(400).json({ message: 'Difficulty rating must be 1-5' })
+      }
+      updateData.difficultyRating = difficultyRating
+    }
+
+    const updatedLog = await prisma.exerciseLog.update({
+      where: { id: req.params.logId },
+      data: updateData,
+      include: { sets: true }
+    })
+
+    res.json({ exerciseLog: updatedLog })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PATCH /api/workouts/:id/exercises/:logId/sets/:setId - Update a set
+router.patch('/:id/exercises/:logId/sets/:setId', async (req, res, next) => {
+  try {
+    const { weight, reps, duration, distance, rpe, notes } = req.body
+
+    // Verify set belongs to user's workout
+    const set = await prisma.set.findFirst({
+      where: {
+        id: req.params.setId,
+        log: {
+          id: req.params.logId,
+          session: {
+            id: req.params.id,
+            userId: req.user.id
+          }
+        }
+      }
+    })
+
+    if (!set) {
+      return res.status(404).json({ message: 'Set not found' })
+    }
+
+    const updateData = {}
+    if (weight !== undefined) updateData.weight = weight
+    if (reps !== undefined) updateData.reps = reps
+    if (duration !== undefined) updateData.duration = duration
+    if (distance !== undefined) updateData.distance = distance
+    if (rpe !== undefined) {
+      if (rpe < 1 || rpe > 10) {
+        return res.status(400).json({ message: 'RPE must be 1-10' })
+      }
+      updateData.rpe = rpe
+    }
+    if (notes !== undefined) updateData.notes = notes
+
+    const updatedSet = await prisma.set.update({
+      where: { id: req.params.setId },
+      data: updateData
+    })
+
+    res.json({ set: updatedSet })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/workouts/:id/exercises/:logId/sets/:setId - Delete a set
+router.delete('/:id/exercises/:logId/sets/:setId', async (req, res, next) => {
+  try {
+    // Verify set belongs to user's workout
+    const set = await prisma.set.findFirst({
+      where: {
+        id: req.params.setId,
+        log: {
+          id: req.params.logId,
+          session: {
+            id: req.params.id,
+            userId: req.user.id
+          }
+        }
+      }
+    })
+
+    if (!set) {
+      return res.status(404).json({ message: 'Set not found' })
+    }
+
+    await prisma.set.delete({
+      where: { id: req.params.setId }
+    })
+
+    // Renumber remaining sets
+    const remainingSets = await prisma.set.findMany({
+      where: { logId: req.params.logId },
+      orderBy: { setNumber: 'asc' }
+    })
+
+    for (let i = 0; i < remainingSets.length; i++) {
+      if (remainingSets[i].setNumber !== i + 1) {
+        await prisma.set.update({
+          where: { id: remainingSets[i].id },
+          data: { setNumber: i + 1 }
+        })
+      }
+    }
+
+    res.json({ message: 'Set deleted' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/workouts/:id/exercises/:logId - Delete an exercise log
+router.delete('/:id/exercises/:logId', async (req, res, next) => {
+  try {
+    // Verify exercise log belongs to user's workout
+    const exerciseLog = await prisma.exerciseLog.findFirst({
+      where: {
+        id: req.params.logId,
+        session: {
+          id: req.params.id,
+          userId: req.user.id
+        }
+      }
+    })
+
+    if (!exerciseLog) {
+      return res.status(404).json({ message: 'Exercise log not found' })
+    }
+
+    // Delete will cascade to sets due to Prisma schema
+    await prisma.exerciseLog.delete({
+      where: { id: req.params.logId }
+    })
+
+    res.json({ message: 'Exercise deleted' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // DELETE /api/workouts/:id
 router.delete('/:id', async (req, res, next) => {
   try {
@@ -774,5 +952,75 @@ router.delete('/:id', async (req, res, next) => {
     next(error)
   }
 })
+
+// Helper function to auto-track MONTHLY_WORKOUTS and YEARLY_WORKOUTS goals
+async function updateWorkoutGoals(userId) {
+  try {
+    // Get all active workout goals for this user
+    const workoutGoals = await prisma.goal.findMany({
+      where: {
+        userId,
+        type: { in: ['MONTHLY_WORKOUTS', 'YEARLY_WORKOUTS'] },
+        isCompleted: false
+      }
+    })
+
+    if (workoutGoals.length === 0) return
+
+    const now = new Date()
+
+    for (const goal of workoutGoals) {
+      let startOfPeriod, endOfPeriod
+
+      if (goal.type === 'MONTHLY_WORKOUTS') {
+        // Get first and last day of current month
+        startOfPeriod = new Date(now.getFullYear(), now.getMonth(), 1)
+        endOfPeriod = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      } else {
+        // YEARLY_WORKOUTS - Get first and last day of current year
+        startOfPeriod = new Date(now.getFullYear(), 0, 1)
+        endOfPeriod = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+      }
+
+      // Count completed workouts in the period
+      const workoutCount = await prisma.workoutSession.count({
+        where: {
+          userId,
+          endTime: {
+            gte: startOfPeriod,
+            lte: endOfPeriod
+          }
+        }
+      })
+
+      // Update the goal's current value
+      const isCompleted = workoutCount >= goal.targetValue
+      const justCompleted = isCompleted && !goal.isCompleted
+
+      await prisma.goal.update({
+        where: { id: goal.id },
+        data: {
+          currentValue: workoutCount,
+          isCompleted,
+          completedAt: justCompleted ? new Date() : goal.completedAt
+        }
+      })
+
+      // Log progress
+      await prisma.goalProgress.create({
+        data: {
+          goalId: goal.id,
+          value: workoutCount,
+          source: 'AUTO_WORKOUT_LOG'
+        }
+      })
+
+      // Check achievements if goal just completed
+      // Note: workout goals don't trigger goal achievements since they're recurring
+    }
+  } catch (error) {
+    console.error('Error updating workout goals:', error)
+  }
+}
 
 export default router

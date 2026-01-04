@@ -1,5 +1,5 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import path from 'path'
@@ -10,7 +10,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // Configure multer for avatar uploads
 const uploadsDir = path.join(__dirname, '../../uploads/avatars')
@@ -179,17 +178,21 @@ router.patch('/settings', async (req, res, next) => {
 // PUT /api/users/settings
 router.put('/settings', async (req, res, next) => {
   try {
-    const { trainingPreferences } = req.body
+    const { trainingPreferences, availableEquipment } = req.body
 
-    // Upsert user settings with training preferences
+    // Build update data
+    const updateData = {}
+    if (availableEquipment !== undefined) {
+      updateData.availableEquipment = Array.isArray(availableEquipment) ? availableEquipment : []
+    }
+
+    // Upsert user settings
     const settings = await prisma.userSettings.upsert({
       where: { userId: req.user.id },
-      update: {},
-      create: { userId: req.user.id }
+      update: updateData,
+      create: { userId: req.user.id, ...updateData }
     })
 
-    // Store training preferences in localStorage on client side
-    // This endpoint just validates the request
     res.json({ success: true, settings })
   } catch (error) {
     next(error)
@@ -312,7 +315,7 @@ router.put('/password', async (req, res, next) => {
 })
 
 // GET /api/users/ai-settings
-// Get AI-related settings (API key and feature toggles)
+// Get AI-related settings (API key, Ollama config, and feature toggles)
 router.get('/ai-settings', async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
@@ -331,11 +334,20 @@ router.get('/ai-settings', async (req, res, next) => {
       })
     }
 
-    // Check if global API key is available
+    // Check if global AI is available (either OpenAI or Ollama)
     const appSettings = await prisma.appSettings.findUnique({
       where: { id: '1' }
     })
-    const globalKeyAvailable = !!(appSettings?.globalOpenaiEnabled && appSettings?.globalOpenaiApiKey)
+
+    const globalProvider = appSettings?.globalAiProvider || 'openai'
+    let globalAvailable = false
+    if (appSettings?.globalOpenaiEnabled) {
+      if (globalProvider === 'openai' && appSettings?.globalOpenaiApiKey) {
+        globalAvailable = true
+      } else if (globalProvider === 'ollama' && appSettings?.globalOllamaEndpoint) {
+        globalAvailable = true
+      }
+    }
 
     // Mask the API key for display (show last 4 chars only)
     let maskedKey = ''
@@ -344,16 +356,32 @@ router.get('/ai-settings', async (req, res, next) => {
     }
 
     res.json({
+      // OpenAI settings
       apiKey: user?.openaiApiKey || '',
       maskedKey,
-      globalKeyAvailable,
       model: settings.aiModel || 'gpt-4o-mini',
+
+      // Provider selection
+      provider: settings.aiProvider || 'openai',
+
+      // Ollama settings
+      ollamaEndpoint: settings.ollamaEndpoint || '',
+      ollamaModel: settings.ollamaModel || '',
+      ollamaApiKey: settings.ollamaApiKey || '',
+
+      // Global AI availability
+      globalAvailable,
+      globalProvider: globalAvailable ? globalProvider : null,
+
+      // Features
       features: {
         workoutSuggestions: settings.aiWorkoutSuggestions,
         formTips: settings.aiFormTips,
         nutritionAdvice: settings.aiNutritionAdvice,
         progressAnalysis: settings.aiProgressAnalysis
-      }
+      },
+      availableEquipment: settings.availableEquipment || [],
+      gymType: settings.gymType || ''
     })
   } catch (error) {
     next(error)
@@ -361,10 +389,10 @@ router.get('/ai-settings', async (req, res, next) => {
 })
 
 // PUT /api/users/ai-settings
-// Save AI-related settings (API key and feature toggles)
+// Save AI-related settings (API key, Ollama config, and feature toggles)
 router.put('/ai-settings', async (req, res, next) => {
   try {
-    const { apiKey, features, model } = req.body
+    const { apiKey, features, model, provider, ollamaEndpoint, ollamaModel, ollamaApiKey, availableEquipment, gymType } = req.body
 
     // Update API key on user if provided
     if (apiKey !== undefined) {
@@ -382,8 +410,34 @@ router.put('/ai-settings', async (req, res, next) => {
       updateData.aiNutritionAdvice = features.nutritionAdvice ?? false
       updateData.aiProgressAnalysis = features.progressAnalysis ?? true
     }
+
+    // OpenAI model
     if (model) {
       updateData.aiModel = model
+    }
+
+    // Provider selection (openai or ollama)
+    if (provider) {
+      updateData.aiProvider = provider
+    }
+
+    // Ollama settings
+    if (ollamaEndpoint !== undefined) {
+      updateData.ollamaEndpoint = ollamaEndpoint || null
+    }
+    if (ollamaModel !== undefined) {
+      updateData.ollamaModel = ollamaModel || null
+    }
+    if (ollamaApiKey !== undefined) {
+      updateData.ollamaApiKey = ollamaApiKey || null
+    }
+
+    // Update equipment settings
+    if (availableEquipment !== undefined) {
+      updateData.availableEquipment = Array.isArray(availableEquipment) ? availableEquipment : []
+    }
+    if (gymType !== undefined) {
+      updateData.gymType = gymType || null
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -458,6 +512,119 @@ router.get('/achievements', async (req, res, next) => {
     ]
 
     res.json({ achievements })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/users/:userId/profile - Get public profile for a friend
+router.get('/:userId/profile', async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const requesterId = req.user.id
+
+    // Can always view own profile
+    if (userId === requesterId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { settings: true, stats: true }
+      })
+
+      const achievements = await prisma.userAchievement.findMany({
+        where: { userId, isUnlocked: true },
+        include: { achievement: true },
+        orderBy: { unlockedAt: 'desc' },
+        take: 10
+      })
+
+      return res.json({
+        user: {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatarUrl: user.avatarUrl
+        },
+        stats: {
+          totalWorkouts: user.stats?.totalWorkouts || 0,
+          totalTime: user.stats?.totalWorkoutSeconds || 0,
+          currentStreak: user.stats?.currentStreak || 0,
+          longestStreak: user.stats?.longestStreak || 0,
+          totalPRs: user.stats?.totalPRs || 0
+        },
+        achievements: achievements.map(ua => ({
+          id: ua.achievement.id,
+          name: ua.achievement.name,
+          icon: ua.achievement.icon,
+          rarity: ua.achievement.rarity,
+          unlockedAt: ua.unlockedAt
+        })),
+        isSelf: true
+      })
+    }
+
+    // Check if users are friends
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: requesterId, friendId: userId, status: 'ACCEPTED' },
+          { userId: userId, friendId: requesterId, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user' })
+    }
+
+    // Get user and settings
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        settings: { select: { profileVisibility: true } },
+        stats: true
+      }
+    })
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    // Check privacy setting
+    if (user.settings?.profileVisibility === 'PRIVATE') {
+      return res.status(403).json({ message: 'This profile is private' })
+    }
+
+    // Get achievements
+    const achievements = await prisma.userAchievement.findMany({
+      where: { userId, isUnlocked: true },
+      include: { achievement: true },
+      orderBy: { unlockedAt: 'desc' },
+      take: 10
+    })
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.avatarUrl
+      },
+      stats: {
+        totalWorkouts: user.stats?.totalWorkouts || 0,
+        totalTime: user.stats?.totalWorkoutSeconds || 0,
+        currentStreak: user.stats?.currentStreak || 0,
+        longestStreak: user.stats?.longestStreak || 0,
+        totalPRs: user.stats?.totalPRs || 0
+      },
+      achievements: achievements.map(ua => ({
+        id: ua.achievement.id,
+        name: ua.achievement.name,
+        icon: ua.achievement.icon,
+        rarity: ua.achievement.rarity,
+        unlockedAt: ua.unlockedAt
+      })),
+      isSelf: false
+    })
   } catch (error) {
     next(error)
   }

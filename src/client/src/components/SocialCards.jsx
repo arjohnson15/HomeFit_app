@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../services/authStore'
 
@@ -168,6 +168,7 @@ function FriendsStreaksCard() {
 // Leaderboard expandable card with filters
 function LeaderboardCard() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [leaderboard, setLeaderboard] = useState([])
   const [userRank, setUserRank] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -357,10 +358,11 @@ function LeaderboardCard() {
             return (
               <div
                 key={entry.id}
+                onClick={() => !isCurrentUser && navigate(`/friend/${entry.id}`)}
                 className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
                   isCurrentUser
                     ? 'bg-accent/20 border border-accent/40'
-                    : 'bg-dark-elevated hover:bg-dark-elevated/80'
+                    : 'bg-dark-elevated hover:bg-dark-elevated/80 cursor-pointer'
                 }`}
               >
                 {/* Rank */}
@@ -432,12 +434,12 @@ export function SocialSection({ settings }) {
   }
 
   return (
-    <div id="social-section" className="pt-4 space-y-4">
+    <div id="social-section" className="pt-2 space-y-2">
       {/* Community Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🎮</span>
-          <h2 className="text-lg font-bold text-white">Community</h2>
+        <div className="flex items-center gap-1.5">
+          <span className="text-base">🎮</span>
+          <h2 className="text-base font-bold text-white">Community</h2>
         </div>
         <Link to="/social" className="text-accent text-sm hover:underline">
           Friends
@@ -445,7 +447,7 @@ export function SocialSection({ settings }) {
       </div>
 
       {/* Expandable Cards */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <ExpandableCard title="Leaderboards" icon="🏆" defaultExpanded={false}>
           <LeaderboardCard />
         </ExpandableCard>
@@ -459,4 +461,4 @@ export function FriendsWorkoutsCard() { return null }
 export function FriendsPRsCard() { return null }
 export function FriendsAchievementsCard() { return null }
 export function GlobalLeaderboardCard() { return null }
-export { FriendsStreaksCard }
+export { FriendsStreaksCard, LeaderboardCard }

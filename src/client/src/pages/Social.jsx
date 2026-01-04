@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../services/authStore'
+import { LeaderboardCard } from '../components/SocialCards'
+import FollowButton from '../components/FollowButton'
 
 function Social() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('friends')
   const [friends, setFriends] = useState([])
   const [requests, setRequests] = useState([])
@@ -13,6 +17,8 @@ function Social() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [discoverableUsers, setDiscoverableUsers] = useState([])
+  const [loadingDiscoverable, setLoadingDiscoverable] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -35,6 +41,26 @@ function Social() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchDiscoverableUsers = async () => {
+    setLoadingDiscoverable(true)
+    try {
+      const response = await api.get('/social/discoverable')
+      setDiscoverableUsers(response.data.users || [])
+    } catch (error) {
+      console.error('Error fetching discoverable users:', error)
+      setDiscoverableUsers([])
+    } finally {
+      setLoadingDiscoverable(false)
+    }
+  }
+
+  const openAddModal = () => {
+    setShowAddModal(true)
+    setSearchQuery('')
+    setSearchResults([])
+    fetchDiscoverableUsers()
   }
 
   const searchUsers = async (query) => {
@@ -60,6 +86,7 @@ function Social() {
     try {
       const response = await api.post('/social/request', { userId })
       setSearchResults(prev => prev.filter(u => u.id !== userId))
+      setDiscoverableUsers(prev => prev.filter(u => u.id !== userId))
 
       // Show feedback based on whether it was auto-accepted
       setRequestFeedback({
@@ -95,6 +122,19 @@ function Social() {
     }
   }
 
+  const [confirmUnfriend, setConfirmUnfriend] = useState(null)
+
+  const unfriendUser = async (friendId) => {
+    try {
+      await api.delete(`/social/friend/${friendId}`)
+      setFriends(prev => prev.filter(f => f.id !== friendId))
+      setConfirmUnfriend(null)
+    } catch (error) {
+      console.error('Error unfriending user:', error)
+      alert('Failed to remove friend')
+    }
+  }
+
   const getInitials = (name) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -117,7 +157,7 @@ function Social() {
           <h1 className="text-2xl font-bold text-white">Social</h1>
           <p className="text-gray-400">Connect with friends</p>
         </div>
-        <button onClick={() => setShowAddModal(true)} className="btn-primary">
+        <button onClick={openAddModal} className="btn-primary">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           </svg>
@@ -214,7 +254,7 @@ function Social() {
                   <p className="text-gray-400">No friends yet</p>
                   <p className="text-gray-500 text-sm mt-1">Add friends to compete and stay motivated</p>
                   <button
-                    onClick={() => setShowAddModal(true)}
+                    onClick={openAddModal}
                     className="btn-primary mt-4"
                   >
                     Add Your First Friend
@@ -222,18 +262,60 @@ function Social() {
                 </div>
               ) : (
                 friends.map((friend) => (
-                  <div key={friend.id} className="card flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
-                      {getInitials(friend.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-medium truncate">{friend.name}</h3>
-                      <p className="text-gray-400 text-sm">@{friend.username || 'user'}</p>
-                    </div>
-                    <div className="text-right text-sm">
-                      <p className="text-white">{friend.workoutCount || 0} workouts</p>
-                      <p className="text-gray-500">{friend.streak || 0} day streak</p>
-                    </div>
+                  <div key={friend.id} className="card relative">
+                    {confirmUnfriend === friend.id ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <p className="text-white text-sm">Remove {friend.name} as friend?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setConfirmUnfriend(null)}
+                            className="px-3 py-1.5 bg-dark-elevated text-gray-300 text-sm rounded-lg hover:bg-gray-700"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => unfriendUser(friend.id)}
+                            className="px-3 py-1.5 bg-red-500/20 text-red-400 text-sm rounded-lg hover:bg-red-500/30"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center gap-4 cursor-pointer"
+                        onClick={() => navigate(`/friend/${friend.id}`)}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
+                          {getInitials(friend.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-medium truncate">{friend.name}</h3>
+                          <p className="text-gray-400 text-sm">@{friend.username || 'user'}</p>
+                        </div>
+                        <div className="text-right text-sm">
+                          <p className="text-white">{friend.workoutCount || 0} workouts</p>
+                          <p className="text-gray-500">{friend.streak || 0} day streak</p>
+                        </div>
+                        <FollowButton
+                          friendId={friend.id}
+                          initialFollowing={friend.isFollowing}
+                          size="small"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setConfirmUnfriend(friend.id)
+                          }}
+                          className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Remove friend"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -241,44 +323,8 @@ function Social() {
           )}
 
           {activeTab === 'leaderboard' && (
-            <div className="space-y-3">
-              {leaderboard.length === 0 ? (
-                <div className="card text-center py-12">
-                  <svg className="w-16 h-16 mx-auto text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <p className="text-gray-400">No leaderboard data yet</p>
-                  <p className="text-gray-500 text-sm mt-1">Complete workouts to appear on the leaderboard</p>
-                </div>
-              ) : (
-                leaderboard.map((entry, index) => {
-                  const isUser = entry.userId === user?.id || entry.id === user?.id
-                  const rank = index + 1
-                  return (
-                    <div
-                      key={entry.id || index}
-                      className={`card flex items-center gap-4 ${isUser ? 'ring-2 ring-accent' : ''}`}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${getRankStyle(rank)}`}>
-                        {rank}
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
-                        {getInitials(entry.name)}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`font-medium ${isUser ? 'text-accent' : 'text-white'}`}>
-                          {isUser ? 'You' : entry.name}
-                        </h3>
-                        <p className="text-gray-500 text-sm">@{entry.username || 'user'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-white font-medium">{entry.workoutCount || entry.workouts || 0} workouts</p>
-                        <p className="text-gray-400 text-sm">{entry.streak || 0} day streak</p>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+            <div className="card">
+              <LeaderboardCard />
             </div>
           )}
 
@@ -546,19 +592,45 @@ function Social() {
                   <p className="text-gray-400">No users found</p>
                   <p className="text-gray-500 text-sm mt-1">Try a different search term</p>
                 </div>
+              ) : loadingDiscoverable ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : discoverableUsers.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-gray-400 text-sm mb-3">People you can add</p>
+                  {discoverableUsers.map((user) => (
+                    <div key={user.id} className="flex items-center gap-3 p-3 bg-dark-elevated rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
+                        {getInitials(user.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{user.name}</p>
+                        <p className="text-gray-400 text-sm">@{user.username}</p>
+                      </div>
+                      <button
+                        onClick={() => sendFriendRequest(user.id)}
+                        className="btn-primary text-sm py-1.5 px-3"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-8">
                   <svg className="w-12 h-12 mx-auto text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  <p className="text-gray-400">Search for friends</p>
-                  <p className="text-gray-500 text-sm mt-1">Enter a username or email to find people</p>
+                  <p className="text-gray-400">No public users available</p>
+                  <p className="text-gray-500 text-sm mt-1">Search by username or email to find more people</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }

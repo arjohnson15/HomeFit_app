@@ -7,29 +7,44 @@ function Settings() {
 
   const settingsGroups = [
     {
-      title: 'Account',
+      title: 'Profile',
       items: [
-        { label: 'Profile', path: '/profile', icon: 'user' },
-        { label: 'Training Style', path: '/settings/training', icon: 'target' },
-        { label: 'Nutrition', path: '/settings/nutrition', icon: 'food' },
-        { label: 'Notifications', path: '/settings/notifications', icon: 'bell' },
-        { label: 'Privacy', path: '/settings/privacy', icon: 'shield' },
+        { label: 'My Profile', path: '/profile', icon: 'user' },
+        { label: 'Account Privacy', path: '/settings/privacy', icon: 'shield' },
       ]
     },
     {
-      title: 'Workout',
+      title: 'Training',
       items: [
-        { label: 'Units', path: '/settings/units', icon: 'scale' },
+        { label: 'Goals & Equipment', path: '/settings/training', icon: 'target' },
         { label: 'Warmup & Cooldown', path: '/settings/warmup', icon: 'fire' },
-        { label: 'ChatGPT Integration', path: '/settings/ai', icon: 'chat' },
       ]
     },
     {
-      title: 'App',
+      title: 'Nutrition',
       items: [
+        { label: 'Diet & Macros', path: '/settings/nutrition', icon: 'food' },
+      ]
+    },
+    {
+      title: 'AI Coach',
+      items: [
+        { label: 'AI Personalization', path: '/settings/ai', icon: 'chat' },
+      ]
+    },
+    {
+      title: 'Preferences',
+      items: [
+        { label: 'Units & Measurements', path: '/settings/units', icon: 'scale' },
+        { label: 'Notifications', path: '/settings/notifications', icon: 'bell' },
         { label: 'Appearance', path: '/settings/appearance', icon: 'palette' },
-        { label: 'Data & Backup', path: '/settings/backup', icon: 'database' },
-        { label: 'About', path: '/settings/about', icon: 'info' },
+      ]
+    },
+    {
+      title: 'Data & Support',
+      items: [
+        { label: 'Backup & Export', path: '/settings/backup', icon: 'database' },
+        { label: 'About HomeFit', path: '/settings/about', icon: 'info' },
       ]
     },
   ]

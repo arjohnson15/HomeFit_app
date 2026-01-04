@@ -1,5 +1,5 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -9,7 +9,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 // Helper to get user's AI configuration
 async function getUserAIConfig(userId) {
@@ -636,8 +635,11 @@ router.get('/warmup-suggestions', async (req, res, next) => {
 
     // Check if warmup suggestions are enabled
     if (settings && !settings.showWarmupSuggestions) {
-      return res.json({ warmups: [], tip: null, enabled: false })
+      return res.json({ warmups: [], tip: null, enabled: false, defaultOn: false })
     }
+
+    // Get the default toggle state
+    const defaultOn = settings?.warmupDefaultOn ?? true
 
     // Get today's workout to determine muscle groups
     const today = new Date()
@@ -668,6 +670,7 @@ router.get('/warmup-suggestions', async (req, res, next) => {
         warmups: mappings.generalWarmup.mobility.slice(0, 5),
         tip: mappings.tips.warmup.find(t => t.muscle === 'general'),
         enabled: true,
+        defaultOn,
         muscleGroups: []
       })
     }
@@ -762,6 +765,7 @@ router.get('/warmup-suggestions', async (req, res, next) => {
       warmups,
       tip,
       enabled: true,
+      defaultOn,
       muscleGroups: muscleGroupsArray,
       isAI
     }
@@ -787,8 +791,11 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
 
     // Check if cooldown suggestions are enabled
     if (settings && !settings.showCooldownSuggestions) {
-      return res.json({ cooldowns: [], tip: null, enabled: false })
+      return res.json({ cooldowns: [], tip: null, enabled: false, defaultOn: false })
     }
+
+    // Get the default toggle state
+    const defaultOn = settings?.cooldownDefaultOn ?? true
 
     // Get today's workout to determine muscle groups
     const today = new Date()
@@ -819,8 +826,18 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
         cooldowns: mappings.generalCooldown,
         tip: mappings.tips.cooldown.find(t => t.muscle === 'general'),
         enabled: true,
+        defaultOn,
         muscleGroups: []
       })
+    }
+
+    // Generate workout hash for caching
+    const workoutHash = getWorkoutHash([workout.id])
+
+    // Check cache first
+    const cached = getCachedSuggestions('cooldown', req.user.id, workoutHash)
+    if (cached) {
+      return res.json(cached)
     }
 
     // Load exercise data to get muscle groups
@@ -900,13 +917,19 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
       ? availableTips[Math.floor(Math.random() * availableTips.length)]
       : null
 
-    res.json({
+    const response = {
       cooldowns,
       tip,
       enabled: true,
+      defaultOn,
       muscleGroups: muscleGroupsArray,
       isAI
-    })
+    }
+
+    // Cache the response for this workout
+    setCachedSuggestions('cooldown', req.user.id, workoutHash, response)
+
+    res.json(response)
   } catch (error) {
     next(error)
   }
@@ -966,16 +989,24 @@ router.get('/warmup-settings', async (req, res, next) => {
       select: {
         showWarmupSuggestions: true,
         showCooldownSuggestions: true,
+        warmupDefaultOn: true,
+        cooldownDefaultOn: true,
         useAiForWarmups: true,
-        showDailyTips: true
+        showDailyTips: true,
+        showWeightTracking: true,
+        weightTrackingDefaultOn: true
       }
     })
 
     res.json({
       showWarmupSuggestions: settings?.showWarmupSuggestions ?? true,
       showCooldownSuggestions: settings?.showCooldownSuggestions ?? true,
+      warmupDefaultOn: settings?.warmupDefaultOn ?? true,
+      cooldownDefaultOn: settings?.cooldownDefaultOn ?? true,
       useAiForWarmups: settings?.useAiForWarmups ?? false,
-      showDailyTips: settings?.showDailyTips ?? true
+      showDailyTips: settings?.showDailyTips ?? true,
+      showWeightTracking: settings?.showWeightTracking ?? false,
+      weightTrackingDefaultOn: settings?.weightTrackingDefaultOn ?? true
     })
   } catch (error) {
     next(error)
@@ -985,30 +1016,42 @@ router.get('/warmup-settings', async (req, res, next) => {
 // PUT /api/schedules/warmup-settings - Update warmup/cooldown settings
 router.put('/warmup-settings', async (req, res, next) => {
   try {
-    const { showWarmupSuggestions, showCooldownSuggestions, useAiForWarmups, showDailyTips } = req.body
+    const { showWarmupSuggestions, showCooldownSuggestions, warmupDefaultOn, cooldownDefaultOn, useAiForWarmups, showDailyTips, showWeightTracking, weightTrackingDefaultOn } = req.body
 
     const settings = await prisma.userSettings.upsert({
       where: { userId: req.user.id },
       update: {
         showWarmupSuggestions: showWarmupSuggestions !== undefined ? showWarmupSuggestions : undefined,
         showCooldownSuggestions: showCooldownSuggestions !== undefined ? showCooldownSuggestions : undefined,
+        warmupDefaultOn: warmupDefaultOn !== undefined ? warmupDefaultOn : undefined,
+        cooldownDefaultOn: cooldownDefaultOn !== undefined ? cooldownDefaultOn : undefined,
         useAiForWarmups: useAiForWarmups !== undefined ? useAiForWarmups : undefined,
-        showDailyTips: showDailyTips !== undefined ? showDailyTips : undefined
+        showDailyTips: showDailyTips !== undefined ? showDailyTips : undefined,
+        showWeightTracking: showWeightTracking !== undefined ? showWeightTracking : undefined,
+        weightTrackingDefaultOn: weightTrackingDefaultOn !== undefined ? weightTrackingDefaultOn : undefined
       },
       create: {
         userId: req.user.id,
         showWarmupSuggestions: showWarmupSuggestions ?? true,
         showCooldownSuggestions: showCooldownSuggestions ?? true,
+        warmupDefaultOn: warmupDefaultOn ?? true,
+        cooldownDefaultOn: cooldownDefaultOn ?? true,
         useAiForWarmups: useAiForWarmups ?? false,
-        showDailyTips: showDailyTips ?? true
+        showDailyTips: showDailyTips ?? true,
+        showWeightTracking: showWeightTracking ?? false,
+        weightTrackingDefaultOn: weightTrackingDefaultOn ?? true
       }
     })
 
     res.json({
       showWarmupSuggestions: settings.showWarmupSuggestions,
       showCooldownSuggestions: settings.showCooldownSuggestions,
+      warmupDefaultOn: settings.warmupDefaultOn,
+      cooldownDefaultOn: settings.cooldownDefaultOn,
       useAiForWarmups: settings.useAiForWarmups,
-      showDailyTips: settings.showDailyTips
+      showDailyTips: settings.showDailyTips,
+      showWeightTracking: settings.showWeightTracking,
+      weightTrackingDefaultOn: settings.weightTrackingDefaultOn
     })
   } catch (error) {
     next(error)

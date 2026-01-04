@@ -1,11 +1,9 @@
 import express from 'express'
 import multer from 'multer'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { requireAdmin } from '../middleware/auth.js'
 import backupService from '../services/backup.js'
 import backupScheduler from '../services/scheduler.js'
-
-const prisma = new PrismaClient()
 
 const router = express.Router()
 

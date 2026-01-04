@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, useLocation, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '../../services/authStore'
-import PrivacyOnboardingModal from '../PrivacyOnboardingModal'
+import OnboardingWizard from '../OnboardingWizard'
+import NotificationBell from '../NotificationBell'
 import api from '../../services/api'
 
 // Icons (using simple SVG for now - can replace with icon library)
@@ -55,9 +56,6 @@ function MainLayout() {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingChecked, setOnboardingChecked] = useState(false)
-  const [pushEnabled, setPushEnabled] = useState(false)
-  const [pushAvailable, setPushAvailable] = useState(false)
-  const [pushLoading, setPushLoading] = useState(false)
   const profileMenuRef = useRef(null)
 
   // Check if user needs onboarding (first login)
@@ -95,105 +93,11 @@ function MainLayout() {
     setShowProfileMenu(false)
   }, [location.pathname])
 
-  // Check push notification status on mount
-  useEffect(() => {
-    const checkPushStatus = async () => {
-      try {
-        // Check if push is available on server
-        const statusResponse = await api.get('/notifications/status')
-        setPushAvailable(statusResponse.data.push)
-
-        if (statusResponse.data.push && 'Notification' in window && Notification.permission === 'granted') {
-          // Check if we have an active subscription
-          const registration = await navigator.serviceWorker.getRegistration()
-          const subscription = await registration?.pushManager?.getSubscription()
-          setPushEnabled(!!subscription)
-        }
-      } catch (error) {
-        console.error('Error checking push status:', error)
-      }
-    }
-    checkPushStatus()
-  }, [])
-
-  const urlBase64ToUint8Array = (base64String) => {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4)
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-    const rawData = window.atob(base64)
-    const outputArray = new Uint8Array(rawData.length)
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i)
-    }
-    return outputArray
-  }
-
-  const togglePushNotifications = async () => {
-    if (pushLoading) return
-    setPushLoading(true)
-
-    try {
-      if (pushEnabled) {
-        // Unsubscribe
-        const registration = await navigator.serviceWorker.getRegistration()
-        const subscription = await registration?.pushManager?.getSubscription()
-        if (subscription) {
-          await subscription.unsubscribe()
-          await api.delete('/notifications/unsubscribe', {
-            data: { endpoint: subscription.endpoint }
-          })
-        }
-        setPushEnabled(false)
-      } else {
-        // Request permission if needed
-        if (Notification.permission === 'default') {
-          const permission = await Notification.requestPermission()
-          if (permission !== 'granted') {
-            setPushLoading(false)
-            return
-          }
-        } else if (Notification.permission === 'denied') {
-          alert('Push notifications are blocked. Please enable them in your browser settings.')
-          setPushLoading(false)
-          return
-        }
-
-        // Get VAPID key and subscribe
-        const vapidResponse = await api.get('/notifications/vapid-public-key')
-        if (!vapidResponse.data.available) {
-          alert('Push notifications are not configured on the server')
-          setPushLoading(false)
-          return
-        }
-
-        const registration = await navigator.serviceWorker.register('/sw.js')
-        await navigator.serviceWorker.ready
-
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidResponse.data.publicKey)
-        })
-
-        const subJson = subscription.toJSON()
-        await api.post('/notifications/subscribe', {
-          endpoint: subJson.endpoint,
-          keys: subJson.keys,
-          userAgent: navigator.userAgent
-        })
-
-        setPushEnabled(true)
-      }
-    } catch (error) {
-      console.error('Error toggling push notifications:', error)
-    } finally {
-      setPushLoading(false)
-    }
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-dark-bg">
-      {/* Privacy Onboarding Modal for first-time users */}
+      {/* Onboarding Wizard for first-time users */}
       {showOnboarding && (
-        <PrivacyOnboardingModal onComplete={() => setShowOnboarding(false)} />
+        <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
       )}
       {/* Top Header with Profile */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-dark-bg/95 backdrop-blur-sm border-b border-dark-border">
@@ -204,32 +108,8 @@ function MainLayout() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Push Notification Toggle */}
-            {pushAvailable && (
-              <button
-                onClick={togglePushNotifications}
-                disabled={pushLoading}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-                  pushEnabled ? 'bg-accent/20 text-accent' : 'bg-dark-elevated text-gray-400 hover:bg-dark-border'
-                } ${pushLoading ? 'opacity-50' : ''}`}
-                title={pushEnabled ? 'Disable push notifications' : 'Enable push notifications'}
-              >
-                {pushLoading ? (
-                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                ) : pushEnabled ? (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                )}
-              </button>
-            )}
+            {/* Notification Bell */}
+            <NotificationBell />
 
             {/* Profile Dropdown */}
             <div className="relative" ref={profileMenuRef}>
@@ -254,6 +134,15 @@ function MainLayout() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   <span className="text-white">Profile</span>
+                </Link>
+                <Link
+                  to="/goals"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-dark-elevated transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span className="text-white">Goals</span>
                 </Link>
                 <Link
                   to="/settings"
