@@ -342,7 +342,7 @@ function Catalog() {
               <div className="w-16 h-16 rounded-xl bg-dark-elevated flex-shrink-0 overflow-hidden flex items-center justify-center">
                 {exercise.images?.[0] ? (
                   <img
-                    src={`http://localhost:3000/api/exercise-images/${exercise.images[0]}`}
+                    src={`/api/exercise-images/${exercise.images[0]}`}
                     alt={exercise.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -503,7 +503,7 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
             {exercise.images?.length > 0 ? (
               <>
                 <img
-                  src={`http://localhost:3000/api/exercise-images/${exercise.images[currentImageIndex]}`}
+                  src={`/api/exercise-images/${exercise.images[currentImageIndex]}`}
                   alt={exercise.name}
                   className="w-full h-full object-contain bg-dark-elevated"
                   onError={(e) => {

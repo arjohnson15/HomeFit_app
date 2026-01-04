@@ -94,7 +94,7 @@ function Profile() {
       const [statsRes, achievementsRes, goalsRes] = await Promise.all([
         api.get('/users/stats').catch(() => ({ data: {} })),
         api.get('/achievements/recent?limit=10').catch(() => ({ data: { recent: [] } })),
-        api.get('/goals').catch(() => ({ data: [] }))
+        api.get('/goals').catch(() => ({ data: { goals: [] } }))
       ])
 
       setStats({
@@ -114,7 +114,7 @@ function Profile() {
       }))
       setAchievements(recentAchievements)
       // Filter to show only public active goals
-      const publicGoals = (goalsRes.data || []).filter(g => g.isPublic && !g.isCompleted)
+      const publicGoals = (goalsRes.data.goals || []).filter(g => g.isPublic && !g.isCompleted)
       setGoals(publicGoals.slice(0, 3)) // Show up to 3 goals
     } catch (error) {
       console.error('Error fetching stats:', error)
