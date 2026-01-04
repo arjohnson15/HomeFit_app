@@ -123,8 +123,8 @@ app.post('/update', async (req, res) => {
     // Use docker-compose to rebuild and restart
     const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
 
-    // Build new images
-    await runCommand(`docker compose -f ${composeFile} build --no-cache app`)
+    // Build new images (use cache for faster builds)
+    await runCommand(`docker compose -f ${composeFile} build app`)
 
     // Restart the main app container (not the updater)
     updateStatus.logs.push('Restarting application...')
