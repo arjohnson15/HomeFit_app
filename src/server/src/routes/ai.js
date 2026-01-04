@@ -236,6 +236,8 @@ When the user asks you to CREATE, ADD, PUT, SCHEDULE, or MAKE a workout OR exerc
 CREATE_WORKOUT for [Day]
 - [Exercise Name]: [sets] sets x [reps] reps
 
+[Day] can be: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, OR "Today"
+
 Example - if user says "add bench press to Monday":
 CREATE_WORKOUT for Monday
 - Bench Press: 3 sets x 8-10 reps
@@ -245,6 +247,11 @@ CREATE_WORKOUT for Tuesday
 - Barbell Squat: 4 sets x 6-8 reps
 - Romanian Deadlift: 3 sets x 10-12 reps
 - Leg Press: 3 sets x 12-15 reps
+
+Example - if user says "add a workout to today":
+CREATE_WORKOUT for Today
+- Dumbbell Press: 3 sets x 10-12 reps
+- Rows: 3 sets x 10-12 reps
 
 Always use this exact format with "CREATE_WORKOUT for [Day]" followed by exercises. This will automatically add the workout to their schedule.
 
@@ -607,12 +614,18 @@ function parseWorkoutFromText(text) {
   let dayOfWeek = null
   let exercises = []
 
-  // PRIMARY PATTERN: "CREATE_WORKOUT for Monday" or "CREATE_WORKOUT for Tuesday"
-  const createPattern = /CREATE_WORKOUT\s+for\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
+  // PRIMARY PATTERN: "CREATE_WORKOUT for Monday" or "CREATE_WORKOUT for Today"
+  const createPattern = /CREATE_WORKOUT\s+for\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
   const createMatch = text.match(createPattern)
   if (createMatch) {
-    dayOfWeek = dayMapping[createMatch[1].toLowerCase()]
-    workoutName = dayNames[dayOfWeek] + ' Workout'
+    const dayStr = createMatch[1].toLowerCase()
+    if (dayStr === 'today') {
+      dayOfWeek = new Date().getDay() // 0=Sunday, 1=Monday, etc.
+      workoutName = "Today's Workout"
+    } else {
+      dayOfWeek = dayMapping[dayStr]
+      workoutName = dayNames[dayOfWeek] + ' Workout'
+    }
 
     // Parse exercises in format: "- Exercise Name: 3 sets x 8-10 reps"
     const exercisePattern = /[-•]\s*([^:\n]+):\s*(\d+)\s*sets?\s*x\s*(\d+(?:-\d+)?)\s*reps?/gi
@@ -634,12 +647,18 @@ function parseWorkoutFromText(text) {
       dayOfWeek = parseInt(legacyMatch[1])
     }
 
-    // Pattern: "add to Tuesday" or "for Monday"
+    // Pattern: "add to Tuesday" or "for Monday" or "for today"
     if (dayOfWeek === null) {
-      const dayContextMatch = text.match(/(?:add(?:ed|ing)?.*?(?:to|for)|for|on)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i)
+      const dayContextMatch = text.match(/(?:add(?:ed|ing)?.*?(?:to|for)|for|on)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i)
       if (dayContextMatch) {
-        dayOfWeek = dayMapping[dayContextMatch[1].toLowerCase()]
-        workoutName = dayNames[dayOfWeek] + ' Workout'
+        const dayStr = dayContextMatch[1].toLowerCase()
+        if (dayStr === 'today') {
+          dayOfWeek = new Date().getDay()
+          workoutName = "Today's Workout"
+        } else {
+          dayOfWeek = dayMapping[dayStr]
+          workoutName = dayNames[dayOfWeek] + ' Workout'
+        }
       }
     }
   }

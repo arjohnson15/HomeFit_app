@@ -1,11 +1,24 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import api from '../services/api'
 
+const INITIAL_MESSAGE = { role: 'assistant', content: 'Hi! I\'m your AI fitness assistant. Ask me anything about workouts, exercises, or building your training plan! I can even create workouts for you - just ask!' }
+
 const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorkoutCreated }, ref) {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi! I\'m your AI fitness assistant. Ask me anything about workouts, exercises, or building your training plan! I can even create workouts for you - just ask!' }
-  ])
+
+  // Load messages from sessionStorage on mount
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('ai-chat-messages')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        return parsed.length > 0 ? parsed : [INITIAL_MESSAGE]
+      }
+    } catch (e) {
+      console.error('Failed to load chat history:', e)
+    }
+    return [INITIAL_MESSAGE]
+  })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [aiAvailable, setAiAvailable] = useState(null)
@@ -26,6 +39,15 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   useEffect(() => {
     checkAiAvailability()
   }, [])
+
+  // Save messages to sessionStorage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ai-chat-messages', JSON.stringify(messages))
+    } catch (e) {
+      console.error('Failed to save chat history:', e)
+    }
+  }, [messages])
 
   // Handle pending question when chat opens
   useEffect(() => {
