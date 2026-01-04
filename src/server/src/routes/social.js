@@ -941,11 +941,12 @@ router.get('/leaderboard/global', async (req, res, next) => {
     const { category = 'workouts', metric = 'count', period = 'week', limit = 10 } = req.query
     const startDate = getDateRange(period)
 
-    // Get users who show on leaderboard
+    // Get users who show on leaderboard (must have leaderboard enabled AND not have private profile)
     const eligibleUsers = await prisma.user.findMany({
       where: {
         settings: {
-          showOnLeaderboard: true
+          showOnLeaderboard: true,
+          profileVisibility: { not: 'PRIVATE' }
         }
       },
       select: { id: true, name: true, username: true }

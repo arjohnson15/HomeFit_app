@@ -668,10 +668,10 @@ router.get('/warmup-suggestions', async (req, res, next) => {
     }
 
     if (!workout || !workout.exercises || workout.exercises.length === 0) {
-      // Return general warmup for no specific workout
+      // No workout scheduled - don't show warmup suggestions
       return res.json({
-        warmups: mappings.generalWarmup.mobility.slice(0, 5),
-        tip: mappings.tips.warmup.find(t => t.muscle === 'general'),
+        warmups: [],
+        tip: null,
         enabled: true,
         defaultOn,
         muscleGroups: []
@@ -824,10 +824,10 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
     }
 
     if (!workout || !workout.exercises || workout.exercises.length === 0) {
-      // Return general cooldown for no specific workout
+      // No workout scheduled - don't show cooldown suggestions
       return res.json({
-        cooldowns: mappings.generalCooldown,
-        tip: mappings.tips.cooldown.find(t => t.muscle === 'general'),
+        cooldowns: [],
+        tip: null,
         enabled: true,
         defaultOn,
         muscleGroups: []
