@@ -101,6 +101,7 @@ secrets.json
 
 # Development/Internal files
 .claude/
+CLAUDE.md
 AGENT_RULES.md
 FEATURES.md
 WORK_TRACKER.md
