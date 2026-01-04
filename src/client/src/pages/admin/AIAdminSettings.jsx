@@ -82,37 +82,33 @@ function AIAdminSettings() {
           setTestResult({ success: false, message: 'Invalid API key' })
         }
       } else {
-        // Test Ollama connection
+        // Test Ollama connection via backend proxy (avoids CORS issues)
         if (!settings.globalOllamaEndpoint) {
           setTestResult({ success: false, message: 'Please enter an Ollama endpoint first' })
           setTesting(false)
           return
         }
         try {
-          const headers = {}
-          if (settings.globalOllamaApiKey) {
-            headers['Authorization'] = `Bearer ${settings.globalOllamaApiKey}`
-          }
-          const response = await fetch(`${settings.globalOllamaEndpoint}/api/tags`, { headers })
-          if (response.ok) {
-            const data = await response.json()
-            const models = data.models || []
-            setOllamaModels(models)
-            setTestResult({
-              success: true,
-              message: `Connected! ${models.length} model${models.length !== 1 ? 's' : ''} available.`
-            })
-            // Auto-select first model if none selected
-            if (!settings.globalOllamaModel && models.length > 0) {
-              setSettings({ ...settings, globalOllamaModel: models[0].name })
-            }
-          } else if (response.status === 401) {
-            setTestResult({ success: false, message: 'Authentication required. Add your API key.' })
-          } else {
-            setTestResult({ success: false, message: 'Could not connect to Ollama' })
+          const response = await api.post('/ai/ollama-proxy/tags', {
+            endpoint: settings.globalOllamaEndpoint,
+            apiKey: settings.globalOllamaApiKey || null
+          })
+          const models = response.data.models || []
+          setOllamaModels(models)
+          setTestResult({
+            success: true,
+            message: `Connected! ${models.length} model${models.length !== 1 ? 's' : ''} available.`
+          })
+          // Auto-select first model if none selected
+          if (!settings.globalOllamaModel && models.length > 0) {
+            setSettings({ ...settings, globalOllamaModel: models[0].name })
           }
         } catch (error) {
-          setTestResult({ success: false, message: 'Connection failed. Is Ollama running?' })
+          if (error.response?.status === 401) {
+            setTestResult({ success: false, message: 'Authentication required. Add your API key.' })
+          } else {
+            setTestResult({ success: false, message: error.response?.data?.message || 'Connection failed. Is Ollama running?' })
+          }
         }
       }
     } catch (error) {

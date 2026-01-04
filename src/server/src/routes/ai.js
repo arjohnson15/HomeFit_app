@@ -1045,4 +1045,37 @@ function calculateSetSuggestion(lastSets, trainingStyle, setNumber, difficultyFe
   return { weight, reps, tip, reason }
 }
 
+// POST /api/ai/ollama-proxy/tags - Proxy request to Ollama to get available models (avoids CORS)
+router.post('/ollama-proxy/tags', async (req, res, next) => {
+  try {
+    const { endpoint, apiKey } = req.body
+
+    if (!endpoint) {
+      return res.status(400).json({ message: 'Endpoint is required' })
+    }
+
+    const headers = { 'Content-Type': 'application/json' }
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`
+    }
+
+    const response = await fetch(`${endpoint}/api/tags`, { headers })
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        message: `Ollama server returned ${response.status}`,
+        error: await response.text()
+      })
+    }
+
+    const data = await response.json()
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({
+      message: 'Failed to connect to Ollama server',
+      error: error.message
+    })
+  }
+})
+
 export default router
