@@ -77,6 +77,10 @@ services:
       GITHUB_REPO: ${GITHUB_REPO:-arjohnson15/HomeFit_app}
       GITHUB_BRANCH: ${GITHUB_BRANCH:-main}
 
+      # Updater service
+      UPDATER_URL: http://updater:9999
+      UPDATE_SECRET: ${UPDATE_SECRET:-homefit-update-secret}
+
       # Email (optional)
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -95,12 +99,33 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      updater:
+        condition: service_started
     networks:
       - homefit-internal
       - homefit-external
     labels:
       - "com.homefit.version=${APP_VERSION:-1.0.0}"
       - "com.homefit.description=HomeFit Workout Tracking App"
+
+  # Update Service (handles automatic updates)
+  updater:
+    build:
+      context: ./updater
+      dockerfile: Dockerfile
+    container_name: homefit-updater
+    restart: unless-stopped
+    environment:
+      UPDATE_SECRET: ${UPDATE_SECRET:-homefit-update-secret}
+    volumes:
+      # Mount Docker socket to control containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount project directory for git operations
+      - ..:/project:rw
+    networks:
+      - homefit-internal
+    labels:
+      - "com.homefit.description=HomeFit Update Service"
 
 volumes:
   homefit_postgres_data:

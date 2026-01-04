@@ -494,7 +494,7 @@ router.post('/updates/check', async (req, res, next) => {
   }
 })
 
-// POST /api/admin/updates/apply - Apply update (Docker-based)
+// POST /api/admin/updates/apply - Apply update (via updater service)
 router.post('/updates/apply', async (req, res, next) => {
   try {
     // Check if update is available first
@@ -507,33 +507,82 @@ router.post('/updates/apply', async (req, res, next) => {
       })
     }
 
-    // In Docker environment, updates are applied by:
-    // 1. Pulling the latest image
-    // 2. Recreating the container
-    // This must be done from outside the container (host machine)
+    // Call the updater service to apply the update
+    const updaterUrl = process.env.UPDATER_URL || 'http://updater:9999'
+    const updateSecret = process.env.UPDATE_SECRET || 'homefit-update-secret'
 
-    // We can't actually restart ourselves from inside Docker
-    // Instead, return instructions for the admin
-    res.json({
-      success: true,
-      message: 'Update available',
-      instructions: [
-        'To apply the update, run these commands on your server:',
-        'cd /path/to/production',
-        'git pull origin main',
-        'docker-compose down',
-        'docker-compose up -d --build',
-        'docker-compose exec app npx prisma db push'
-      ],
-      updateInfo: {
-        currentVersion: updateInfo.currentVersion,
-        newVersion: updateInfo.latestVersion,
-        releaseNotes: updateInfo.releaseNotes,
-        releaseUrl: updateInfo.releaseUrl
+    try {
+      const response = await fetch(`${updaterUrl}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: updateSecret })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: result.error || 'Failed to start update',
+          updateInfo: {
+            currentVersion: updateInfo.currentVersion,
+            newVersion: updateInfo.latestVersion
+          }
+        })
       }
-    })
+
+      res.json({
+        success: true,
+        message: 'Update started! The application will restart automatically.',
+        status: result.status,
+        updateInfo: {
+          currentVersion: updateInfo.currentVersion,
+          newVersion: updateInfo.latestVersion,
+          releaseNotes: updateInfo.releaseNotes,
+          releaseUrl: updateInfo.releaseUrl
+        }
+      })
+    } catch (fetchError) {
+      // Updater service not available - provide manual instructions
+      console.error('[Admin] Updater service unavailable:', fetchError.message)
+      res.json({
+        success: false,
+        message: 'Automatic update unavailable. Please update manually.',
+        instructions: [
+          'Run these commands on your server:',
+          'cd /srv/config/HomeFit_app/production',
+          'git pull origin main',
+          'docker-compose up -d --build'
+        ],
+        updateInfo: {
+          currentVersion: updateInfo.currentVersion,
+          newVersion: updateInfo.latestVersion,
+          releaseNotes: updateInfo.releaseNotes,
+          releaseUrl: updateInfo.releaseUrl
+        }
+      })
+    }
   } catch (error) {
     next(error)
+  }
+})
+
+// GET /api/admin/updates/status - Get update progress status
+router.get('/updates/status', async (req, res, next) => {
+  try {
+    const updaterUrl = process.env.UPDATER_URL || 'http://updater:9999'
+
+    const response = await fetch(`${updaterUrl}/status`)
+    const status = await response.json()
+
+    res.json(status)
+  } catch (error) {
+    res.json({
+      inProgress: false,
+      lastUpdate: null,
+      lastResult: null,
+      error: 'Updater service unavailable'
+    })
   }
 })
 

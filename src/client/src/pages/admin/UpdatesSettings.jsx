@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 
@@ -9,10 +9,21 @@ function UpdatesSettings() {
   const [showInstructions, setShowInstructions] = useState(false)
   const [updateInstructions, setUpdateInstructions] = useState(null)
   const [error, setError] = useState(null)
+  const [applying, setApplying] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const statusPollRef = useRef(null)
 
   useEffect(() => {
     fetchStatus()
     fetchHistory()
+
+    // Cleanup polling on unmount
+    return () => {
+      if (statusPollRef.current) {
+        clearInterval(statusPollRef.current)
+      }
+    }
   }, [])
 
   const fetchStatus = async () => {
@@ -52,14 +63,66 @@ function UpdatesSettings() {
   }
 
   const handleApplyUpdate = async () => {
+    setApplying(true)
+    setError(null)
+    setUpdateStatus({ inProgress: true, logs: ['Starting update...'] })
+
     try {
       const response = await api.post('/admin/updates/apply')
-      setUpdateInstructions(response.data)
-      setShowInstructions(true)
+      const data = response.data
+
+      if (data.success && data.status === 'in_progress') {
+        // Update started, poll for status
+        pollUpdateStatus()
+      } else if (data.instructions) {
+        // Automatic update not available, show manual instructions
+        setApplying(false)
+        setUpdateInstructions(data)
+        setShowInstructions(true)
+        setUpdateStatus(null)
+      } else {
+        setApplying(false)
+        setUpdateStatus(null)
+        setError(data.message || 'Update failed')
+      }
     } catch (err) {
-      console.error('Error getting update instructions:', err)
-      setError(err.response?.data?.message || 'Failed to get update instructions')
+      console.error('Error applying update:', err)
+      setApplying(false)
+      setUpdateStatus(null)
+      setError(err.response?.data?.message || 'Failed to apply update')
     }
+  }
+
+  const pollUpdateStatus = () => {
+    // Poll every 2 seconds
+    statusPollRef.current = setInterval(async () => {
+      try {
+        const response = await api.get('/admin/updates/status')
+        setUpdateStatus(response.data)
+
+        if (!response.data.inProgress) {
+          // Update finished
+          clearInterval(statusPollRef.current)
+          statusPollRef.current = null
+          setApplying(false)
+
+          if (response.data.lastResult === 'success') {
+            setShowSuccess(true)
+            // Refresh after 3 seconds
+            setTimeout(() => {
+              window.location.reload()
+            }, 3000)
+          } else if (response.data.lastResult === 'already_current') {
+            setError('Already up to date!')
+            setUpdateStatus(null)
+          } else if (response.data.lastResult === 'failed') {
+            setError('Update failed. Check the logs below.')
+          }
+        }
+      } catch {
+        // Server might be restarting, keep polling
+      }
+    }, 2000)
   }
 
   const formatDate = (dateStr) => {
@@ -145,11 +208,19 @@ function UpdatesSettings() {
               <div className="mt-4 flex gap-3">
                 <button
                   onClick={handleApplyUpdate}
+                  disabled={applying}
                   className="btn-primary"
                 >
-                  View Update Instructions
+                  {applying ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Applying Update...
+                    </span>
+                  ) : (
+                    'Apply Update'
+                  )}
                 </button>
-                {updateInfo.releaseUrl && (
+                {updateInfo.releaseUrl && !applying && (
                   <a
                     href={updateInfo.releaseUrl}
                     target="_blank"
@@ -160,6 +231,41 @@ function UpdatesSettings() {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Progress */}
+      {updateStatus && updateStatus.inProgress && (
+        <div className="card border border-blue-500/30">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <h3 className="text-white font-medium">Updating...</h3>
+          </div>
+          <div className="bg-dark-base rounded-lg p-4 font-mono text-xs max-h-48 overflow-y-auto">
+            {updateStatus.logs?.map((log, idx) => (
+              <div key={idx} className="text-gray-300">{log}</div>
+            ))}
+          </div>
+          <p className="text-gray-500 text-sm mt-3">
+            The application will restart automatically when the update completes.
+          </p>
+        </div>
+      )}
+
+      {/* Update Success */}
+      {showSuccess && (
+        <div className="card border border-green-500/30 bg-green-500/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-green-400 font-medium">Update Complete!</h3>
+              <p className="text-gray-400 text-sm">The page will refresh automatically...</p>
             </div>
           </div>
         </div>
