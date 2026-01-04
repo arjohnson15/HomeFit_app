@@ -113,6 +113,7 @@ function Signup() {
             required
             autoComplete="username"
           />
+          <p className="text-gray-500 text-xs mt-1">Letters, numbers, and underscores only</p>
         </div>
 
         <div>

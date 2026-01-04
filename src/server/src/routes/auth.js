@@ -9,12 +9,19 @@ import notificationService from '../services/notifications.js'
 
 const router = express.Router()
 
-// Validation middleware
+// Validation middleware with user-friendly error messages
 const validateSignup = [
-  body('email').isEmail().normalizeEmail(),
-  body('username').isLength({ min: 3, max: 30 }).matches(/^[a-zA-Z0-9_]+$/),
-  body('password').isLength({ min: 8 }),
-  body('name').isLength({ min: 1, max: 100 }).trim()
+  body('email')
+    .isEmail().withMessage('Please enter a valid email address')
+    .normalizeEmail(),
+  body('username')
+    .isLength({ min: 3, max: 30 }).withMessage('Username must be between 3 and 30 characters')
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
+  body('password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('name')
+    .isLength({ min: 1, max: 100 }).withMessage('Name is required')
+    .trim()
 ]
 
 const validateLogin = [
@@ -53,7 +60,13 @@ router.post('/signup', validateSignup, async (req, res, next) => {
   try {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.status(400).json({ message: 'Validation failed', errors: errors.array() })
+      // Return the first validation error message for user-friendly display
+      const firstError = errors.array()[0]
+      return res.status(400).json({
+        message: firstError.msg,
+        field: firstError.path,
+        errors: errors.array()
+      })
     }
 
     const { email, username, password, name, shareWorkouts } = req.body

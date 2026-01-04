@@ -12,6 +12,7 @@ function UserManagement() {
   const [resettingPassword, setResettingPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [actionMessage, setActionMessage] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -84,6 +85,19 @@ function UserManagement() {
       showMessage('Avatar removed successfully', 'success')
     } catch (error) {
       showMessage(error.response?.data?.message || 'Failed to remove avatar', 'error')
+    }
+  }
+
+  const deleteUser = async () => {
+    try {
+      await api.delete(`/admin/users/${selectedUser.id}`)
+      setUsers(prev => prev.filter(u => u.id !== selectedUser.id))
+      setSelectedUser(null)
+      setShowDeleteConfirm(false)
+      showMessage('User deleted successfully', 'success')
+    } catch (error) {
+      showMessage(error.response?.data?.message || 'Failed to delete user', 'error')
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -180,14 +194,14 @@ function UserManagement() {
 
       {/* User Detail Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => { setSelectedUser(null); setEditingEmail(false); setResettingPassword(false); }}>
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => { setSelectedUser(null); setEditingEmail(false); setResettingPassword(false); setShowDeleteConfirm(false); }}>
           <div
             className="bg-dark-card w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-dark-border flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">User Details</h2>
-              <button onClick={() => { setSelectedUser(null); setEditingEmail(false); setResettingPassword(false); }} className="btn-ghost p-2">
+              <button onClick={() => { setSelectedUser(null); setEditingEmail(false); setResettingPassword(false); setShowDeleteConfirm(false); }} className="btn-ghost p-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -354,6 +368,40 @@ function UserManagement() {
                     }`} />
                   </button>
                 </div>
+              </div>
+
+              {/* Delete User */}
+              <div className="card border-error/30">
+                <h4 className="text-error font-medium mb-3">Danger Zone</h4>
+                {showDeleteConfirm ? (
+                  <div className="space-y-3">
+                    <p className="text-gray-400 text-sm">
+                      Are you sure you want to delete <span className="text-white">{selectedUser.name}</span>?
+                      This action cannot be undone.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="btn-secondary flex-1"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={deleteUser}
+                        className="flex-1 py-2 px-4 rounded-xl bg-error text-white hover:bg-error/80 transition-colors"
+                      >
+                        Delete User
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full py-2 px-4 rounded-xl border border-error/50 text-error hover:bg-error/10 transition-colors"
+                  >
+                    Delete User Account
+                  </button>
+                )}
               </div>
 
               {/* Created At */}

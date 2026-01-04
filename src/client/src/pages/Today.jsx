@@ -49,6 +49,8 @@ function Today() {
     const saved = localStorage.getItem('cooldownToggleOn')
     return saved === 'true'
   }) // Toggle state (initialized from localStorage, then settings)
+  const [warmupCollapsed, setWarmupCollapsed] = useState(true) // Warmup collapsed by default
+  const [cooldownCollapsed, setCooldownCollapsed] = useState(true) // Cooldown collapsed by default
   const [showWeightTracking, setShowWeightTracking] = useState(false) // Weight tracking feature
   const [weightUnit, setWeightUnit] = useState('LBS') // User's preferred weight unit
   const [showStillWorkingOut, setShowStillWorkingOut] = useState(false) // Runaway timer prompt
@@ -1380,6 +1382,84 @@ function Today() {
         />
       )}
 
+      {/* Warmup Section - Above workout content */}
+      {warmupToggleOn && warmupData.warmups.length > 0 && !workoutStarted && (
+        <div className="card p-3 bg-orange-500/10 border border-orange-500/30">
+          <button
+            onClick={() => setWarmupCollapsed(!warmupCollapsed)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <svg
+                className={`w-4 h-4 text-orange-400 transition-transform ${warmupCollapsed ? '' : 'rotate-90'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <span className="text-orange-400 font-medium text-sm">Warmup</span>
+              <span className="text-orange-400/60 text-xs">
+                {warmupData.warmups.length} exercises
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-orange-400/50">
+              {warmupData.isAI ? 'AI' : 'Standard'}
+            </div>
+          </button>
+
+          {!warmupCollapsed && (
+            <div className="space-y-2 mt-3 pt-3 border-t border-orange-500/20">
+              {warmupData.warmups.map((warmup, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${warmupChecked[idx] ? 'bg-orange-500/5' : 'hover:bg-orange-500/10'}`}
+                >
+                  <button
+                    onClick={() => setWarmupChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      warmupChecked[idx] ? 'bg-orange-500 border-orange-500' : 'border-orange-500/50'
+                    }`}
+                  >
+                    {warmupChecked[idx] && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-white text-xs font-medium ${warmupChecked[idx] ? 'line-through opacity-60' : ''}`}>
+                        {warmup.name}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-orange-400/50 text-[10px]">
+                          {warmup.duration ? `${warmup.duration}s` : warmup.sets && warmup.reps ? `${warmup.sets}×${warmup.reps}` : warmup.reps ? `${warmup.reps}` : ''}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); askAIAbout(warmup.name, 'warmup'); }}
+                          className="p-0.5 text-orange-400/40 hover:text-orange-400 transition-colors"
+                          title="Ask AI for more info"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {warmup.description && (
+                      <p className={`text-orange-400/60 text-[10px] mt-0.5 leading-tight ${warmupChecked[idx] ? 'opacity-60' : ''}`}>
+                        {warmup.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Compact Workout Timer */}
       {!workoutStarted ? (
         <button onClick={startWorkout} className="w-full card bg-gradient-to-r from-accent/20 to-dark-card hover:from-accent/30 transition-all">
@@ -1638,72 +1718,6 @@ function Today() {
           weightUnit={weightUnit}
           onWeightLogged={() => fetchStats()}
         />
-      )}
-
-      {/* Warmup Section */}
-      {warmupToggleOn && warmupData.warmups.length > 0 && !workoutStarted && (
-        <div className="card p-3 bg-orange-500/10 border border-orange-500/30">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-orange-400 font-medium text-sm">Warmup</span>
-              <span className="text-orange-400/60 text-xs">
-                {warmupData.muscleGroups?.length > 0 ? `• ${warmupData.muscleGroups.slice(0, 2).join(', ')}` : ''}
-              </span>
-            </div>
-            {/* Source indicator */}
-            <div className="flex items-center gap-1 text-[10px] text-orange-400/50">
-              {warmupData.isAI ? 'AI' : 'Standard'}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {warmupData.warmups.map((warmup, idx) => (
-              <div
-                key={idx}
-                className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${warmupChecked[idx] ? 'bg-orange-500/5' : 'hover:bg-orange-500/10'}`}
-              >
-                <button
-                  onClick={() => setWarmupChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                  className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    warmupChecked[idx] ? 'bg-orange-500 border-orange-500' : 'border-orange-500/50'
-                  }`}
-                >
-                  {warmupChecked[idx] && (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-white text-xs font-medium ${warmupChecked[idx] ? 'line-through opacity-60' : ''}`}>
-                      {warmup.name}
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className="text-orange-400/50 text-[10px]">
-                        {warmup.duration ? `${warmup.duration}s` : warmup.sets && warmup.reps ? `${warmup.sets}×${warmup.reps}` : warmup.reps ? `${warmup.reps}` : ''}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); askAIAbout(warmup.name, 'warmup'); }}
-                        className="p-0.5 text-orange-400/40 hover:text-orange-400 transition-colors"
-                        title="Ask AI for more info"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  {warmup.description && (
-                    <p className={`text-orange-400/60 text-[10px] mt-0.5 leading-tight ${warmupChecked[idx] ? 'opacity-60' : ''}`}>
-                      {warmup.description}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* Daily/Recurring Workouts Section */}
@@ -2083,66 +2097,78 @@ function Today() {
       {/* Cooldown Section */}
       {cooldownToggleOn && cooldownData.cooldowns.length > 0 && (
         <div className="card p-3 bg-cyan-500/10 border border-cyan-500/30">
-          <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setCooldownCollapsed(!cooldownCollapsed)}
+            className="w-full flex items-center justify-between"
+          >
             <div className="flex items-center gap-2">
+              <svg
+                className={`w-4 h-4 text-cyan-400 transition-transform ${cooldownCollapsed ? '' : 'rotate-90'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
               <span className="text-cyan-400 font-medium text-sm">Cooldown</span>
               <span className="text-cyan-400/60 text-xs">
-                {cooldownData.muscleGroups?.length > 0 ? `• ${cooldownData.muscleGroups.slice(0, 2).join(', ')}` : ''}
+                {cooldownData.cooldowns.length} exercises
               </span>
             </div>
-            {/* Source indicator */}
             <div className="flex items-center gap-1 text-[10px] text-cyan-400/50">
               {cooldownData.isAI ? 'AI' : 'Standard'}
             </div>
-          </div>
+          </button>
 
-          <div className="space-y-2">
-            {cooldownData.cooldowns.map((cooldown, idx) => (
-              <div
-                key={idx}
-                className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${cooldownChecked[idx] ? 'bg-cyan-500/5' : 'hover:bg-cyan-500/10'}`}
-              >
-                <button
-                  onClick={() => setCooldownChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                  className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    cooldownChecked[idx] ? 'bg-cyan-500 border-cyan-500' : 'border-cyan-500/50'
-                  }`}
+          {!cooldownCollapsed && (
+            <div className="space-y-2 mt-3 pt-3 border-t border-cyan-500/20">
+              {cooldownData.cooldowns.map((cooldown, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors ${cooldownChecked[idx] ? 'bg-cyan-500/5' : 'hover:bg-cyan-500/10'}`}
                 >
-                  {cooldownChecked[idx] && (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-white text-xs font-medium ${cooldownChecked[idx] ? 'line-through opacity-60' : ''}`}>
-                      {cooldown.name}
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className="text-cyan-400/50 text-[10px]">
-                        {cooldown.duration ? `${cooldown.duration}s` : ''}{cooldown.sides ? ' ea side' : ''}
+                  <button
+                    onClick={() => setCooldownChecked(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      cooldownChecked[idx] ? 'bg-cyan-500 border-cyan-500' : 'border-cyan-500/50'
+                    }`}
+                  >
+                    {cooldownChecked[idx] && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-white text-xs font-medium ${cooldownChecked[idx] ? 'line-through opacity-60' : ''}`}>
+                        {cooldown.name}
                       </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); askAIAbout(cooldown.name, 'cooldown'); }}
-                        className="p-0.5 text-cyan-400/40 hover:text-cyan-400 transition-colors"
-                        title="Ask AI for more info"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-cyan-400/50 text-[10px]">
+                          {cooldown.duration ? `${cooldown.duration}s` : ''}{cooldown.sides ? ' ea side' : ''}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); askAIAbout(cooldown.name, 'cooldown'); }}
+                          className="p-0.5 text-cyan-400/40 hover:text-cyan-400 transition-colors"
+                          title="Ask AI for more info"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
+                    {cooldown.description && (
+                      <p className={`text-cyan-400/60 text-[10px] mt-0.5 leading-tight ${cooldownChecked[idx] ? 'opacity-60' : ''}`}>
+                        {cooldown.description}
+                      </p>
+                    )}
                   </div>
-                  {cooldown.description && (
-                    <p className={`text-cyan-400/60 text-[10px] mt-0.5 leading-tight ${cooldownChecked[idx] ? 'opacity-60' : ''}`}>
-                      {cooldown.description}
-                    </p>
-                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -241,6 +241,29 @@ router.delete('/users/:id', async (req, res, next) => {
       return res.status(400).json({ message: 'Cannot delete yourself' })
     }
 
+    // Check if target user is an admin
+    const targetUser = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, role: true, email: true }
+    })
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    // If deleting an admin, ensure at least one admin remains
+    if (targetUser.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'ADMIN' }
+      })
+
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          message: 'Cannot delete the last admin. Promote another user to admin first.'
+        })
+      }
+    }
+
     await prisma.user.delete({
       where: { id: req.params.id }
     })
