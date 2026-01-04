@@ -76,9 +76,11 @@ COPY --from=backend-builder /app/server/src ./src
 # Copy built frontend to serve statically
 COPY --from=frontend-builder /app/client/dist ./public
 
-# Copy exercise database
+# Copy exercise database and data files
 COPY exercises-db/dist/exercises.json ./data/exercises.json
 COPY exercises-db/schema.json ./data/schema.json
+COPY src/server/data/warmup-cooldown-mappings.json ./data/warmup-cooldown-mappings.json
+COPY exercises-db/exercises ./data/exercises
 
 # Create directories for uploads, logs, and backups
 RUN mkdir -p uploads logs backups data && \

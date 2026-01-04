@@ -85,7 +85,10 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
 // Serve exercise images as static files
-const exerciseImagesPath = path.join(__dirname, '../../../exercises-db/exercises')
+// In production: /app/data/exercises, in dev: exercises-db/exercises
+const exerciseImagesPath = process.env.NODE_ENV === 'production'
+  ? path.join(__dirname, '../data/exercises')
+  : path.join(__dirname, '../../../exercises-db/exercises')
 app.use('/api/exercise-images', express.static(exerciseImagesPath, {
   maxAge: '7d',
   setHeaders: (res) => {

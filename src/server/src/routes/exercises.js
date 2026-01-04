@@ -18,7 +18,7 @@ const loadExercises = async () => {
 
   try {
     // Try production path first, then development path
-    let exercisesPath = path.join(__dirname, '../../../data/exercises.json')
+    let exercisesPath = path.join(__dirname, '../../data/exercises.json')
 
     try {
       await fs.access(exercisesPath)
@@ -206,7 +206,7 @@ router.put('/:id', async (req, res, next) => {
     const updates = req.body
 
     // Load the exercises JSON file
-    let exercisesPath = path.join(__dirname, '../../../data/exercises.json')
+    let exercisesPath = path.join(__dirname, '../../data/exercises.json')
     try {
       await fs.access(exercisesPath)
     } catch {
