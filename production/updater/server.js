@@ -23,13 +23,13 @@ let updateStatus = {
   logs: []
 }
 
-// Helper to run shell commands
-function runCommand(cmd, cwd = PROJECT_DIR) {
+// Helper to run shell commands with timeout
+function runCommand(cmd, cwd = PROJECT_DIR, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     console.log(`[Updater] Running: ${cmd}`)
     updateStatus.logs.push(`$ ${cmd}`)
 
-    exec(cmd, { cwd, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+    const child = exec(cmd, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs }, (error, stdout, stderr) => {
       if (stdout) {
         console.log(stdout)
         updateStatus.logs.push(stdout)
@@ -44,6 +44,14 @@ function runCommand(cmd, cwd = PROJECT_DIR) {
         resolve(stdout)
       }
     })
+
+    // Extra timeout safety
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM')
+      reject(new Error(`Command timed out after ${timeoutMs / 1000} seconds: ${cmd}`))
+    }, timeoutMs + 5000)
+
+    child.on('exit', () => clearTimeout(timer))
   })
 }
 
@@ -116,11 +124,11 @@ app.post('/update', async (req, res) => {
     const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
 
     // Build new images
-    await runCommand(`docker-compose -f ${composeFile} build --no-cache homefit`)
+    await runCommand(`docker compose -f ${composeFile} build --no-cache app`)
 
     // Restart the main app container (not the updater)
     updateStatus.logs.push('Restarting application...')
-    await runCommand(`docker-compose -f ${composeFile} up -d homefit`)
+    await runCommand(`docker compose -f ${composeFile} up -d app`)
 
     updateStatus.lastResult = 'success'
     updateStatus.logs.push('Update completed successfully!')

@@ -124,6 +124,7 @@ services:
       - ..:/project:rw
     networks:
       - homefit-internal
+      - homefit-external
     labels:
       - "com.homefit.description=HomeFit Update Service"
 

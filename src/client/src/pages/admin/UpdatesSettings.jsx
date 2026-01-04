@@ -17,6 +17,7 @@ function UpdatesSettings() {
   useEffect(() => {
     fetchStatus()
     fetchHistory()
+    fetchUpdateProgress()
 
     // Cleanup polling on unmount
     return () => {
@@ -25,6 +26,23 @@ function UpdatesSettings() {
       }
     }
   }, [])
+
+  const fetchUpdateProgress = async () => {
+    try {
+      const response = await api.get('/admin/updates/status')
+      if (response.data.inProgress) {
+        // Update is in progress, show it and start polling
+        setUpdateStatus(response.data)
+        setApplying(true)
+        pollUpdateStatus()
+      } else if (response.data.logs?.length > 0) {
+        // Show last update status
+        setUpdateStatus(response.data)
+      }
+    } catch (err) {
+      console.error('Error fetching update progress:', err)
+    }
+  }
 
   const fetchStatus = async () => {
     try {
