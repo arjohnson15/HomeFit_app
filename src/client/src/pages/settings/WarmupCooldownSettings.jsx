@@ -40,8 +40,8 @@ function WarmupCooldownSettings() {
         weightTrackingDefaultOn: warmupRes.data.weightTrackingDefaultOn ?? true
       })
 
-      // Check if user has API key configured
-      setHasApiKey(!!aiRes.data.apiKey || aiRes.data.globalKeyAvailable)
+      // Check if user has API key configured or global AI is available
+      setHasApiKey(!!aiRes.data.apiKey || aiRes.data.globalAvailable)
     } catch (error) {
       console.error('Error loading settings:', error)
     } finally {
