@@ -22,6 +22,7 @@ export const authenticateToken = async (req, res, next) => {
         name: true,
         role: true,
         trainingStyle: true,
+        avatarUrl: true,
         settings: true
       }
     })
@@ -64,7 +65,8 @@ export const optionalAuth = async (req, res, next) => {
         email: true,
         username: true,
         name: true,
-        role: true
+        role: true,
+        avatarUrl: true
       }
     })
     req.user = user

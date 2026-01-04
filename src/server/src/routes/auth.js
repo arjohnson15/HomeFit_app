@@ -148,7 +148,8 @@ router.post('/login', validateLogin, async (req, res, next) => {
         name: true,
         password: true,
         role: true,
-        trainingStyle: true
+        trainingStyle: true,
+        avatarUrl: true
       }
     })
 
@@ -200,7 +201,8 @@ router.post('/refresh', async (req, res, next) => {
             username: true,
             name: true,
             role: true,
-            trainingStyle: true
+            trainingStyle: true,
+            avatarUrl: true
           }
         }
       }
@@ -382,7 +384,8 @@ router.patch('/profile', authenticateToken, async (req, res, next) => {
         username: true,
         name: true,
         role: true,
-        trainingStyle: true
+        trainingStyle: true,
+        avatarUrl: true
       }
     })
 
