@@ -114,7 +114,10 @@ Focus on static stretches for recovery. Return ONLY the JSON array, no other tex
 let warmupCooldownMappings = null
 const loadMappings = () => {
   if (!warmupCooldownMappings) {
-    const mappingsPath = path.join(__dirname, '../../data/warmup-cooldown-mappings.json')
+    // Production Docker uses /app/server-data/, dev uses relative path
+    const prodPath = '/app/server-data/warmup-cooldown-mappings.json'
+    const devPath = path.join(__dirname, '../../data/warmup-cooldown-mappings.json')
+    const mappingsPath = fs.existsSync(prodPath) ? prodPath : devPath
     warmupCooldownMappings = JSON.parse(fs.readFileSync(mappingsPath, 'utf-8'))
   }
   return warmupCooldownMappings
