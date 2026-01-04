@@ -89,7 +89,14 @@ function NotificationBell() {
         }
 
         const registration = await navigator.serviceWorker.register('/sw.js')
-        await navigator.serviceWorker.ready
+
+        // Add timeout to prevent infinite hanging if service worker fails to activate
+        await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Service worker activation timeout')), 10000)
+          )
+        ])
 
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -107,6 +114,11 @@ function NotificationBell() {
       }
     } catch (error) {
       console.error('Error toggling push notifications:', error)
+      if (error.message?.includes('timeout')) {
+        alert('Failed to enable push notifications. The service worker failed to activate. Try refreshing the page.')
+      } else {
+        alert('Failed to enable push notifications. Please try again.')
+      }
     } finally {
       setPushLoading(false)
     }
