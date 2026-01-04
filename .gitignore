@@ -98,3 +98,9 @@ Kaggle/
 *.key
 credentials.json
 secrets.json
+
+# Development/Internal files
+.claude/
+AGENT_RULES.md
+FEATURES.md
+WORK_TRACKER.md
