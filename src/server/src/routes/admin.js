@@ -112,13 +112,15 @@ router.put('/users/:id/role', async (req, res, next) => {
   try {
     const { role } = req.body
 
-    if (!['user', 'admin'].includes(role)) {
+    // Accept both lowercase and uppercase, normalize to uppercase for Prisma enum
+    const normalizedRole = role?.toUpperCase()
+    if (!['USER', 'ADMIN'].includes(normalizedRole)) {
       return res.status(400).json({ message: 'Invalid role' })
     }
 
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: { role },
+      data: { role: normalizedRole },
       select: { id: true, role: true }
     })
 

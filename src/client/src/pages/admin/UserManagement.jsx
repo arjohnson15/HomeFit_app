@@ -32,10 +32,13 @@ function UserManagement() {
 
   const updateUserRole = async (userId, role) => {
     try {
-      await api.put(`/admin/users/${userId}/role`, { role })
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u))
+      const response = await api.put(`/admin/users/${userId}/role`, { role })
+      const newRole = response.data.user.role
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+      setSelectedUser(prev => prev ? { ...prev, role: newRole } : prev)
+      showMessage(`Role updated to ${newRole}`, 'success')
     } catch (error) {
-      console.error('Error updating role:', error)
+      showMessage(error.response?.data?.message || 'Failed to update role', 'error')
     }
   }
 
@@ -148,7 +151,7 @@ function UserManagement() {
           <p className="text-gray-400 text-sm">Active</p>
         </div>
         <div className="card text-center">
-          <p className="text-2xl font-bold text-accent">{users.filter(u => u.role === 'admin').length}</p>
+          <p className="text-2xl font-bold text-accent">{users.filter(u => u.role === 'ADMIN').length}</p>
           <p className="text-gray-400 text-sm">Admins</p>
         </div>
       </div>
@@ -173,7 +176,7 @@ function UserManagement() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-white font-medium truncate">{user.name}</h3>
-                    {user.role === 'admin' && (
+                    {user.role === 'ADMIN' && (
                       <span className="px-2 py-0.5 rounded-full bg-accent/20 text-accent text-xs">Admin</span>
                     )}
                   </div>
@@ -332,17 +335,17 @@ function UserManagement() {
                 <h4 className="text-white font-medium mb-3">Role</h4>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => updateUserRole(selectedUser.id, 'user')}
+                    onClick={() => updateUserRole(selectedUser.id, 'USER')}
                     className={`flex-1 py-2 rounded-xl text-sm ${
-                      selectedUser.role !== 'admin' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400'
+                      selectedUser.role === 'USER' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400'
                     }`}
                   >
                     User
                   </button>
                   <button
-                    onClick={() => updateUserRole(selectedUser.id, 'admin')}
+                    onClick={() => updateUserRole(selectedUser.id, 'ADMIN')}
                     className={`flex-1 py-2 rounded-xl text-sm ${
-                      selectedUser.role === 'admin' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400'
+                      selectedUser.role === 'ADMIN' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400'
                     }`}
                   >
                     Admin
