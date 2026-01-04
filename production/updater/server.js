@@ -117,18 +117,16 @@ app.post('/update', async (req, res) => {
     updateStatus.logs.push('Pulling latest changes...')
     await runCommand('git pull origin main')
 
-    // Step 4: Rebuild and restart containers
-    updateStatus.logs.push('Rebuilding containers...')
+    // Step 4: Build frontend (source is volume-mounted, so no Docker rebuild needed)
+    updateStatus.logs.push('Building frontend...')
+    const clientDir = path.join(PROJECT_DIR, 'src', 'client')
+    await runCommand('npm install', clientDir, 120000)
+    await runCommand('npm run build', clientDir, 120000)
 
-    // Use docker-compose to rebuild and restart
-    const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
-
-    // Build new images (use cache for faster builds)
-    await runCommand(`docker compose -f ${composeFile} build app`)
-
-    // Restart the main app container (not the updater)
+    // Step 5: Restart the app container to pick up changes
     updateStatus.logs.push('Restarting application...')
-    await runCommand(`docker compose -f ${composeFile} up -d app`)
+    const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
+    await runCommand(`docker compose -f ${composeFile} restart app`)
 
     updateStatus.lastResult = 'success'
     updateStatus.logs.push('Update completed successfully!')

@@ -94,6 +94,11 @@ services:
       - homefit_uploads:/app/uploads
       - homefit_logs:/app/logs
       - homefit_backups:/app/backups
+      # Mount source code for fast updates (no rebuild needed)
+      - ../src/server/src:/app/src:ro
+      - ../src/client/dist:/app/public:ro
+      - ../package.json:/app/root-package.json:ro
+      - ../exercises-db/dist:/app/data:ro
     depends_on:
       db:
         condition: service_healthy
