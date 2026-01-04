@@ -17,4 +17,4 @@ RUN npm install --production
 
 EXPOSE 9999
 
-CMD ["node", "server.js"]
+CMD ["/usr/bin/node", "server.js"]
