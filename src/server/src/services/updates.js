@@ -3,6 +3,9 @@
  * Checks GitHub for new releases and manages update process
  */
 
+const fs = require('fs')
+const path = require('path')
+
 const GITHUB_REPO = process.env.GITHUB_REPO || 'arjohnson15/HomeFit_app'
 const GITHUB_API = 'https://api.github.com'
 
@@ -11,12 +14,36 @@ class UpdateService {
     this.cache = null
     this.cacheTime = null
     this.cacheDuration = 5 * 60 * 1000 // 5 minutes
+    this._version = null
   }
 
   /**
-   * Get current app version
+   * Get current app version from package.json
    */
   getCurrentVersion() {
+    if (this._version) return this._version
+
+    try {
+      // Try multiple locations for package.json
+      const possiblePaths = [
+        path.join(__dirname, '../../../../package.json'),  // Development
+        '/app/root-package.json',                          // Docker container (root package)
+        path.join(__dirname, '../../../package.json'),     // Production build
+        '/app/package.json'                                // Docker container fallback
+      ]
+
+      for (const pkgPath of possiblePaths) {
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+          this._version = pkg.version || '1.0.0'
+          return this._version
+        }
+      }
+    } catch (err) {
+      console.error('Error reading package.json for version:', err)
+    }
+
+    // Fallback to env var
     return process.env.APP_VERSION || '1.0.0'
   }
 

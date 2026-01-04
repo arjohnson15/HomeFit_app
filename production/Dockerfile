@@ -60,11 +60,14 @@ RUN addgroup -g 1001 -S homefit && \
 
 WORKDIR /app
 
-# Copy package files
+# Copy server package files for dependencies
 COPY src/server/package*.json ./
 
 # Install production dependencies only
 RUN npm ci --only=production && npm cache clean --force
+
+# Copy root package.json for version info (after npm ci so it doesn't interfere)
+COPY package.json ./root-package.json
 
 # Copy Prisma schema and generate client
 COPY src/server/prisma ./prisma
