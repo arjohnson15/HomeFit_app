@@ -99,8 +99,8 @@ function MainLayout() {
       {showOnboarding && (
         <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
       )}
-      {/* Top Header with Profile */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-dark-bg/95 backdrop-blur-sm border-b border-dark-border">
+      {/* Top Header with Profile - safe-top adds padding for iPhone notch/status bar */}
+      <header className="fixed top-0 left-0 right-0 z-40 bg-dark-bg/95 backdrop-blur-sm border-b border-dark-border safe-top">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="HomeFit" className="w-8 h-8" />
@@ -195,8 +195,8 @@ function MainLayout() {
         </div>
       </header>
 
-      {/* Main content area */}
-      <main className="flex-1 pt-14 pb-20 overflow-y-auto">
+      {/* Main content area - pt-header-safe accounts for fixed header + safe area */}
+      <main className="flex-1 pt-header-safe pb-20 overflow-y-auto">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 10 }}

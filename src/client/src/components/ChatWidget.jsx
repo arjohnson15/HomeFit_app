@@ -2,21 +2,37 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import api from '../services/api'
 
 const INITIAL_MESSAGE = { role: 'assistant', content: 'Hi! I\'m your AI fitness assistant. Ask me anything about workouts, exercises, or building your training plan! I can even create workouts for you - just ask!' }
+const CHAT_TIMEOUT_HOURS = 2 // Auto-reset chat after this many hours of inactivity
 
 const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorkoutCreated }, ref) {
   const [isOpen, setIsOpen] = useState(false)
 
-  // Load messages from sessionStorage on mount
+  // Load messages from sessionStorage on mount, with auto-reset check
   const [messages, setMessages] = useState(() => {
     try {
+      // Check if chat has expired
+      const lastActivity = sessionStorage.getItem('ai-chat-timestamp')
+      if (lastActivity) {
+        const hoursSinceActivity = (Date.now() - parseInt(lastActivity)) / (1000 * 60 * 60)
+        if (hoursSinceActivity >= CHAT_TIMEOUT_HOURS) {
+          console.log('[ChatWidget] Chat expired after', hoursSinceActivity.toFixed(1), 'hours, resetting')
+          sessionStorage.removeItem('ai-chat-messages')
+          sessionStorage.removeItem('ai-chat-timestamp')
+          return [INITIAL_MESSAGE]
+        }
+      }
+
       const saved = sessionStorage.getItem('ai-chat-messages')
+      console.log('[ChatWidget] Loading from sessionStorage:', saved ? `${saved.length} chars` : 'null')
       if (saved) {
         const parsed = JSON.parse(saved)
+        console.log('[ChatWidget] Parsed messages:', parsed.length)
         return parsed.length > 0 ? parsed : [INITIAL_MESSAGE]
       }
     } catch (e) {
       console.error('Failed to load chat history:', e)
     }
+    console.log('[ChatWidget] Using initial message')
     return [INITIAL_MESSAGE]
   })
   const [input, setInput] = useState('')
@@ -43,11 +59,21 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   // Save messages to sessionStorage whenever they change
   useEffect(() => {
     try {
+      console.log('[ChatWidget] Saving to sessionStorage:', messages.length, 'messages')
       sessionStorage.setItem('ai-chat-messages', JSON.stringify(messages))
+      sessionStorage.setItem('ai-chat-timestamp', Date.now().toString())
     } catch (e) {
       console.error('Failed to save chat history:', e)
     }
   }, [messages])
+
+  // Reset chat to initial state
+  const resetChat = () => {
+    sessionStorage.removeItem('ai-chat-messages')
+    sessionStorage.removeItem('ai-chat-timestamp')
+    setMessages([INITIAL_MESSAGE])
+    setInput('')
+  }
 
   // Handle pending question when chat opens
   useEffect(() => {
@@ -186,8 +212,18 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
               <p className="text-white/70 text-xs">Powered by {aiProvider === 'ollama' ? 'Ollama' : 'ChatGPT'}</p>
             </div>
             <button
+              onClick={resetChat}
+              className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+              title="Clear chat history"
+            >
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
               onClick={() => setIsOpen(false)}
               className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+              title="Minimize chat"
             >
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

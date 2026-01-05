@@ -51,6 +51,7 @@ function Today() {
   }) // Toggle state (initialized from localStorage, then settings)
   const [warmupCollapsed, setWarmupCollapsed] = useState(true) // Warmup collapsed by default
   const [cooldownCollapsed, setCooldownCollapsed] = useState(true) // Cooldown collapsed by default
+  const [expandedRecurringWorkout, setExpandedRecurringWorkout] = useState(null) // Track which recurring workout is expanded
   const [showWeightTracking, setShowWeightTracking] = useState(false) // Weight tracking feature
   const [weightUnit, setWeightUnit] = useState('LBS') // User's preferred weight unit
   const [showStillWorkingOut, setShowStillWorkingOut] = useState(false) // Runaway timer prompt
@@ -278,8 +279,8 @@ function Today() {
       setRecurringWorkouts(recurringWkts)
 
       // Initialize exercise logs - start with just 1 set, dynamically add more
+      const logs = {}
       if (workout?.exercises) {
-        const logs = {}
         workout.exercises.forEach(ex => {
           logs[ex.id] = {
             completed: false,
@@ -295,8 +296,33 @@ function Today() {
             }]
           }
         })
-        setExerciseLogs(logs)
       }
+
+      // Also initialize logs for recurring workout exercises
+      if (recurringWkts?.length > 0) {
+        recurringWkts.forEach(recurring => {
+          recurring.exercises?.forEach((ex, idx) => {
+            const uniqueId = `recurring-${recurring.id}-${idx}`
+            logs[uniqueId] = {
+              completed: false,
+              logId: null,
+              targetSets: ex.sets || 3,
+              isRecurring: true,
+              recurringWorkoutId: recurring.id,
+              sets: [{
+                setNumber: 1,
+                reps: '',
+                weight: '',
+                completed: false,
+                isPR: false,
+                difficulty: null
+              }]
+            }
+          })
+        })
+      }
+
+      setExerciseLogs(logs)
 
       setLoading(false)
     }
@@ -1723,38 +1749,241 @@ function Today() {
       {/* Daily/Recurring Workouts Section */}
       {!loading && recurringWorkouts.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-medium text-gray-400">Daily Activities</h2>
-          {recurringWorkouts.map((recurring) => (
-            <div key={recurring.id} className="card bg-purple-500/10 border border-purple-500/30">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🔄</span>
-                <div className="flex-1">
-                  <h3 className="text-white font-medium">{recurring.name}</h3>
-                  <p className="text-purple-400/80 text-sm">
-                    {recurring.exercises?.length || 0} exercise{recurring.exercises?.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-                <Link
-                  to="/schedule"
-                  className="text-purple-400 text-sm hover:text-purple-300"
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium text-gray-400">Recurring Workouts</h2>
+            <Link to="/schedule" className="text-purple-400 text-sm hover:text-purple-300">Edit</Link>
+          </div>
+          {recurringWorkouts.map((recurring) => {
+            const isExpanded = expandedRecurringWorkout === recurring.id
+            const completedCount = recurring.exercises?.filter((_, idx) => {
+              const uniqueId = `recurring-${recurring.id}-${idx}`
+              return exerciseLogs[uniqueId]?.completed
+            }).length || 0
+
+            return (
+              <div key={recurring.id} className="card bg-purple-500/10 border border-purple-500/30">
+                {/* Recurring Workout Header */}
+                <div
+                  className="flex items-center gap-3 cursor-pointer"
+                  onClick={() => setExpandedRecurringWorkout(isExpanded ? null : recurring.id)}
                 >
-                  View
-                </Link>
-              </div>
-              {recurring.exercises?.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-purple-500/20 space-y-1">
-                  {recurring.exercises.slice(0, 3).map((ex, idx) => (
-                    <p key={idx} className="text-gray-400 text-sm">
-                      • {ex.exerciseName}
+                  <span className="text-2xl">🔄</span>
+                  <div className="flex-1">
+                    <h3 className="text-white font-medium">{recurring.name}</h3>
+                    <p className="text-purple-400/80 text-sm">
+                      {completedCount > 0 ? (
+                        <span className="text-success">{completedCount}/{recurring.exercises?.length || 0} done</span>
+                      ) : (
+                        `${recurring.exercises?.length || 0} exercise${recurring.exercises?.length !== 1 ? 's' : ''}`
+                      )}
                     </p>
-                  ))}
-                  {recurring.exercises.length > 3 && (
-                    <p className="text-gray-500 text-xs">+{recurring.exercises.length - 3} more</p>
-                  )}
+                  </div>
+                  <svg
+                    className={`w-5 h-5 text-purple-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Expanded Exercises */}
+                {isExpanded && recurring.exercises?.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-purple-500/20 space-y-3">
+                    {recurring.exercises.map((ex, idx) => {
+                      const uniqueId = `recurring-${recurring.id}-${idx}`
+                      const log = exerciseLogs[uniqueId] || { completed: false, sets: [], targetSets: ex.sets || 3 }
+                      const isExerciseExpanded = expandedExercise === uniqueId
+                      const exerciseImage = getExerciseImage(ex.exerciseId)
+                      const completedSetCount = log.sets?.filter(s => s.completed).length || 0
+
+                      // Prefetch exercise details for image
+                      if (!exerciseDetails[ex.exerciseId]) {
+                        fetchExerciseDetails(ex.exerciseId)
+                      }
+
+                      return (
+                        <div
+                          key={uniqueId}
+                          className={`p-3 rounded-lg bg-dark-card transition-all ${
+                            log.completed ? 'opacity-60 bg-success/10' : ''
+                          } ${isExerciseExpanded ? 'ring-2 ring-purple-500' : ''}`}
+                        >
+                          {/* Exercise Header */}
+                          <div
+                            className="flex items-center gap-3 cursor-pointer"
+                            onClick={() => {
+                              setExpandedExercise(isExerciseExpanded ? null : uniqueId)
+                              if (!isExerciseExpanded) {
+                                fetchExerciseHistory(ex.exerciseId)
+                              }
+                            }}
+                          >
+                            {/* Checkbox */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleExerciseComplete(uniqueId)
+                              }}
+                              className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center transition-colors ${
+                                log.completed
+                                  ? 'bg-success text-white hover:bg-success/80'
+                                  : 'bg-dark-elevated text-gray-500 hover:bg-dark-card'
+                              }`}
+                            >
+                              {log.completed && (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+
+                            {/* Exercise Image */}
+                            <div className="w-10 h-10 rounded-lg bg-dark-elevated flex-shrink-0 flex items-center justify-center overflow-hidden">
+                              {exerciseImage ? (
+                                <img src={exerciseImage} alt={ex.exerciseName} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+                              ) : (
+                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+
+                            {/* Exercise Info */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className={`font-medium text-sm truncate ${log.completed ? 'text-gray-400 line-through' : 'text-white'}`}>
+                                {ex.exerciseName}
+                              </h4>
+                              <p className="text-gray-400 text-xs">
+                                {completedSetCount > 0 ? (
+                                  <span className="text-success">{completedSetCount} logged</span>
+                                ) : (
+                                  `${ex.sets || 3} sets × ${ex.reps || '8-12'}`
+                                )}
+                              </p>
+                            </div>
+
+                            {/* Expand Arrow */}
+                            <svg
+                              className={`w-4 h-4 text-gray-400 transition-transform ${isExerciseExpanded ? 'rotate-180' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+
+                          {/* Expanded Set Logging */}
+                          {isExerciseExpanded && (
+                            <div className="mt-3 pt-3 border-t border-dark-elevated space-y-2">
+                              {log.sets?.map((set, setIndex) => (
+                                <div
+                                  key={setIndex}
+                                  className={`p-2 rounded-lg ${set.completed ? 'bg-success/10' : 'bg-dark-elevated'}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-medium w-10 ${set.completed ? 'text-success' : 'text-gray-400'}`}>
+                                      Set {setIndex + 1}
+                                    </span>
+                                    <input
+                                      type="number"
+                                      placeholder="lbs"
+                                      value={set.weight}
+                                      onChange={(e) => updateSetValue(uniqueId, setIndex, 'weight', e.target.value)}
+                                      disabled={set.completed}
+                                      className="w-16 px-2 py-1.5 bg-dark-card border border-gray-700 rounded text-white text-center text-sm focus:border-purple-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                    <span className="text-gray-400 text-sm">×</span>
+                                    <input
+                                      type="number"
+                                      placeholder="reps"
+                                      value={set.reps}
+                                      onChange={(e) => updateSetValue(uniqueId, setIndex, 'reps', e.target.value)}
+                                      disabled={set.completed}
+                                      className="w-16 px-2 py-1.5 bg-dark-card border border-gray-700 rounded text-white text-center text-sm focus:border-purple-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                    {!set.completed ? (
+                                      <button
+                                        onClick={() => {
+                                          // Mark set as completed locally
+                                          setExerciseLogs(prev => ({
+                                            ...prev,
+                                            [uniqueId]: {
+                                              ...prev[uniqueId],
+                                              sets: prev[uniqueId].sets.map((s, i) =>
+                                                i === setIndex ? { ...s, completed: true } : s
+                                              )
+                                            }
+                                          }))
+                                          // Add next set if needed
+                                          if (setIndex === log.sets.length - 1 && log.sets.length < (ex.sets || 3)) {
+                                            setExerciseLogs(prev => ({
+                                              ...prev,
+                                              [uniqueId]: {
+                                                ...prev[uniqueId],
+                                                sets: [...prev[uniqueId].sets, {
+                                                  setNumber: log.sets.length + 1,
+                                                  reps: '',
+                                                  weight: '',
+                                                  completed: false,
+                                                  isPR: false,
+                                                  difficulty: null
+                                                }]
+                                              }
+                                            }))
+                                          }
+                                        }}
+                                        disabled={!set.reps}
+                                        className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                                      >
+                                        Done
+                                      </button>
+                                    ) : (
+                                      <span className="text-success text-xs">✓</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Add Set Button */}
+                              {log.sets?.every(s => s.completed) && (
+                                <button
+                                  onClick={() => {
+                                    setExerciseLogs(prev => ({
+                                      ...prev,
+                                      [uniqueId]: {
+                                        ...prev[uniqueId],
+                                        sets: [...prev[uniqueId].sets, {
+                                          setNumber: log.sets.length + 1,
+                                          reps: '',
+                                          weight: '',
+                                          completed: false,
+                                          isPR: false,
+                                          difficulty: null
+                                        }]
+                                      }
+                                    }))
+                                  }}
+                                  className="w-full py-2 text-purple-400 hover:text-purple-300 text-xs flex items-center justify-center gap-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                  Add Another Set
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

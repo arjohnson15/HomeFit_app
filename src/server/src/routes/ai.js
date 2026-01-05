@@ -563,8 +563,11 @@ router.post('/chat', async (req, res) => {
 
     const assistantMessage = choice?.message?.content || 'Sorry, I couldn\'t generate a response.'
 
+    console.log('[AI] Assistant message:', assistantMessage.substring(0, 200))
+
     // Fallback: Try to parse workout creation from text response (for models that don't properly use tool_calls)
     const parsedWorkout = parseWorkoutFromText(assistantMessage)
+    console.log('[AI] Parsed workout result:', parsedWorkout)
     if (parsedWorkout) {
       try {
         const workoutResult = await createWorkoutForUser(req.user.id, parsedWorkout)
@@ -604,6 +607,8 @@ router.post('/chat', async (req, res) => {
 function parseWorkoutFromText(text) {
   if (!text) return null
 
+  console.log('[parseWorkout] Checking text for workout pattern...')
+
   const dayMapping = {
     'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
     'thursday': 4, 'friday': 5, 'saturday': 6
@@ -617,6 +622,7 @@ function parseWorkoutFromText(text) {
   // PRIMARY PATTERN: "CREATE_WORKOUT for Monday" or "CREATE_WORKOUT for Today"
   const createPattern = /CREATE_WORKOUT\s+for\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
   const createMatch = text.match(createPattern)
+  console.log('[parseWorkout] CREATE_WORKOUT pattern match:', createMatch ? createMatch[0] : 'no match')
   if (createMatch) {
     const dayStr = createMatch[1].toLowerCase()
     if (dayStr === 'today') {
@@ -631,12 +637,14 @@ function parseWorkoutFromText(text) {
     const exercisePattern = /[-•]\s*([^:\n]+):\s*(\d+)\s*sets?\s*x\s*(\d+(?:-\d+)?)\s*reps?/gi
     let match
     while ((match = exercisePattern.exec(text)) !== null) {
+      console.log('[parseWorkout] Found exercise:', match[1].trim())
       exercises.push({
         exerciseName: match[1].trim(),
         sets: parseInt(match[2]) || 3,
         reps: match[3] || '10'
       })
     }
+    console.log('[parseWorkout] Exercises found:', exercises.length, 'dayOfWeek:', dayOfWeek)
   }
 
   // FALLBACK: Check for other patterns if CREATE_WORKOUT not found
@@ -714,6 +722,15 @@ function parseWorkoutFromText(text) {
   return null
 }
 
+// Helper function to generate a slug-based exerciseId from exercise name
+function generateExerciseId(exerciseName) {
+  return 'ai-' + exerciseName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 50)
+}
+
 // Helper function to create a workout for the user
 async function createWorkoutForUser(userId, args) {
   const { name, dayOfWeek, specificDate, exercises, targetMuscles } = args
@@ -730,10 +747,10 @@ async function createWorkoutForUser(userId, args) {
           name,
           exercises: {
             create: exercises.map((e, i) => ({
-              exerciseId: null,
+              exerciseId: generateExerciseId(e.exerciseName),
               exerciseName: e.exerciseName,
               sets: e.sets,
-              reps: parseInt(e.reps) || 10,
+              reps: String(e.reps || '10'),
               order: i
             }))
           }
@@ -764,10 +781,10 @@ async function createWorkoutForUser(userId, args) {
           exercises: {
             deleteMany: {},
             create: exercises.map((e, i) => ({
-              exerciseId: null,
+              exerciseId: generateExerciseId(e.exerciseName),
               exerciseName: e.exerciseName,
               sets: e.sets,
-              reps: parseInt(e.reps) || 10,
+              reps: String(e.reps || '10'),
               order: i
             }))
           }
@@ -778,10 +795,10 @@ async function createWorkoutForUser(userId, args) {
           name,
           exercises: {
             create: exercises.map((e, i) => ({
-              exerciseId: null,
+              exerciseId: generateExerciseId(e.exerciseName),
               exerciseName: e.exerciseName,
               sets: e.sets,
-              reps: parseInt(e.reps) || 10,
+              reps: String(e.reps || '10'),
               order: i
             }))
           }
