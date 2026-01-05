@@ -27,6 +27,11 @@ const processQueue = (error, token = null) => {
 api.interceptors.request.use(
   (config) => {
     // Token is set in authStore when logging in
+    // Add client timezone to all requests for proper date/time handling
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (timezone) {
+      config.headers['X-Timezone'] = timezone
+    }
     return config
   },
   (error) => {

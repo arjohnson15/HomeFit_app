@@ -53,7 +53,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "ab crunch machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -123,7 +123,7 @@
     "force": "static",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "adductors"
     ],
@@ -273,7 +273,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -292,14 +292,17 @@
       "Alternate_Incline_Dumbbell_Curl/0.jpg",
       "Alternate_Incline_Dumbbell_Curl/1.jpg"
     ],
-    "id": "Alternate_Incline_Dumbbell_Curl"
+    "id": "Alternate_Incline_Dumbbell_Curl",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Alternate Leg Diagonal Bound",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -510,7 +513,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -532,7 +535,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "glutes"
     ],
@@ -602,7 +605,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -899,7 +902,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -1101,7 +1104,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -1121,7 +1124,10 @@
       "Barbell_Bench_Press_-_Medium_Grip/0.jpg",
       "Barbell_Bench_Press_-_Medium_Grip/1.jpg"
     ],
-    "id": "Barbell_Bench_Press_-_Medium_Grip"
+    "id": "Barbell_Bench_Press_-_Medium_Grip",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Barbell Curl",
@@ -1154,7 +1160,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -1170,7 +1176,11 @@
       "Barbell_Curls_Lying_Against_An_Incline/0.jpg",
       "Barbell_Curls_Lying_Against_An_Incline/1.jpg"
     ],
-    "id": "Barbell_Curls_Lying_Against_An_Incline"
+    "id": "Barbell_Curls_Lying_Against_An_Incline",
+    "secondaryEquipment": [
+      "incline bench",
+      "flat bench"
+    ]
   },
   {
     "name": "Barbell Deadlift",
@@ -1265,7 +1275,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -1285,7 +1295,10 @@
       "Barbell_Guillotine_Bench_Press/0.jpg",
       "Barbell_Guillotine_Bench_Press/1.jpg"
     ],
-    "id": "Barbell_Guillotine_Bench_Press"
+    "id": "Barbell_Guillotine_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Barbell Hack Squat",
@@ -1344,7 +1357,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -1364,14 +1377,17 @@
       "Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg",
       "Barbell_Incline_Bench_Press_-_Medium_Grip/1.jpg"
     ],
-    "id": "Barbell_Incline_Bench_Press_-_Medium_Grip"
+    "id": "Barbell_Incline_Bench_Press_-_Medium_Grip",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Barbell Incline Shoulder Raise",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -1389,7 +1405,10 @@
       "Barbell_Incline_Shoulder_Raise/0.jpg",
       "Barbell_Incline_Shoulder_Raise/1.jpg"
     ],
-    "id": "Barbell_Incline_Shoulder_Raise"
+    "id": "Barbell_Incline_Shoulder_Raise",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Barbell Lunge",
@@ -1452,7 +1471,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -1662,7 +1681,7 @@
     "force": "push",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -1825,7 +1844,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "body only",
     "primaryMuscles": [
       "triceps"
     ],
@@ -1879,7 +1898,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -1900,14 +1919,17 @@
       "Bench_Press_-_Powerlifting/0.jpg",
       "Bench_Press_-_Powerlifting/1.jpg"
     ],
-    "id": "Bench_Press_-_Powerlifting"
+    "id": "Bench_Press_-_Powerlifting",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Bench Press - With Bands",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "bands",
     "primaryMuscles": [
       "chest"
     ],
@@ -1936,7 +1958,7 @@
     "force": "push",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -1956,7 +1978,10 @@
       "Bench_Press_with_Chains/0.jpg",
       "Bench_Press_with_Chains/1.jpg"
     ],
-    "id": "Bench_Press_with_Chains"
+    "id": "Bench_Press_with_Chains",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Bench Sprint",
@@ -1990,7 +2015,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "lats"
     ],
@@ -2012,14 +2037,17 @@
       "Bent-Arm_Barbell_Pullover/0.jpg",
       "Bent-Arm_Barbell_Pullover/1.jpg"
     ],
-    "id": "Bent-Arm_Barbell_Pullover"
+    "id": "Bent-Arm_Barbell_Pullover",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Bent-Arm Dumbbell Pullover",
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -2041,7 +2069,10 @@
       "Bent-Arm_Dumbbell_Pullover/0.jpg",
       "Bent-Arm_Dumbbell_Pullover/1.jpg"
     ],
-    "id": "Bent-Arm_Dumbbell_Pullover"
+    "id": "Bent-Arm_Dumbbell_Pullover",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Bent-Knee Hip Raise",
@@ -2099,7 +2130,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -2315,7 +2346,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "stationary bike",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -2446,7 +2477,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "middle back"
     ],
@@ -2496,7 +2527,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -2842,7 +2873,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "pec deck machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -3495,7 +3526,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg press",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -3518,7 +3549,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg press",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -3590,7 +3621,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -3612,7 +3643,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -3709,7 +3740,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "adductors"
     ],
@@ -3738,7 +3769,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -3861,7 +3892,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lats"
     ],
@@ -4089,7 +4120,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -4114,7 +4145,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "body only",
     "primaryMuscles": [
       "lats"
     ],
@@ -4142,7 +4173,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "neck"
     ],
@@ -4438,7 +4469,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -4458,7 +4489,10 @@
       "Close-Grip_Barbell_Bench_Press/0.jpg",
       "Close-Grip_Barbell_Bench_Press/1.jpg"
     ],
-    "id": "Close-Grip_Barbell_Bench_Press"
+    "id": "Close-Grip_Barbell_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Close-Grip Dumbbell Press",
@@ -4571,7 +4605,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "lat pulldown",
+    "equipment": "cable",
     "primaryMuscles": [
       "lats"
     ],
@@ -4807,7 +4841,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -4959,7 +4993,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -5070,7 +5104,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5091,14 +5125,17 @@
       "Decline_Barbell_Bench_Press/0.jpg",
       "Decline_Barbell_Bench_Press/1.jpg"
     ],
-    "id": "Decline_Barbell_Bench_Press"
+    "id": "Decline_Barbell_Bench_Press",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline Close-Grip Bench To Skull Crusher",
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5120,7 +5157,10 @@
       "Decline_Close-Grip_Bench_To_Skull_Crusher/0.jpg",
       "Decline_Close-Grip_Bench_To_Skull_Crusher/1.jpg"
     ],
-    "id": "Decline_Close-Grip_Bench_To_Skull_Crusher"
+    "id": "Decline_Close-Grip_Bench_To_Skull_Crusher",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline Crunch",
@@ -5152,7 +5192,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5173,14 +5213,17 @@
       "Decline_Dumbbell_Bench_Press/0.jpg",
       "Decline_Dumbbell_Bench_Press/1.jpg"
     ],
-    "id": "Decline_Dumbbell_Bench_Press"
+    "id": "Decline_Dumbbell_Bench_Press",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline Dumbbell Flyes",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5197,14 +5240,17 @@
       "Decline_Dumbbell_Flyes/0.jpg",
       "Decline_Dumbbell_Flyes/1.jpg"
     ],
-    "id": "Decline_Dumbbell_Flyes"
+    "id": "Decline_Dumbbell_Flyes",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline Dumbbell Triceps Extension",
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "decline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5221,14 +5267,17 @@
       "Decline_Dumbbell_Triceps_Extension/0.jpg",
       "Decline_Dumbbell_Triceps_Extension/1.jpg"
     ],
-    "id": "Decline_Dumbbell_Triceps_Extension"
+    "id": "Decline_Dumbbell_Triceps_Extension",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline EZ Bar Triceps Extension",
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "decline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5245,7 +5294,10 @@
       "Decline_EZ_Bar_Triceps_Extension/0.jpg",
       "Decline_EZ_Bar_Triceps_Extension/1.jpg"
     ],
-    "id": "Decline_EZ_Bar_Triceps_Extension"
+    "id": "Decline_EZ_Bar_Triceps_Extension",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Decline Oblique Crunch",
@@ -5277,7 +5329,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "chest"
     ],
@@ -5327,7 +5379,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -5412,7 +5464,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "assisted dip machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5439,7 +5491,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "dip bars",
+    "equipment": "other",
     "primaryMuscles": [
       "chest"
     ],
@@ -5465,7 +5517,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "dip bars",
+    "equipment": "body only",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5784,7 +5836,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5804,14 +5856,17 @@
       "Dumbbell_Bench_Press/0.jpg",
       "Dumbbell_Bench_Press/1.jpg"
     ],
-    "id": "Dumbbell_Bench_Press"
+    "id": "Dumbbell_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Dumbbell Bench Press with Neutral Grip",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5830,7 +5885,10 @@
       "Dumbbell_Bench_Press_with_Neutral_Grip/0.jpg",
       "Dumbbell_Bench_Press_with_Neutral_Grip/1.jpg"
     ],
-    "id": "Dumbbell_Bench_Press_with_Neutral_Grip"
+    "id": "Dumbbell_Bench_Press_with_Neutral_Grip",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Dumbbell Bicep Curl",
@@ -5919,7 +5977,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -5936,14 +5994,17 @@
       "Dumbbell_Flyes/0.jpg",
       "Dumbbell_Flyes/1.jpg"
     ],
-    "id": "Dumbbell_Flyes"
+    "id": "Dumbbell_Flyes",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Dumbbell Incline Row",
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "middle back"
     ],
@@ -5964,14 +6025,17 @@
       "Dumbbell_Incline_Row/0.jpg",
       "Dumbbell_Incline_Row/1.jpg"
     ],
-    "id": "Dumbbell_Incline_Row"
+    "id": "Dumbbell_Incline_Row",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Dumbbell Incline Shoulder Raise",
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -5990,7 +6054,10 @@
       "Dumbbell_Incline_Shoulder_Raise/0.jpg",
       "Dumbbell_Incline_Shoulder_Raise/1.jpg"
     ],
-    "id": "Dumbbell_Incline_Shoulder_Raise"
+    "id": "Dumbbell_Incline_Shoulder_Raise",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Dumbbell Lunges",
@@ -6024,7 +6091,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -6075,7 +6142,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -6203,7 +6270,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -6221,7 +6288,10 @@
       "Dumbbell_Prone_Incline_Curl/0.jpg",
       "Dumbbell_Prone_Incline_Curl/1.jpg"
     ],
-    "id": "Dumbbell_Prone_Incline_Curl"
+    "id": "Dumbbell_Prone_Incline_Curl",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Dumbbell Raise",
@@ -6458,7 +6528,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -6537,7 +6607,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lats"
     ],
@@ -6558,7 +6628,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "chest"
     ],
@@ -6630,7 +6700,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -6676,7 +6746,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "chest"
     ],
@@ -6755,7 +6825,7 @@
     "force": null,
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "elliptical",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -7099,7 +7169,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -7117,14 +7187,17 @@
       "Flexor_Incline_Dumbbell_Curls/0.jpg",
       "Flexor_Incline_Dumbbell_Curls/1.jpg"
     ],
-    "id": "Flexor_Incline_Dumbbell_Curls"
+    "id": "Flexor_Incline_Dumbbell_Curls",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Floor Glute-Ham Raise",
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -7333,7 +7406,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -7413,7 +7486,7 @@
     "force": "push",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -7548,7 +7621,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -7565,7 +7638,10 @@
       "Front_Incline_Dumbbell_Raise/0.jpg",
       "Front_Incline_Dumbbell_Raise/1.jpg"
     ],
-    "id": "Front_Incline_Dumbbell_Raise"
+    "id": "Front_Incline_Dumbbell_Raise",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Front Leg Raises",
@@ -7616,7 +7692,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -7637,7 +7713,10 @@
       "Front_Raise_And_Pullover/0.jpg",
       "Front_Raise_And_Pullover/1.jpg"
     ],
-    "id": "Front_Raise_And_Pullover"
+    "id": "Front_Raise_And_Pullover",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Front Squat (Clean Grip)",
@@ -7744,7 +7823,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -7772,7 +7851,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "glute ham raise",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -7927,7 +8006,7 @@
     "force": "static",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "adductors"
     ],
@@ -7971,7 +8050,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "hack squat machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -8025,7 +8104,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -8047,7 +8126,10 @@
       "Hammer_Grip_Incline_DB_Bench_Press/0.jpg",
       "Hammer_Grip_Incline_DB_Bench_Press/1.jpg"
     ],
-    "id": "Hammer_Grip_Incline_DB_Bench_Press"
+    "id": "Hammer_Grip_Incline_DB_Bench_Press",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Hamstring-SMR",
@@ -8076,7 +8158,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -8524,7 +8606,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -8577,7 +8659,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "machine",
+    "equipment": "other",
     "primaryMuscles": [
       "lower back"
     ],
@@ -8699,7 +8781,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -8719,14 +8801,17 @@
       "Incline_Barbell_Triceps_Extension/0.jpg",
       "Incline_Barbell_Triceps_Extension/1.jpg"
     ],
-    "id": "Incline_Barbell_Triceps_Extension"
+    "id": "Incline_Barbell_Triceps_Extension",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Bench Pull",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "middle back"
     ],
@@ -8748,7 +8833,10 @@
       "Incline_Bench_Pull/0.jpg",
       "Incline_Bench_Pull/1.jpg"
     ],
-    "id": "Incline_Bench_Pull"
+    "id": "Incline_Bench_Pull",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Cable Chest Press",
@@ -8807,7 +8895,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -8829,14 +8917,17 @@
       "Incline_Dumbbell_Bench_With_Palms_Facing_In/0.jpg",
       "Incline_Dumbbell_Bench_With_Palms_Facing_In/1.jpg"
     ],
-    "id": "Incline_Dumbbell_Bench_With_Palms_Facing_In"
+    "id": "Incline_Dumbbell_Bench_With_Palms_Facing_In",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Dumbbell Curl",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -8852,14 +8943,17 @@
       "Incline_Dumbbell_Curl/0.jpg",
       "Incline_Dumbbell_Curl/1.jpg"
     ],
-    "id": "Incline_Dumbbell_Curl"
+    "id": "Incline_Dumbbell_Curl",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Dumbbell Flyes",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -8879,14 +8973,17 @@
       "Incline_Dumbbell_Flyes/0.jpg",
       "Incline_Dumbbell_Flyes/1.jpg"
     ],
-    "id": "Incline_Dumbbell_Flyes"
+    "id": "Incline_Dumbbell_Flyes",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Dumbbell Flyes - With A Twist",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -8906,14 +9003,17 @@
       "Incline_Dumbbell_Flyes_-_With_A_Twist/0.jpg",
       "Incline_Dumbbell_Flyes_-_With_A_Twist/1.jpg"
     ],
-    "id": "Incline_Dumbbell_Flyes_-_With_A_Twist"
+    "id": "Incline_Dumbbell_Flyes_-_With_A_Twist",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Dumbbell Press",
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -8935,14 +9035,17 @@
       "Incline_Dumbbell_Press/0.jpg",
       "Incline_Dumbbell_Press/1.jpg"
     ],
-    "id": "Incline_Dumbbell_Press"
+    "id": "Incline_Dumbbell_Press",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Hammer Curls",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -8957,14 +9060,17 @@
       "Incline_Hammer_Curls/0.jpg",
       "Incline_Hammer_Curls/1.jpg"
     ],
-    "id": "Incline_Hammer_Curls"
+    "id": "Incline_Hammer_Curls",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Inner Biceps Curl",
     "force": null,
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -8981,7 +9087,10 @@
       "Incline_Inner_Biceps_Curl/0.jpg",
       "Incline_Inner_Biceps_Curl/1.jpg"
     ],
-    "id": "Incline_Inner_Biceps_Curl"
+    "id": "Incline_Inner_Biceps_Curl",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Incline Push-Up",
@@ -9216,7 +9325,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "barbell",
+    "equipment": null,
     "primaryMuscles": [
       "middle back"
     ],
@@ -9293,7 +9402,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -9573,7 +9682,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "treadmill",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -10053,7 +10162,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "glutes"
     ],
@@ -10102,7 +10211,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "dip bars",
+    "equipment": "other",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -10154,7 +10263,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -10233,7 +10342,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "forearms"
     ],
@@ -10279,7 +10388,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -10598,7 +10707,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -10620,7 +10729,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg extension machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -10669,7 +10778,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "leg press",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -10720,7 +10829,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "chest press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -10770,7 +10879,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "chest press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -10795,7 +10904,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "row machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "middle back"
     ],
@@ -10820,7 +10929,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "chest press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -10845,7 +10954,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "row machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "lats"
     ],
@@ -10870,7 +10979,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "shoulder press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -10920,7 +11029,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -10946,7 +11055,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -11059,7 +11168,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -11302,7 +11411,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "middle back"
     ],
@@ -11355,7 +11464,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -11372,14 +11481,17 @@
       "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head/0.jpg",
       "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head/1.jpg"
     ],
-    "id": "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head"
+    "id": "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Lying Close-Grip Barbell Triceps Press To Chin",
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "e-z curl bar",
     "primaryMuscles": [
       "triceps"
     ],
@@ -11426,7 +11538,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -11445,7 +11557,10 @@
       "Lying_Dumbbell_Tricep_Extension/0.jpg",
       "Lying_Dumbbell_Tricep_Extension/1.jpg"
     ],
-    "id": "Lying_Dumbbell_Tricep_Extension"
+    "id": "Lying_Dumbbell_Tricep_Extension",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Lying Face Down Plate Neck Resistance",
@@ -11547,7 +11662,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -11563,14 +11678,17 @@
       "Lying_High_Bench_Barbell_Curl/0.jpg",
       "Lying_High_Bench_Barbell_Curl/1.jpg"
     ],
-    "id": "Lying_High_Bench_Barbell_Curl"
+    "id": "Lying_High_Bench_Barbell_Curl",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Lying Leg Curls",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg curl machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -11622,7 +11740,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -11669,7 +11787,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -11693,7 +11811,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -11710,14 +11828,17 @@
       "Lying_Supine_Dumbbell_Curl/0.jpg",
       "Lying_Supine_Dumbbell_Curl/1.jpg"
     ],
-    "id": "Lying_Supine_Dumbbell_Curl"
+    "id": "Lying_Supine_Dumbbell_Curl",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Lying T-Bar Row",
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "t-bar row",
+    "equipment": "machine",
     "primaryMuscles": [
       "middle back"
     ],
@@ -11745,7 +11866,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "e-z curl bar",
     "primaryMuscles": [
       "triceps"
     ],
@@ -11769,7 +11890,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "chest press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -11798,7 +11919,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "bicep curl machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "biceps"
     ],
@@ -11821,7 +11942,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "preacher curl machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "biceps"
     ],
@@ -11845,7 +11966,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "shoulder press machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -11871,7 +11992,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "tricep extension machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "triceps"
     ],
@@ -11995,7 +12116,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "middle back"
     ],
@@ -12020,7 +12141,7 @@
     "force": "pull",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "middle back"
     ],
@@ -12069,7 +12190,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -12094,7 +12215,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -12178,7 +12299,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "hack squat machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -12208,7 +12329,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "leg press",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -12440,7 +12561,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -12491,7 +12612,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -12509,7 +12630,10 @@
       "One-Arm_Flat_Bench_Dumbbell_Flye/0.jpg",
       "One-Arm_Flat_Bench_Dumbbell_Flye/1.jpg"
     ],
-    "id": "One-Arm_Flat_Bench_Dumbbell_Flye"
+    "id": "One-Arm_Flat_Bench_Dumbbell_Flye",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "One-Arm High-Pulley Cable Side Bends",
@@ -12543,7 +12667,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -12561,7 +12685,10 @@
       "One-Arm_Incline_Lateral_Raise/0.jpg",
       "One-Arm_Incline_Lateral_Raise/1.jpg"
     ],
-    "id": "One-Arm_Incline_Lateral_Raise"
+    "id": "One-Arm_Incline_Lateral_Raise",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "One-Arm Kettlebell Clean",
@@ -13068,7 +13195,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lats"
     ],
@@ -13089,7 +13216,7 @@
     "force": "pull",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "middle back"
     ],
@@ -13119,7 +13246,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -13141,7 +13268,10 @@
       "One_Arm_Dumbbell_Bench_Press/0.jpg",
       "One_Arm_Dumbbell_Bench_Press/1.jpg"
     ],
-    "id": "One_Arm_Dumbbell_Bench_Press"
+    "id": "One_Arm_Dumbbell_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "One Arm Dumbbell Preacher Curl",
@@ -13278,7 +13408,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -13305,7 +13435,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -13327,7 +13457,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "glutes"
     ],
@@ -13542,7 +13672,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "abdominals"
     ],
@@ -13653,7 +13783,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "forearms"
     ],
@@ -13679,7 +13809,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "forearms"
     ],
@@ -13705,7 +13835,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "forearms"
     ],
@@ -13731,7 +13861,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "forearms"
     ],
@@ -13757,7 +13887,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "dip bars",
+    "equipment": "other",
     "primaryMuscles": [
       "triceps"
     ],
@@ -13783,7 +13913,7 @@
     "force": "static",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -14426,7 +14556,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -14500,7 +14630,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "body only",
     "primaryMuscles": [
       "lats"
     ],
@@ -14953,7 +15083,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "stationary bike",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -15006,7 +15136,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -15028,7 +15158,10 @@
       "Reverse_Band_Bench_Press/0.jpg",
       "Reverse_Band_Bench_Press/1.jpg"
     ],
-    "id": "Reverse_Band_Bench_Press"
+    "id": "Reverse_Band_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Reverse Band Box Squat",
@@ -15277,7 +15410,10 @@
       "Reverse_Flyes/0.jpg",
       "Reverse_Flyes/1.jpg"
     ],
-    "id": "Reverse_Flyes"
+    "id": "Reverse_Flyes",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Reverse Flyes With External Rotation",
@@ -15303,7 +15439,10 @@
       "Reverse_Flyes_With_External_Rotation/0.jpg",
       "Reverse_Flyes_With_External_Rotation/1.jpg"
     ],
-    "id": "Reverse_Flyes_With_External_Rotation"
+    "id": "Reverse_Flyes_With_External_Rotation",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Reverse Grip Bent-Over Rows",
@@ -15362,7 +15501,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "reverse hyper machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -15389,7 +15528,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "pec deck machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -15438,7 +15577,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -15458,7 +15597,10 @@
       "Reverse_Triceps_Bench_Press/0.jpg",
       "Reverse_Triceps_Bench_Press/1.jpg"
     ],
-    "id": "Reverse_Triceps_Bench_Press"
+    "id": "Reverse_Triceps_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Rhomboids-SMR",
@@ -15545,7 +15687,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "dip bars",
+    "equipment": "other",
     "primaryMuscles": [
       "triceps"
     ],
@@ -15623,7 +15765,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -15832,7 +15974,7 @@
     "force": null,
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "rowing machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -15861,7 +16003,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -15885,7 +16027,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "treadmill",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -15970,7 +16112,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "pull-up bar",
+    "equipment": null,
     "primaryMuscles": [
       "traps"
     ],
@@ -16273,7 +16415,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "seated calf raise machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -16298,7 +16440,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -16499,7 +16641,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -16595,7 +16737,7 @@
     "force": "static",
     "level": "expert",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -16667,7 +16809,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg curl machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -16793,7 +16935,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "abdominals"
     ],
@@ -16991,7 +17133,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -17038,7 +17180,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -17060,7 +17202,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -17080,7 +17222,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lats"
     ],
@@ -17238,7 +17380,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "adductors"
     ],
@@ -17262,7 +17404,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "neck"
     ],
@@ -17283,7 +17425,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -17309,7 +17451,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -17340,7 +17482,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -17574,7 +17716,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg extension machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -17749,7 +17891,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -17981,7 +18123,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18001,14 +18143,17 @@
       "Smith_Incline_Shoulder_Raise/0.jpg",
       "Smith_Incline_Shoulder_Raise/1.jpg"
     ],
-    "id": "Smith_Incline_Shoulder_Raise"
+    "id": "Smith_Incline_Shoulder_Raise",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Smith Machine Behind the Back Shrug",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "traps"
     ],
@@ -18034,7 +18179,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18061,7 +18206,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "middle back"
     ],
@@ -18090,7 +18235,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -18114,7 +18259,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "triceps"
     ],
@@ -18141,7 +18286,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18168,7 +18313,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -18199,7 +18344,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -18222,7 +18367,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18249,7 +18394,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18275,7 +18420,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18302,7 +18447,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18328,7 +18473,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18356,7 +18501,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -18381,7 +18526,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18411,7 +18556,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -18438,7 +18583,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "traps"
     ],
@@ -18466,7 +18611,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "smith machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18833,7 +18978,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "middle back"
     ],
@@ -19011,7 +19156,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -19184,7 +19329,7 @@
     "force": null,
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "stair climber",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -19495,7 +19640,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "standing calf raise machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -19736,7 +19881,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -19807,7 +19952,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -19854,7 +19999,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "abdominals"
     ],
@@ -19877,7 +20022,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "leg curl machine",
+    "equipment": "machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -20059,7 +20204,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -20077,7 +20222,10 @@
       "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench/0.jpg",
       "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench/1.jpg"
     ],
-    "id": "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench"
+    "id": "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Standing One-Arm Dumbbell Triceps Extension",
@@ -20216,7 +20364,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "lower back"
     ],
@@ -20263,7 +20411,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "calves"
     ],
@@ -20284,7 +20432,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -20407,7 +20555,7 @@
     "force": null,
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "stair climber",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -20538,7 +20686,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "dumbbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -20560,14 +20708,17 @@
       "Straight-Arm_Dumbbell_Pullover/0.jpg",
       "Straight-Arm_Dumbbell_Pullover/1.jpg"
     ],
-    "id": "Straight-Arm_Dumbbell_Pullover"
+    "id": "Straight-Arm_Dumbbell_Pullover",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Straight-Arm Pulldown",
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "lat pulldown",
+    "equipment": "cable",
     "primaryMuscles": [
       "lats"
     ],
@@ -20591,7 +20742,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "middle back"
     ],
@@ -20616,7 +20767,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "incline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -20634,7 +20785,10 @@
       "Straight_Raises_on_Incline_Bench/0.jpg",
       "Straight_Raises_on_Incline_Bench/1.jpg"
     ],
-    "id": "Straight_Raises_on_Incline_Bench"
+    "id": "Straight_Raises_on_Incline_Bench",
+    "secondaryEquipment": [
+      "incline bench"
+    ]
   },
   {
     "name": "Stride Jump Crossover",
@@ -21082,7 +21236,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -21106,7 +21260,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "hip abductor/adductor",
+    "equipment": "machine",
     "primaryMuscles": [
       "abductors"
     ],
@@ -21131,7 +21285,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "hip abductor/adductor",
+    "equipment": "machine",
     "primaryMuscles": [
       "adductors"
     ],
@@ -21235,7 +21389,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -21309,7 +21463,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "triceps"
     ],
@@ -21426,7 +21580,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "triceps"
     ],
@@ -21624,7 +21778,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -21648,7 +21802,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "middle back"
     ],
@@ -21745,7 +21899,7 @@
     "force": "static",
     "level": "beginner",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "shoulders"
     ],
@@ -21769,7 +21923,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "lat pulldown",
+    "equipment": "cable",
     "primaryMuscles": [
       "lats"
     ],
@@ -21798,7 +21952,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "body only",
     "primaryMuscles": [
       "lats"
     ],
@@ -21853,7 +22007,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": null,
-    "equipment": "treadmill",
+    "equipment": "machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -21931,7 +22085,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "other",
     "primaryMuscles": [
       "triceps"
     ],
@@ -22010,7 +22164,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "other",
     "primaryMuscles": [
       "lats"
     ],
@@ -22114,7 +22268,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "flat bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -22133,14 +22287,17 @@
       "Wide-Grip_Barbell_Bench_Press/0.jpg",
       "Wide-Grip_Barbell_Bench_Press/1.jpg"
     ],
-    "id": "Wide-Grip_Barbell_Bench_Press"
+    "id": "Wide-Grip_Barbell_Bench_Press",
+    "secondaryEquipment": [
+      "flat bench"
+    ]
   },
   {
     "name": "Wide-Grip Decline Barbell Bench Press",
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -22159,14 +22316,17 @@
       "Wide-Grip_Decline_Barbell_Bench_Press/0.jpg",
       "Wide-Grip_Decline_Barbell_Bench_Press/1.jpg"
     ],
-    "id": "Wide-Grip_Decline_Barbell_Bench_Press"
+    "id": "Wide-Grip_Decline_Barbell_Bench_Press",
+    "secondaryEquipment": [
+      "decline bench"
+    ]
   },
   {
     "name": "Wide-Grip Decline Barbell Pullover",
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "decline bench",
+    "equipment": "barbell",
     "primaryMuscles": [
       "chest"
     ],
@@ -22187,14 +22347,18 @@
       "Wide-Grip_Decline_Barbell_Pullover/0.jpg",
       "Wide-Grip_Decline_Barbell_Pullover/1.jpg"
     ],
-    "id": "Wide-Grip_Decline_Barbell_Pullover"
+    "id": "Wide-Grip_Decline_Barbell_Pullover",
+    "secondaryEquipment": [
+      "decline bench",
+      "flat bench"
+    ]
   },
   {
     "name": "Wide-Grip Lat Pulldown",
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "lat pulldown",
+    "equipment": "cable",
     "primaryMuscles": [
       "lats"
     ],
@@ -22252,7 +22416,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "pull-up bar",
+    "equipment": "body only",
     "primaryMuscles": [
       "lats"
     ],
@@ -22382,7 +22546,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "abductors"
     ],
@@ -22408,7 +22572,7 @@
     "force": "static",
     "level": "intermediate",
     "mechanic": null,
-    "equipment": "body only",
+    "equipment": null,
     "primaryMuscles": [
       "hamstrings"
     ],

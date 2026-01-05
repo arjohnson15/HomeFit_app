@@ -312,12 +312,31 @@ router.delete('/calendar/:id', async (req, res, next) => {
 // GET /api/schedules/today - Get today's workout
 router.get('/today', async (req, res, next) => {
   try {
-    const today = new Date()
-    const dayOfWeek = today.getDay() // 0 = Sunday
+    // Use client's timezone if provided, otherwise fall back to server time
+    const clientTimezone = req.headers['x-timezone']
+    let today = new Date()
+    let dayOfWeek
+
+    if (clientTimezone) {
+      try {
+        // Convert current time to client's timezone to get correct day of week
+        const dateInClientTz = new Date(today.toLocaleString('en-US', { timeZone: clientTimezone }))
+        dayOfWeek = dateInClientTz.getDay()
+        today = dateInClientTz
+      } catch (tzError) {
+        // Invalid timezone, fall back to server time
+        console.warn('Invalid timezone provided:', clientTimezone)
+        dayOfWeek = today.getDay()
+      }
+    } else {
+      dayOfWeek = today.getDay() // 0 = Sunday
+    }
 
     // Check for calendar override first
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0))
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999))
+    const startOfDay = new Date(today)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(today)
+    endOfDay.setHours(23, 59, 59, 999)
 
     const calendarWorkout = await prisma.calendarWorkout.findFirst({
       where: {
@@ -564,8 +583,22 @@ router.post('/recurring/:id/complete', async (req, res, next) => {
 // GET /api/schedules/recurring/today - Get recurring workouts for today
 router.get('/recurring/today', async (req, res, next) => {
   try {
-    const today = new Date()
-    const dayOfWeek = today.getDay() // 0 = Sunday
+    // Use client's timezone if provided, otherwise fall back to server time
+    const clientTimezone = req.headers['x-timezone']
+    let today = new Date()
+    let dayOfWeek
+
+    if (clientTimezone) {
+      try {
+        const dateInClientTz = new Date(today.toLocaleString('en-US', { timeZone: clientTimezone }))
+        dayOfWeek = dateInClientTz.getDay()
+        today = dateInClientTz
+      } catch (tzError) {
+        dayOfWeek = today.getDay()
+      }
+    } else {
+      dayOfWeek = today.getDay() // 0 = Sunday
+    }
 
     // Get all active recurring workouts
     const allRecurring = await prisma.recurringWorkout.findMany({

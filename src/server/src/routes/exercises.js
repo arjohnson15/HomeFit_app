@@ -74,7 +74,16 @@ router.get('/', async (req, res, next) => {
         const exerciseEquipment = e.equipment?.toLowerCase()
         // Always include "body only" exercises when filtering by equipment
         if (exerciseEquipment === 'body only') return true
-        return equipmentList.includes(exerciseEquipment)
+        // Check primary equipment
+        if (equipmentList.includes(exerciseEquipment)) return true
+        // Check secondary equipment (e.g., barbell for bench press exercises)
+        if (e.secondaryEquipment) {
+          const secondaryList = Array.isArray(e.secondaryEquipment)
+            ? e.secondaryEquipment
+            : [e.secondaryEquipment]
+          return secondaryList.some(se => equipmentList.includes(se.toLowerCase()))
+        }
+        return false
       })
     }
 
