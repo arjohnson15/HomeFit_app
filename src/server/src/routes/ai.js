@@ -223,39 +223,64 @@ async function getUserContext(userId) {
 
 // Build personalized system prompt with user context
 function buildPersonalizedPrompt(context, pageContext) {
-  let prompt = `You are a knowledgeable and encouraging fitness assistant for the HomeFit app.
-You help users with workout planning, exercise technique, and general fitness questions.
-Keep responses concise but helpful - aim for 2-4 sentences unless more detail is needed.
-Be encouraging and supportive. Use simple, clear language.
-When suggesting exercises, mention the target muscles.
-If asked about medical conditions or injuries, recommend consulting a healthcare professional.
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const todayName = dayNames[new Date().getDay()]
 
-CRITICAL INSTRUCTION - CREATING WORKOUTS:
-When the user asks you to CREATE, ADD, PUT, SCHEDULE, or MAKE a workout OR exercise(s) for a specific day, you MUST output the workout in this EXACT format so it can be automatically added:
+  let prompt = `You are a helpful fitness assistant for the HomeFit workout app.
+You help users plan workouts, answer exercise questions, and add workouts to their schedule.
+Keep responses short (2-4 sentences) unless more detail is requested.
 
-CREATE_WORKOUT for [Day]
-- [Exercise Name]: [sets] sets x [reps] reps
+=== MOST IMPORTANT - ADDING WORKOUTS TO SCHEDULE ===
 
-[Day] can be: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, OR "Today"
+When a user asks you to ADD, CREATE, MAKE, or SCHEDULE a workout or exercises for ANY day, you MUST respond with this EXACT format:
 
-Example - if user says "add bench press to Monday":
-CREATE_WORKOUT for Monday
-- Bench Press: 3 sets x 8-10 reps
+WORKOUT:[Day]
+[Exercise Name]|[sets]|[reps]
+[Exercise Name]|[sets]|[reps]
 
-Example - if user says "create a leg workout for Tuesday":
-CREATE_WORKOUT for Tuesday
-- Barbell Squat: 4 sets x 6-8 reps
-- Romanian Deadlift: 3 sets x 10-12 reps
-- Leg Press: 3 sets x 12-15 reps
+Where [Day] is: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, or Today
+Where [sets] is a number like 3 or 4
+Where [reps] is a number or range like 10 or 8-12
 
-Example - if user says "add a workout to today":
-CREATE_WORKOUT for Today
-- Dumbbell Press: 3 sets x 10-12 reps
-- Rows: 3 sets x 10-12 reps
+EXAMPLES:
 
-Always use this exact format with "CREATE_WORKOUT for [Day]" followed by exercises. This will automatically add the workout to their schedule.
+User: "Add bench press to Monday"
+Response: Here's your chest exercise for Monday!
+WORKOUT:Monday
+Bench Press|3|8-10
 
-Today's date is ${new Date().toISOString().split('T')[0]}.`
+User: "Create a leg workout for Tuesday"
+Response: Here's a solid leg workout for Tuesday!
+WORKOUT:Tuesday
+Barbell Squat|4|6-8
+Romanian Deadlift|3|10-12
+Leg Press|3|12-15
+Leg Curl|3|10-12
+
+User: "Give me a push workout for today"
+Response: Here's your push workout!
+WORKOUT:Today
+Bench Press|4|8-10
+Overhead Press|3|8-10
+Incline Dumbbell Press|3|10-12
+Tricep Pushdowns|3|12-15
+
+User: "Add pull ups and rows to Wednesday"
+Response: Added your back exercises!
+WORKOUT:Wednesday
+Pull Ups|3|8-10
+Barbell Rows|4|8-10
+
+CRITICAL RULES:
+1. ALWAYS use WORKOUT:[Day] format when adding exercises to a schedule
+2. Each exercise goes on its own line: Name|sets|reps
+3. Do NOT use markdown, bullets, or any other formatting for the workout
+4. Write a brief friendly message BEFORE the WORKOUT: block
+5. Today is ${todayName} (${new Date().toISOString().split('T')[0]})
+
+=== GENERAL FITNESS HELP ===
+For questions about exercise form, muscles, nutrition, or training advice, just answer helpfully.
+If asked about injuries or medical conditions, recommend consulting a healthcare professional.`
 
   // Add personalized user context
   if (context) {
@@ -364,7 +389,7 @@ Today's date is ${new Date().toISOString().split('T')[0]}.`
     prompt += `\n\nThe user is currently on the Schedule page, planning their weekly workouts.
 Help them create balanced training splits and organize their week effectively.
 Consider rest days and muscle group recovery when making suggestions.
-REMEMBER: When they ask to add exercises or workouts to a day, use the CREATE_WORKOUT format shown above!`
+REMEMBER: When adding workouts to a day, use the WORKOUT:[Day] format!`
   } else if (pageContext === 'today') {
     prompt += `\n\nThe user is on their Today page, looking at their workout for today.
 Help them with exercise form, warm-up suggestions, and motivation.
@@ -453,6 +478,21 @@ const AI_TOOLS = [
   }
 ]
 
+// Detect if user is asking to create/add a workout
+function isWorkoutCreationRequest(message) {
+  const lowerMsg = message.toLowerCase()
+  const createWords = ['create', 'add', 'make', 'schedule', 'put', 'give me', 'set up', 'build']
+  const workoutWords = ['workout', 'exercise', 'routine', 'training', 'session']
+  const dayWords = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'today', 'tomorrow']
+
+  const hasCreateWord = createWords.some(w => lowerMsg.includes(w))
+  const hasWorkoutWord = workoutWords.some(w => lowerMsg.includes(w))
+  const hasDayWord = dayWords.some(w => lowerMsg.includes(w))
+
+  // User is asking to create a workout if they mention creating + (workout or day)
+  return hasCreateWord && (hasWorkoutWord || hasDayWord)
+}
+
 // POST /api/ai/chat - Send a message to AI (OpenAI or Ollama)
 router.post('/chat', async (req, res) => {
   try {
@@ -477,11 +517,20 @@ router.post('/chat', async (req, res) => {
     // Build personalized system prompt
     const systemPrompt = buildPersonalizedPrompt(userContext, context)
 
+    // Enhance user message if it's a workout creation request
+    let enhancedMessage = message
+    if (isWorkoutCreationRequest(message)) {
+      enhancedMessage = `${message}
+
+[REMINDER: Respond with WORKOUT:[Day] followed by exercises in Name|sets|reps format]`
+      console.log('[AI] Detected workout creation request, added format reminder')
+    }
+
     // Build messages array
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history.map(h => ({ role: h.role, content: h.content })),
-      { role: 'user', content: message }
+      { role: 'user', content: enhancedMessage }
     ]
 
     // Prepare options
@@ -619,88 +668,92 @@ function parseWorkoutFromText(text) {
   let dayOfWeek = null
   let exercises = []
 
-  // PRIMARY PATTERN: "CREATE_WORKOUT for Monday" or "CREATE_WORKOUT for Today"
-  const createPattern = /CREATE_WORKOUT\s+for\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
-  const createMatch = text.match(createPattern)
-  console.log('[parseWorkout] CREATE_WORKOUT pattern match:', createMatch ? createMatch[0] : 'no match')
-  if (createMatch) {
-    const dayStr = createMatch[1].toLowerCase()
+  // PRIMARY PATTERN (NEW): "WORKOUT:Monday" or "WORKOUT:Today" followed by "Name|sets|reps" lines
+  const workoutPattern = /WORKOUT:\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
+  const workoutMatch = text.match(workoutPattern)
+  console.log('[parseWorkout] WORKOUT: pattern match:', workoutMatch ? workoutMatch[0] : 'no match')
+
+  if (workoutMatch) {
+    const dayStr = workoutMatch[1].toLowerCase()
     if (dayStr === 'today') {
-      dayOfWeek = new Date().getDay() // 0=Sunday, 1=Monday, etc.
+      dayOfWeek = new Date().getDay()
       workoutName = "Today's Workout"
     } else {
       dayOfWeek = dayMapping[dayStr]
       workoutName = dayNames[dayOfWeek] + ' Workout'
     }
 
-    // Parse exercises in format: "- Exercise Name: 3 sets x 8-10 reps"
-    const exercisePattern = /[-•]\s*([^:\n]+):\s*(\d+)\s*sets?\s*x\s*(\d+(?:-\d+)?)\s*reps?/gi
+    // Parse exercises in pipe-delimited format: "Exercise Name|3|8-10"
+    const pipePattern = /^([A-Za-z][A-Za-z\s\-']+)\|(\d+)\|(\d+(?:-\d+)?)/gm
     let match
-    while ((match = exercisePattern.exec(text)) !== null) {
-      console.log('[parseWorkout] Found exercise:', match[1].trim())
+    while ((match = pipePattern.exec(text)) !== null) {
+      const exerciseName = match[1].trim()
+      // Skip lines that look like headers or are too short
+      if (exerciseName.length > 2 && !exerciseName.toLowerCase().includes('exercise name')) {
+        console.log('[parseWorkout] Found pipe exercise:', exerciseName)
+        exercises.push({
+          exerciseName,
+          sets: parseInt(match[2]) || 3,
+          reps: match[3] || '10'
+        })
+      }
+    }
+    console.log('[parseWorkout] Pipe exercises found:', exercises.length)
+  }
+
+  // SECONDARY PATTERN: "CREATE_WORKOUT for Monday" (legacy format)
+  if (dayOfWeek === null) {
+    const createPattern = /CREATE_WORKOUT\s+for\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
+    const createMatch = text.match(createPattern)
+    console.log('[parseWorkout] CREATE_WORKOUT pattern match:', createMatch ? createMatch[0] : 'no match')
+    if (createMatch) {
+      const dayStr = createMatch[1].toLowerCase()
+      if (dayStr === 'today') {
+        dayOfWeek = new Date().getDay()
+        workoutName = "Today's Workout"
+      } else {
+        dayOfWeek = dayMapping[dayStr]
+        workoutName = dayNames[dayOfWeek] + ' Workout'
+      }
+    }
+  }
+
+  // FALLBACK: Check for other patterns if neither WORKOUT: nor CREATE_WORKOUT found
+  if (dayOfWeek === null) {
+    // Pattern: "add to Tuesday" or "for Monday" or "for today" or "workout for Friday"
+    const dayContextMatch = text.match(/(?:workout\s+for|add(?:ed|ing)?.*?(?:to|for)|for|on)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i)
+    if (dayContextMatch) {
+      const dayStr = dayContextMatch[1].toLowerCase()
+      if (dayStr === 'today') {
+        dayOfWeek = new Date().getDay()
+        workoutName = "Today's Workout"
+      } else {
+        dayOfWeek = dayMapping[dayStr]
+        workoutName = dayNames[dayOfWeek] + ' Workout'
+      }
+    }
+  }
+
+  // Parse exercises if not already found using various formats
+  if (exercises.length === 0) {
+    let match
+
+    // Format: "- Exercise Name: 3 sets x 8-10 reps"
+    const bulletColonPattern = /[-•*]\s*([^:\n]+):\s*(\d+)\s*sets?\s*x\s*(\d+(?:-\d+)?)\s*reps?/gi
+    while ((match = bulletColonPattern.exec(text)) !== null) {
+      console.log('[parseWorkout] Found bullet-colon exercise:', match[1].trim())
       exercises.push({
         exerciseName: match[1].trim(),
         sets: parseInt(match[2]) || 3,
         reps: match[3] || '10'
       })
     }
-    console.log('[parseWorkout] Exercises found:', exercises.length, 'dayOfWeek:', dayOfWeek)
-  }
 
-  // FALLBACK: Check for other patterns if CREATE_WORKOUT not found
-  if (dayOfWeek === null) {
-    // Pattern: "create_workout with dayOfWeek=2"
-    const legacyMatch = text.match(/create_workout.*?dayOfWeek\s*[=:]\s*(\d)/i)
-    if (legacyMatch) {
-      dayOfWeek = parseInt(legacyMatch[1])
-    }
-
-    // Pattern: "add to Tuesday" or "for Monday" or "for today"
-    if (dayOfWeek === null) {
-      const dayContextMatch = text.match(/(?:add(?:ed|ing)?.*?(?:to|for)|for|on)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i)
-      if (dayContextMatch) {
-        const dayStr = dayContextMatch[1].toLowerCase()
-        if (dayStr === 'today') {
-          dayOfWeek = new Date().getDay()
-          workoutName = "Today's Workout"
-        } else {
-          dayOfWeek = dayMapping[dayStr]
-          workoutName = dayNames[dayOfWeek] + ' Workout'
-        }
-      }
-    }
-  }
-
-  // Parse exercises if not already found
-  if (exercises.length === 0) {
-    let match
-
-    // JSON-like: {exerciseName: "Bench Press", sets: 3, reps: "8-10"}
-    const jsonPattern = /\{\s*exerciseName\s*:\s*["']([^"']+)["']\s*,\s*sets\s*:\s*(\d+)\s*,\s*reps\s*:\s*["']?(\d+(?:-\d+)?)["']?\s*\}/gi
-    while ((match = jsonPattern.exec(text)) !== null) {
-      exercises.push({
-        exerciseName: match[1],
-        sets: parseInt(match[2]) || 3,
-        reps: match[3] || '10'
-      })
-    }
-
-    // Key-value: exerciseName="Bench Press", sets=3, reps="8-10"
+    // Format: "1. Exercise Name - 3 sets x 10 reps" or "1. Exercise Name: 3x10"
     if (exercises.length === 0) {
-      const kvPattern = /exerciseName\s*[=:]\s*["']([^"']+)["'][,\s]*sets\s*[=:]\s*(\d+)[,\s]*reps\s*[=:]\s*["']?(\d+(?:-\d+)?)["']?/gi
-      while ((match = kvPattern.exec(text)) !== null) {
-        exercises.push({
-          exerciseName: match[1],
-          sets: parseInt(match[2]) || 3,
-          reps: match[3] || '10'
-        })
-      }
-    }
-
-    // Bullet: "- Bench Press - 3 sets x 10 reps" or "- Bench Press (Chest) - 3 sets of 10 reps"
-    if (exercises.length === 0) {
-      const bulletPattern = /[-•]\s*([A-Z][^:\n(]+?)(?:\s*\([^)]+\))?\s*[-–:]\s*(\d+)\s*sets?\s*(?:x|of)\s*(\d+(?:-\d+)?)\s*reps?/gi
-      while ((match = bulletPattern.exec(text)) !== null) {
+      const numberedPattern = /\d+\.\s*([A-Za-z][A-Za-z\s\-']+?)[\s\-:]+(\d+)\s*(?:sets?\s*)?[x×]\s*(\d+(?:-\d+)?)/gi
+      while ((match = numberedPattern.exec(text)) !== null) {
+        console.log('[parseWorkout] Found numbered exercise:', match[1].trim())
         exercises.push({
           exerciseName: match[1].trim(),
           sets: parseInt(match[2]) || 3,
@@ -708,10 +761,50 @@ function parseWorkoutFromText(text) {
         })
       }
     }
+
+    // Format: "- Bench Press - 3 sets of 10 reps"
+    if (exercises.length === 0) {
+      const bulletDashPattern = /[-•*]\s*([A-Z][A-Za-z\s\-']+?)(?:\s*\([^)]+\))?\s*[-–:]\s*(\d+)\s*sets?\s*(?:x|of)\s*(\d+(?:-\d+)?)\s*reps?/gi
+      while ((match = bulletDashPattern.exec(text)) !== null) {
+        exercises.push({
+          exerciseName: match[1].trim(),
+          sets: parseInt(match[2]) || 3,
+          reps: match[3] || '10'
+        })
+      }
+    }
+
+    // Format: "Bench Press (3 sets of 10 reps)" or "Bench Press: 3 sets, 10 reps"
+    if (exercises.length === 0) {
+      const inlinePattern = /([A-Z][A-Za-z\s\-']+?)(?:\s*[:(]\s*)(\d+)\s*sets?[,\s]+(?:of\s+)?(\d+(?:-\d+)?)\s*reps?/gi
+      while ((match = inlinePattern.exec(text)) !== null) {
+        const name = match[1].trim()
+        if (name.length > 2 && !name.toLowerCase().startsWith('for ')) {
+          exercises.push({
+            exerciseName: name,
+            sets: parseInt(match[2]) || 3,
+            reps: match[3] || '10'
+          })
+        }
+      }
+    }
+
+    // Format: "3x10 Bench Press" or "4x8-12 Squats"
+    if (exercises.length === 0) {
+      const prefixPattern = /(\d+)\s*[x×]\s*(\d+(?:-\d+)?)\s+([A-Z][A-Za-z\s\-']+)/gi
+      while ((match = prefixPattern.exec(text)) !== null) {
+        exercises.push({
+          exerciseName: match[3].trim(),
+          sets: parseInt(match[1]) || 3,
+          reps: match[2] || '10'
+        })
+      }
+    }
   }
 
   // Return if we have a day and at least one exercise
   if (dayOfWeek !== null && exercises.length > 0) {
+    console.log('[parseWorkout] SUCCESS: Found', exercises.length, 'exercises for day', dayOfWeek)
     return {
       name: workoutName || dayNames[dayOfWeek] + ' Workout',
       dayOfWeek,
@@ -719,6 +812,7 @@ function parseWorkoutFromText(text) {
     }
   }
 
+  console.log('[parseWorkout] No valid workout found. dayOfWeek:', dayOfWeek, 'exercises:', exercises.length)
   return null
 }
 
