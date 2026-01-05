@@ -53,6 +53,7 @@ function Settings() {
   const adminItems = [
     { label: 'User Management', path: '/admin/users', icon: 'users' },
     { label: 'App Customization', path: '/admin/customize', icon: 'settings' },
+    { label: 'Exercise Catalog', path: '/admin/exercises', icon: 'dumbbell' },
     { label: 'System Backup', path: '/admin/backup', icon: 'database' },
     { label: 'Achievements', path: '/admin/achievements', icon: 'trophy' },
     { label: 'AI Integration', path: '/admin/ai', icon: 'chat' },
@@ -84,6 +85,7 @@ function Settings() {
     fire: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />,
     feedback: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />,
     database: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />,
+    dumbbell: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h2m0 0V6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-2m0-4v4m14-4h-2m0 0V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2v-2m0-4v4m-8-2h4" />,
   }
 
   return (

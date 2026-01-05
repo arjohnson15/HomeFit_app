@@ -11,9 +11,12 @@ const __dirname = path.dirname(__filename)
 
 // Cache for exercises data
 let exercisesCache = null
+let customExercisesCache = null
+let customExercisesCacheTime = 0
+const CUSTOM_CACHE_TTL = 60000 // 1 minute
 
 // Load exercises from JSON file
-const loadExercises = async () => {
+const loadJsonExercises = async () => {
   if (exercisesCache) return exercisesCache
 
   try {
@@ -34,6 +37,52 @@ const loadExercises = async () => {
     console.error('Error loading exercises:', error)
     return []
   }
+}
+
+// Load custom exercises from database
+const loadCustomExercises = async () => {
+  const now = Date.now()
+  if (customExercisesCache && (now - customExercisesCacheTime) < CUSTOM_CACHE_TTL) {
+    return customExercisesCache
+  }
+
+  try {
+    const customExercises = await prisma.customExercise.findMany({
+      where: { isActive: true }
+    })
+
+    // Transform to match JSON exercise format
+    customExercisesCache = customExercises.map(ex => ({
+      id: `custom-${ex.id}`,
+      name: ex.name,
+      primaryMuscles: ex.primaryMuscles,
+      secondaryMuscles: ex.secondaryMuscles,
+      equipment: ex.equipment,
+      category: ex.category,
+      force: ex.force,
+      level: ex.level,
+      mechanic: ex.mechanic,
+      instructions: ex.instructions,
+      images: ex.images,
+      isCustom: true
+    }))
+    customExercisesCacheTime = now
+    return customExercisesCache
+  } catch (error) {
+    console.error('Error loading custom exercises:', error)
+    return []
+  }
+}
+
+// Load all exercises (JSON + custom)
+const loadExercises = async () => {
+  const [jsonExercises, customExercises] = await Promise.all([
+    loadJsonExercises(),
+    loadCustomExercises()
+  ])
+
+  // Custom exercises appear first
+  return [...customExercises, ...jsonExercises]
 }
 
 // GET /api/exercises

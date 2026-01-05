@@ -52,6 +52,7 @@ import AdminNutritionSettings from './pages/admin/NutritionSettings'
 import AchievementSettings from './pages/admin/AchievementSettings'
 import FeedbackSettings from './pages/admin/FeedbackSettings'
 import BackupManagement from './pages/admin/BackupManagement'
+import ExerciseManagement from './pages/admin/ExerciseManagement'
 import Achievements from './pages/Achievements'
 
 // Protected Route wrapper
@@ -200,6 +201,7 @@ function App() {
         <Route path="/admin/achievements" element={<AchievementSettings />} />
         <Route path="/admin/feedback" element={<FeedbackSettings />} />
         <Route path="/admin/backup" element={<BackupManagement />} />
+        <Route path="/admin/exercises" element={<ExerciseManagement />} />
       </Route>
 
       {/* Public Legal Pages (accessible with or without auth) */}

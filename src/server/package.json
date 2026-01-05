@@ -1,6 +1,6 @@
 {
   "name": "homefit-server",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "HomeFit Backend API",
   "main": "src/index.js",
   "type": "module",

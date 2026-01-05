@@ -486,6 +486,43 @@ model ExerciseNote {
   @@map("exercise_notes")
 }
 
+// ===========================================
+// Custom Exercises (Admin-created)
+// ===========================================
+
+model CustomExercise {
+  id              String   @id @default(cuid())
+
+  // Basic Info
+  name            String
+
+  // Muscles
+  primaryMuscles  String[]
+  secondaryMuscles String[] @default([])
+
+  // Equipment & Classification
+  equipment       String?
+  category        String?  // e.g., "strength", "stretching", "cardio"
+  force           String?  // e.g., "push", "pull", "static"
+  level           String?  // "beginner", "intermediate", "expert"
+  mechanic        String?  // e.g., "compound", "isolation"
+
+  // Instructions
+  instructions    String[] @default([])
+
+  // Images - can be uploaded files or URLs
+  images          String[] @default([])
+
+  // Admin tracking
+  createdById     String?
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("custom_exercises")
+}
+
 enum FriendshipStatus {
   PENDING
   ACCEPTED

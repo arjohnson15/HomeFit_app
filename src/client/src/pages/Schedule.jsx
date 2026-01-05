@@ -13,6 +13,7 @@ function Schedule() {
   const [editingRecurring, setEditingRecurring] = useState(null)
   const [showCatalogModal, setShowCatalogModal] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [draggedExerciseIndex, setDraggedExerciseIndex] = useState(null)
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayShorts = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -143,6 +144,34 @@ function Schedule() {
       setEditingRecurring(prev => ({
         ...prev,
         exercises: prev.exercises.filter((_, i) => i !== index)
+      }))
+    }
+  }
+
+  const moveExercise = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return
+
+    const reorder = (exercises) => {
+      const result = [...exercises]
+      const [moved] = result.splice(fromIndex, 1)
+      result.splice(toIndex, 0, moved)
+      return result
+    }
+
+    if (editingDay) {
+      setEditingDay(prev => ({
+        ...prev,
+        exercises: reorder(prev.exercises)
+      }))
+    } else if (editingCalendarDate) {
+      setEditingCalendarDate(prev => ({
+        ...prev,
+        exercises: reorder(prev.exercises)
+      }))
+    } else if (editingRecurring) {
+      setEditingRecurring(prev => ({
+        ...prev,
+        exercises: reorder(prev.exercises)
       }))
     }
   }
@@ -647,9 +676,30 @@ function Schedule() {
                   {/* Exercise List */}
                   <div className="space-y-2">
                     {currentEditData.exercises.map((exercise, idx) => (
-                      <div key={exercise.id || idx} className="card p-3 flex items-center justify-between">
-                        <span className="text-white font-medium">{exercise.exerciseName}</span>
-                        <button onClick={() => removeExercise(idx)} className="text-error p-1">
+                      <div
+                        key={exercise.id || idx}
+                        draggable
+                        onDragStart={() => setDraggedExerciseIndex(idx)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => {
+                          if (draggedExerciseIndex !== null) {
+                            moveExercise(draggedExerciseIndex, idx)
+                            setDraggedExerciseIndex(null)
+                          }
+                        }}
+                        onDragEnd={() => setDraggedExerciseIndex(null)}
+                        className={`card p-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all ${
+                          draggedExerciseIndex === idx ? 'opacity-50 scale-95' : ''
+                        }`}
+                      >
+                        {/* Drag Handle */}
+                        <div className="text-gray-500 flex-shrink-0">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </div>
+                        <span className="text-white font-medium flex-1">{exercise.exerciseName}</span>
+                        <button onClick={() => removeExercise(idx)} className="text-error p-1 flex-shrink-0">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -821,9 +871,30 @@ function Schedule() {
               {/* Exercise List */}
               <div className="space-y-2">
                 {editingRecurring.exercises.map((exercise, idx) => (
-                  <div key={exercise.id || idx} className="card p-3 flex items-center justify-between">
-                    <span className="text-white font-medium">{exercise.exerciseName}</span>
-                    <button onClick={() => removeExercise(idx)} className="text-error p-1">
+                  <div
+                    key={exercise.id || idx}
+                    draggable
+                    onDragStart={() => setDraggedExerciseIndex(idx)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (draggedExerciseIndex !== null) {
+                        moveExercise(draggedExerciseIndex, idx)
+                        setDraggedExerciseIndex(null)
+                      }
+                    }}
+                    onDragEnd={() => setDraggedExerciseIndex(null)}
+                    className={`card p-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all ${
+                      draggedExerciseIndex === idx ? 'opacity-50 scale-95' : ''
+                    }`}
+                  >
+                    {/* Drag Handle */}
+                    <div className="text-gray-500 flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                    <span className="text-white font-medium flex-1">{exercise.exerciseName}</span>
+                    <button onClick={() => removeExercise(idx)} className="text-error p-1 flex-shrink-0">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
@@ -1115,9 +1186,9 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                     </p>
                   </div>
 
-                  {/* Level Badge */}
+                  {/* Level Badge - hidden on mobile */}
                   {exercise.level && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${levelColors[exercise.level] || 'bg-gray-500/20 text-gray-400'}`}>
+                    <span className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${levelColors[exercise.level] || 'bg-gray-500/20 text-gray-400'}`}>
                       {exercise.level}
                     </span>
                   )}

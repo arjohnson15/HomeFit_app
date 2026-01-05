@@ -1,11 +1,47 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 import prisma from '../lib/prisma.js'
 import { requireAdmin } from '../middleware/auth.js'
 import notificationService, { SMS_GATEWAYS } from '../services/notifications.js'
 import achievementService from '../services/achievements.js'
 import updateService from '../services/updates.js'
 import webpush from 'web-push'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Configure multer for exercise image uploads
+const exerciseImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/exercises')
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+    cb(null, uploadDir)
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, 'exercise-' + uniqueSuffix + path.extname(file.originalname))
+  }
+})
+
+const uploadExerciseImage = multer({
+  storage: exerciseImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
+    const mimetype = allowedTypes.test(file.mimetype)
+    if (extname && mimetype) {
+      return cb(null, true)
+    }
+    cb(new Error('Only image files are allowed'))
+  }
+})
 
 const router = express.Router()
 
@@ -887,6 +923,249 @@ router.delete('/feedback/:id', async (req, res, next) => {
     })
 
     res.json({ message: 'Feedback deleted' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ===========================================
+// Custom Exercise Management
+// ===========================================
+
+// GET /api/admin/exercises - List all custom exercises
+router.get('/exercises', async (req, res, next) => {
+  try {
+    const { search, limit = 50, offset = 0 } = req.query
+
+    const where = search ? {
+      name: { contains: search, mode: 'insensitive' }
+    } : {}
+
+    const exercises = await prisma.customExercise.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit),
+      skip: parseInt(offset)
+    })
+
+    const total = await prisma.customExercise.count({ where })
+
+    res.json({ exercises, total })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/admin/exercises/:id - Get single custom exercise
+router.get('/exercises/:id', async (req, res, next) => {
+  try {
+    const exercise = await prisma.customExercise.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    res.json({ exercise })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/admin/exercises - Create custom exercise
+router.post('/exercises', async (req, res, next) => {
+  try {
+    const {
+      name,
+      primaryMuscles,
+      secondaryMuscles,
+      equipment,
+      category,
+      force,
+      level,
+      mechanic,
+      instructions,
+      images
+    } = req.body
+
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' })
+    }
+
+    if (!primaryMuscles || primaryMuscles.length === 0) {
+      return res.status(400).json({ message: 'At least one primary muscle is required' })
+    }
+
+    const exercise = await prisma.customExercise.create({
+      data: {
+        name,
+        primaryMuscles: primaryMuscles || [],
+        secondaryMuscles: secondaryMuscles || [],
+        equipment: equipment || null,
+        category: category || null,
+        force: force || null,
+        level: level || null,
+        mechanic: mechanic || null,
+        instructions: instructions || [],
+        images: images || [],
+        createdById: req.user.id,
+        isActive: true
+      }
+    })
+
+    res.status(201).json({ exercise })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/admin/exercises/:id - Update custom exercise
+router.put('/exercises/:id', async (req, res, next) => {
+  try {
+    const {
+      name,
+      primaryMuscles,
+      secondaryMuscles,
+      equipment,
+      category,
+      force,
+      level,
+      mechanic,
+      instructions,
+      images,
+      isActive
+    } = req.body
+
+    const exercise = await prisma.customExercise.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(primaryMuscles !== undefined && { primaryMuscles }),
+        ...(secondaryMuscles !== undefined && { secondaryMuscles }),
+        ...(equipment !== undefined && { equipment }),
+        ...(category !== undefined && { category }),
+        ...(force !== undefined && { force }),
+        ...(level !== undefined && { level }),
+        ...(mechanic !== undefined && { mechanic }),
+        ...(instructions !== undefined && { instructions }),
+        ...(images !== undefined && { images }),
+        ...(isActive !== undefined && { isActive })
+      }
+    })
+
+    res.json({ exercise })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/admin/exercises/:id/image - Upload image for exercise
+router.post('/exercises/:id/image', uploadExerciseImage.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' })
+    }
+
+    const exercise = await prisma.customExercise.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!exercise) {
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path)
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    // Create URL path for the uploaded image
+    const imageUrl = `/uploads/exercises/${req.file.filename}`
+
+    // Add image to exercise's images array
+    const updatedExercise = await prisma.customExercise.update({
+      where: { id: req.params.id },
+      data: {
+        images: [...exercise.images, imageUrl]
+      }
+    })
+
+    res.json({
+      exercise: updatedExercise,
+      imageUrl
+    })
+  } catch (error) {
+    // Clean up file on error
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path) } catch (e) { /* ignore */ }
+    }
+    next(error)
+  }
+})
+
+// DELETE /api/admin/exercises/:id/image - Remove image from exercise
+router.delete('/exercises/:id/image', async (req, res, next) => {
+  try {
+    const { imageUrl } = req.body
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: 'Image URL is required' })
+    }
+
+    const exercise = await prisma.customExercise.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    // Remove image from array
+    const updatedImages = exercise.images.filter(img => img !== imageUrl)
+
+    // If it's a local file, delete it
+    if (imageUrl.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '../..', imageUrl)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+      }
+    }
+
+    const updatedExercise = await prisma.customExercise.update({
+      where: { id: req.params.id },
+      data: { images: updatedImages }
+    })
+
+    res.json({ exercise: updatedExercise })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/admin/exercises/:id - Delete custom exercise
+router.delete('/exercises/:id', async (req, res, next) => {
+  try {
+    const exercise = await prisma.customExercise.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    // Delete any uploaded images
+    for (const imageUrl of exercise.images) {
+      if (imageUrl.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, '../..', imageUrl)
+        if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath) } catch (e) { /* ignore */ }
+        }
+      }
+    }
+
+    await prisma.customExercise.delete({
+      where: { id: req.params.id }
+    })
+
+    res.json({ message: 'Exercise deleted' })
   } catch (error) {
     next(error)
   }
