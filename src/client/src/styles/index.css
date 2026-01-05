@@ -246,3 +246,19 @@ input:focus, textarea:focus, select:focus {
 .pt-header-safe {
   padding-top: calc(3.5rem + env(safe-area-inset-top));
 }
+
+/* Bottom positioning utilities for elements above bottom nav */
+/* Bottom nav is ~64px (4rem) + safe area */
+.bottom-nav-safe {
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+
+/* Chat button position - above nav with extra spacing */
+.bottom-chat-button {
+  bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+/* Chat window position - above the chat button */
+.bottom-chat-window {
+  bottom: calc(9rem + env(safe-area-inset-bottom));
+}

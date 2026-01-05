@@ -177,10 +177,10 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
 
   return (
     <>
-      {/* Floating Chat Button */}
+      {/* Floating Chat Button - bottom-chat-button accounts for nav + safe area */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
+        className={`fixed bottom-chat-button right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
           isOpen ? 'bg-gray-700 rotate-0' : 'bg-accent hover:bg-accent-hover'
         }`}
       >
@@ -195,10 +195,10 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
         )}
       </button>
 
-      {/* Chat Window */}
+      {/* Chat Window - bottom-chat-window accounts for nav + safe area */}
       {isOpen && (
-        <div className="fixed bottom-36 right-4 z-40 w-[calc(100%-2rem)] max-w-md bg-dark-card border border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          style={{ height: 'min(500px, calc(100vh - 180px))' }}
+        <div className="fixed bottom-chat-window right-4 z-40 w-[calc(100%-2rem)] max-w-md bg-dark-card border border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ height: 'min(500px, calc(100vh - 220px))' }}
         >
           {/* Header */}
           <div className="bg-accent px-4 py-3 flex items-center gap-3">
