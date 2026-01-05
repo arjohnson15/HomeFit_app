@@ -623,14 +623,21 @@ router.post('/chat', async (req, res) => {
         if (workoutResult.success) {
           // Clean up the response message to remove the structured data
           let cleanMessage = assistantMessage
+            // Remove new WORKOUT: format
+            .replace(/WORKOUT:\s*\w+/gi, '')
+            .replace(/^[A-Za-z][A-Za-z0-9\s\-'()]+\|\d+\|\d+(?:-\d+)?$/gm, '')
+            // Remove legacy formats
+            .replace(/CREATE_WORKOUT\s+for\s+\w+/gi, '')
             .replace(/- Create Workout:.*$/gm, '')
             .replace(/- Exercise:.*$/gm, '')
+            .replace(/^-\s*[A-Za-z][^:]+:\s*\d+\s*sets?\s*x\s*\d+.*$/gm, '')
             .replace(/exerciseName=.*$/gm, '')
+            // Clean up whitespace
             .replace(/\n{3,}/g, '\n\n')
             .trim()
 
           if (!cleanMessage || cleanMessage.length < 20) {
-            cleanMessage = `Done! I've added "${parsedWorkout.name}" to your ${workoutResult.dayName || 'schedule'} with ${parsedWorkout.exercises.length} exercises.`
+            cleanMessage = `Done! I've added "${parsedWorkout.name}" to your ${workoutResult.dayName || 'schedule'} with ${parsedWorkout.exercises.length} exercise${parsedWorkout.exercises.length > 1 ? 's' : ''}.`
           }
 
           return res.json({
@@ -683,8 +690,8 @@ function parseWorkoutFromText(text) {
       workoutName = dayNames[dayOfWeek] + ' Workout'
     }
 
-    // Parse exercises in pipe-delimited format: "Exercise Name|3|8-10"
-    const pipePattern = /^([A-Za-z][A-Za-z\s\-']+)\|(\d+)\|(\d+(?:-\d+)?)/gm
+    // Parse exercises in pipe-delimited format: "Exercise Name|3|8-10" or "Exercise Name (variation)|3|8-10"
+    const pipePattern = /^([A-Za-z][A-Za-z0-9\s\-'()]+?)\|(\d+)\|(\d+(?:-\d+)?)/gm
     let match
     while ((match = pipePattern.exec(text)) !== null) {
       const exerciseName = match[1].trim()
