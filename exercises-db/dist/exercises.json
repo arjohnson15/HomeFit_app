@@ -902,7 +902,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "other",
+    "equipment": "pull-up bar",
     "primaryMuscles": [
       "lats"
     ],
@@ -922,7 +922,10 @@
       "Band_Assisted_Pull-Up/0.jpg",
       "Band_Assisted_Pull-Up/1.jpg"
     ],
-    "id": "Band_Assisted_Pull-Up"
+    "id": "Band_Assisted_Pull-Up",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Band Good Morning",
@@ -2739,7 +2742,10 @@
       "Box_Squat_with_Bands/0.jpg",
       "Box_Squat_with_Bands/1.jpg"
     ],
-    "id": "Box_Squat_with_Bands"
+    "id": "Box_Squat_with_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Box Squat with Chains",
@@ -4545,7 +4551,10 @@
       "Close-Grip_EZ-Bar_Curl_with_Band/0.jpg",
       "Close-Grip_EZ-Bar_Curl_with_Band/1.jpg"
     ],
-    "id": "Close-Grip_EZ-Bar_Curl_with_Band"
+    "id": "Close-Grip_EZ-Bar_Curl_with_Band",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Close-Grip EZ-Bar Press",
@@ -4579,7 +4588,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "barbell",
+    "equipment": "e-z curl bar",
     "primaryMuscles": [
       "biceps"
     ],
@@ -4654,7 +4663,10 @@
       "Close-Grip_Push-Up_off_of_a_Dumbbell/0.jpg",
       "Close-Grip_Push-Up_off_of_a_Dumbbell/1.jpg"
     ],
-    "id": "Close-Grip_Push-Up_off_of_a_Dumbbell"
+    "id": "Close-Grip_Push-Up_off_of_a_Dumbbell",
+    "secondaryEquipment": [
+      "dumbbell"
+    ]
   },
   {
     "name": "Close-Grip Standing Barbell Curl",
@@ -5067,7 +5079,10 @@
       "Deadlift_with_Bands/0.jpg",
       "Deadlift_with_Bands/1.jpg"
     ],
-    "id": "Deadlift_with_Bands"
+    "id": "Deadlift_with_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Deadlift with Chains",
@@ -5277,7 +5292,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "barbell",
+    "equipment": "e-z curl bar",
     "primaryMuscles": [
       "triceps"
     ],
@@ -5379,7 +5394,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -11491,7 +11506,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "e-z curl bar",
+    "equipment": "barbell",
     "primaryMuscles": [
       "triceps"
     ],
@@ -13216,7 +13231,7 @@
     "force": "pull",
     "level": "expert",
     "mechanic": "compound",
-    "equipment": "other",
+    "equipment": "pull-up bar",
     "primaryMuscles": [
       "middle back"
     ],
@@ -15028,7 +15043,10 @@
       "Rack_Pull_with_Bands/0.jpg",
       "Rack_Pull_with_Bands/1.jpg"
     ],
-    "id": "Rack_Pull_with_Bands"
+    "id": "Rack_Pull_with_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Rack Pulls",
@@ -15160,7 +15178,8 @@
     ],
     "id": "Reverse_Band_Bench_Press",
     "secondaryEquipment": [
-      "flat bench"
+      "flat bench",
+      "bands"
     ]
   },
   {
@@ -15192,7 +15211,10 @@
       "Reverse_Band_Box_Squat/0.jpg",
       "Reverse_Band_Box_Squat/1.jpg"
     ],
-    "id": "Reverse_Band_Box_Squat"
+    "id": "Reverse_Band_Box_Squat",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Reverse Band Deadlift",
@@ -15223,7 +15245,10 @@
       "Reverse_Band_Deadlift/0.jpg",
       "Reverse_Band_Deadlift/1.jpg"
     ],
-    "id": "Reverse_Band_Deadlift"
+    "id": "Reverse_Band_Deadlift",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Reverse Band Power Squat",
@@ -15252,7 +15277,10 @@
       "Reverse_Band_Power_Squat/0.jpg",
       "Reverse_Band_Power_Squat/1.jpg"
     ],
-    "id": "Reverse_Band_Power_Squat"
+    "id": "Reverse_Band_Power_Squat",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Reverse Band Sumo Deadlift",
@@ -15285,7 +15313,10 @@
       "Reverse_Band_Sumo_Deadlift/0.jpg",
       "Reverse_Band_Sumo_Deadlift/1.jpg"
     ],
-    "id": "Reverse_Band_Sumo_Deadlift"
+    "id": "Reverse_Band_Sumo_Deadlift",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Reverse Barbell Curl",
@@ -15317,7 +15348,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "isolation",
-    "equipment": "e-z curl bar",
+    "equipment": "barbell",
     "primaryMuscles": [
       "biceps"
     ],
@@ -15765,7 +15796,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "other",
+    "equipment": "pull-up bar",
     "primaryMuscles": [
       "lats"
     ],
@@ -16112,7 +16143,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": null,
+    "equipment": "pull-up bar",
     "primaryMuscles": [
       "traps"
     ],
@@ -16187,7 +16218,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "other",
+    "equipment": "bands",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -18123,7 +18154,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "barbell",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18153,7 +18184,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "traps"
     ],
@@ -18179,7 +18210,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18206,7 +18237,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "middle back"
     ],
@@ -18235,7 +18266,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -18259,7 +18290,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "triceps"
     ],
@@ -18286,7 +18317,7 @@
     "force": null,
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18313,7 +18344,7 @@
     "force": "pull",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -18344,7 +18375,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "abdominals"
     ],
@@ -18367,7 +18398,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "chest"
     ],
@@ -18394,7 +18425,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18420,7 +18451,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18447,7 +18478,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "shoulders"
     ],
@@ -18473,7 +18504,7 @@
     "force": "push",
     "level": "intermediate",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18501,7 +18532,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "isolation",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "calves"
     ],
@@ -18526,7 +18557,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -18556,7 +18587,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "hamstrings"
     ],
@@ -18583,7 +18614,7 @@
     "force": "pull",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "traps"
     ],
@@ -18611,7 +18642,7 @@
     "force": "push",
     "level": "beginner",
     "mechanic": "compound",
-    "equipment": "machine",
+    "equipment": "smith machine",
     "primaryMuscles": [
       "quadriceps"
     ],
@@ -19231,7 +19262,10 @@
       "Squat_with_Bands/0.jpg",
       "Squat_with_Bands/1.jpg"
     ],
-    "id": "Squat_with_Bands"
+    "id": "Squat_with_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Squat with Chains",
@@ -20879,7 +20913,10 @@
       "Sumo_Deadlift_with_Bands/0.jpg",
       "Sumo_Deadlift_with_Bands/1.jpg"
     ],
-    "id": "Sumo_Deadlift_with_Bands"
+    "id": "Sumo_Deadlift_with_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Sumo Deadlift with Chains",
@@ -22233,7 +22270,10 @@
       "Weighted_Sit-Ups_-_With_Bands/0.jpg",
       "Weighted_Sit-Ups_-_With_Bands/1.jpg"
     ],
-    "id": "Weighted_Sit-Ups_-_With_Bands"
+    "id": "Weighted_Sit-Ups_-_With_Bands",
+    "secondaryEquipment": [
+      "bands"
+    ]
   },
   {
     "name": "Weighted Squat",
