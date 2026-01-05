@@ -1,5 +1,11 @@
 import express from 'express'
 import prisma from '../lib/prisma.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const router = express.Router()
 
@@ -832,6 +838,113 @@ function generateExerciseId(exerciseName) {
     .substring(0, 50)
 }
 
+// Load exercise database for lookups
+let exerciseDatabase = null
+
+function loadExerciseDatabase() {
+  if (exerciseDatabase) return exerciseDatabase
+
+  try {
+    const exercisesPath = process.env.NODE_ENV === 'production'
+      ? path.join(__dirname, '../../data/exercises.json')
+      : path.join(__dirname, '../../../../exercises-db/dist/exercises.json')
+
+    exerciseDatabase = JSON.parse(fs.readFileSync(exercisesPath, 'utf-8'))
+    console.log(`[AI] Loaded ${exerciseDatabase.length} exercises for lookup`)
+    return exerciseDatabase
+  } catch (e) {
+    console.error('[AI] Failed to load exercise database:', e.message)
+    return []
+  }
+}
+
+// Find the best matching exercise from the database
+function findExerciseMatch(searchName) {
+  const exercises = loadExerciseDatabase()
+  if (!exercises.length) return null
+
+  const searchLower = searchName.toLowerCase().trim()
+  const searchWords = searchLower.split(/\s+/)
+
+  // 1. Exact match (case-insensitive)
+  const exactMatch = exercises.find(e => e.name.toLowerCase() === searchLower)
+  if (exactMatch) {
+    console.log(`[AI] Exact match: "${searchName}" -> "${exactMatch.name}"`)
+    return exactMatch
+  }
+
+  // 2. Search name is contained in exercise name (e.g., "bench press" matches "Barbell Bench Press")
+  const containsMatches = exercises.filter(e =>
+    e.name.toLowerCase().includes(searchLower)
+  )
+  if (containsMatches.length === 1) {
+    console.log(`[AI] Contains match: "${searchName}" -> "${containsMatches[0].name}"`)
+    return containsMatches[0]
+  }
+
+  // 3. All search words appear in exercise name
+  const allWordsMatches = exercises.filter(e => {
+    const nameLower = e.name.toLowerCase()
+    return searchWords.every(word => nameLower.includes(word))
+  })
+  if (allWordsMatches.length > 0) {
+    // Prefer shorter names (more specific matches)
+    allWordsMatches.sort((a, b) => a.name.length - b.name.length)
+    console.log(`[AI] All-words match: "${searchName}" -> "${allWordsMatches[0].name}"`)
+    return allWordsMatches[0]
+  }
+
+  // 4. Fuzzy match - most words match
+  let bestMatch = null
+  let bestScore = 0
+
+  for (const exercise of exercises) {
+    const nameLower = exercise.name.toLowerCase()
+    const nameWords = nameLower.split(/\s+/)
+
+    // Count matching words
+    let matchingWords = 0
+    for (const searchWord of searchWords) {
+      if (searchWord.length < 3) continue // Skip short words like "a", "to"
+      if (nameWords.some(nw => nw.includes(searchWord) || searchWord.includes(nw))) {
+        matchingWords++
+      }
+    }
+
+    // Score based on matching words and name similarity
+    const score = matchingWords / Math.max(searchWords.length, 1)
+
+    if (score > bestScore && score >= 0.5) {
+      bestScore = score
+      bestMatch = exercise
+    }
+  }
+
+  if (bestMatch) {
+    console.log(`[AI] Fuzzy match (${(bestScore * 100).toFixed(0)}%): "${searchName}" -> "${bestMatch.name}"`)
+    return bestMatch
+  }
+
+  console.log(`[AI] No match found for: "${searchName}"`)
+  return null
+}
+
+// Resolve exercise name to actual exercise from database
+function resolveExercise(exerciseName) {
+  const match = findExerciseMatch(exerciseName)
+  if (match) {
+    return {
+      exerciseId: match.id,
+      exerciseName: match.name
+    }
+  }
+  // Fall back to AI-generated ID if no match
+  return {
+    exerciseId: generateExerciseId(exerciseName),
+    exerciseName: exerciseName
+  }
+}
+
 // Helper function to create a workout for the user
 async function createWorkoutForUser(userId, args) {
   const { name, dayOfWeek, specificDate, exercises, targetMuscles } = args
@@ -841,14 +954,20 @@ async function createWorkoutForUser(userId, args) {
       // Create a calendar workout for a specific date
       const date = new Date(specificDate)
 
+      // Resolve exercise names to actual exercises from database
+      const resolvedExercises = exercises.map(e => ({
+        ...e,
+        ...resolveExercise(e.exerciseName)
+      }))
+
       const calendarWorkout = await prisma.calendarWorkout.create({
         data: {
           userId,
           date,
           name,
           exercises: {
-            create: exercises.map((e, i) => ({
-              exerciseId: generateExerciseId(e.exerciseName),
+            create: resolvedExercises.map((e, i) => ({
+              exerciseId: e.exerciseId,
               exerciseName: e.exerciseName,
               sets: e.sets,
               reps: String(e.reps || '10'),
@@ -870,6 +989,12 @@ async function createWorkoutForUser(userId, args) {
       // Create or update weekly schedule for that day
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+      // Resolve exercise names to actual exercises from database
+      const resolvedExercises = exercises.map(e => ({
+        ...e,
+        ...resolveExercise(e.exerciseName)
+      }))
+
       const schedule = await prisma.weeklySchedule.upsert({
         where: {
           userId_dayOfWeek: {
@@ -881,8 +1006,8 @@ async function createWorkoutForUser(userId, args) {
           name,
           exercises: {
             deleteMany: {},
-            create: exercises.map((e, i) => ({
-              exerciseId: generateExerciseId(e.exerciseName),
+            create: resolvedExercises.map((e, i) => ({
+              exerciseId: e.exerciseId,
               exerciseName: e.exerciseName,
               sets: e.sets,
               reps: String(e.reps || '10'),
@@ -895,8 +1020,8 @@ async function createWorkoutForUser(userId, args) {
           dayOfWeek,
           name,
           exercises: {
-            create: exercises.map((e, i) => ({
-              exerciseId: generateExerciseId(e.exerciseName),
+            create: resolvedExercises.map((e, i) => ({
+              exerciseId: e.exerciseId,
               exerciseName: e.exerciseName,
               sets: e.sets,
               reps: String(e.reps || '10'),
