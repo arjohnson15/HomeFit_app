@@ -144,16 +144,18 @@ const getWorkoutHash = (workoutIds) => {
 }
 
 // Get cached suggestions or null if not cached/expired
-const getCachedSuggestions = (type, userId, workoutHash) => {
+const getCachedSuggestions = (type, userId, workoutHash, useAi = false) => {
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `${type}-${userId}-${today}-${workoutHash}`
+  const aiFlag = useAi ? '-ai' : '-standard'
+  const cacheKey = `${type}-${userId}-${today}-${workoutHash}${aiFlag}`
   return suggestionCache.get(cacheKey) || null
 }
 
 // Store suggestions in cache
-const setCachedSuggestions = (type, userId, workoutHash, data) => {
+const setCachedSuggestions = (type, userId, workoutHash, data, useAi = false) => {
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `${type}-${userId}-${today}-${workoutHash}`
+  const aiFlag = useAi ? '-ai' : '-standard'
+  const cacheKey = `${type}-${userId}-${today}-${workoutHash}${aiFlag}`
   suggestionCache.set(cacheKey, data)
   // Cleanup old entries periodically
   if (suggestionCache.size > 100) {
@@ -714,8 +716,13 @@ router.get('/warmup-suggestions', async (req, res, next) => {
     // Generate workout hash for caching (based on workout ID)
     const workoutHash = getWorkoutHash([workout.id])
 
-    // Check cache first - return cached warmups if available
-    const cached = getCachedSuggestions('warmup', req.user.id, workoutHash)
+    // Determine if AI should be used (check setting AND API key availability)
+    const useAi = settings?.useAiForWarmups || false
+    const aiConfig = useAi ? await getUserAIConfig(req.user.id) : null
+    const canUseAi = useAi && aiConfig?.apiKey
+
+    // Check cache first - return cached warmups if available (cache key includes AI flag)
+    const cached = getCachedSuggestions('warmup', req.user.id, workoutHash, canUseAi)
     if (cached) {
       return res.json(cached)
     }
@@ -747,15 +754,12 @@ router.get('/warmup-suggestions', async (req, res, next) => {
     let warmups = []
     let isAI = false
 
-    // Check if user wants AI-generated suggestions
-    if (settings?.useAiForWarmups) {
-      const aiConfig = await getUserAIConfig(req.user.id)
-      if (aiConfig.apiKey && muscleGroupsArray.length > 0) {
-        const aiWarmups = await generateAIWarmups(aiConfig.apiKey, muscleGroupsArray, exerciseNames)
-        if (aiWarmups && aiWarmups.length > 0) {
-          warmups = aiWarmups
-          isAI = true
-        }
+    // Check if user wants AI-generated suggestions (already verified canUseAi above)
+    if (canUseAi && muscleGroupsArray.length > 0) {
+      const aiWarmups = await generateAIWarmups(aiConfig.apiKey, muscleGroupsArray, exerciseNames)
+      if (aiWarmups && aiWarmups.length > 0) {
+        warmups = aiWarmups
+        isAI = true
       }
     }
 
@@ -806,8 +810,8 @@ router.get('/warmup-suggestions', async (req, res, next) => {
       isAI
     }
 
-    // Cache the response for this workout
-    setCachedSuggestions('warmup', req.user.id, workoutHash, response)
+    // Cache the response for this workout (cache key includes AI flag)
+    setCachedSuggestions('warmup', req.user.id, workoutHash, response, canUseAi)
 
     res.json(response)
   } catch (error) {
@@ -870,8 +874,13 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
     // Generate workout hash for caching
     const workoutHash = getWorkoutHash([workout.id])
 
-    // Check cache first
-    const cached = getCachedSuggestions('cooldown', req.user.id, workoutHash)
+    // Determine if AI should be used (check setting AND API key availability)
+    const useAi = settings?.useAiForWarmups || false // Same setting controls both warmup and cooldown AI
+    const aiConfig = useAi ? await getUserAIConfig(req.user.id) : null
+    const canUseAi = useAi && aiConfig?.apiKey
+
+    // Check cache first (cache key includes AI flag)
+    const cached = getCachedSuggestions('cooldown', req.user.id, workoutHash, canUseAi)
     if (cached) {
       return res.json(cached)
     }
@@ -903,15 +912,12 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
     let cooldowns = []
     let isAI = false
 
-    // Check if user wants AI-generated suggestions
-    if (settings?.useAiForWarmups) { // Same setting controls both warmup and cooldown AI
-      const aiConfig = await getUserAIConfig(req.user.id)
-      if (aiConfig.apiKey && muscleGroupsArray.length > 0) {
-        const aiCooldowns = await generateAICooldowns(aiConfig.apiKey, muscleGroupsArray, exerciseNames)
-        if (aiCooldowns && aiCooldowns.length > 0) {
-          cooldowns = aiCooldowns
-          isAI = true
-        }
+    // Check if user wants AI-generated suggestions (already verified canUseAi above)
+    if (canUseAi && muscleGroupsArray.length > 0) {
+      const aiCooldowns = await generateAICooldowns(aiConfig.apiKey, muscleGroupsArray, exerciseNames)
+      if (aiCooldowns && aiCooldowns.length > 0) {
+        cooldowns = aiCooldowns
+        isAI = true
       }
     }
 
@@ -962,8 +968,8 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
       isAI
     }
 
-    // Cache the response for this workout
-    setCachedSuggestions('cooldown', req.user.id, workoutHash, response)
+    // Cache the response for this workout (cache key includes AI flag)
+    setCachedSuggestions('cooldown', req.user.id, workoutHash, response, canUseAi)
 
     res.json(response)
   } catch (error) {
