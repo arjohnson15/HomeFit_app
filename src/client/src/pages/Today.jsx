@@ -1122,17 +1122,41 @@ function Today() {
 
   // Toggle exercise completion - allows uncompleting
   const toggleExerciseComplete = (exerciseId) => {
-    setExerciseLogs(prev => ({
-      ...prev,
-      [exerciseId]: {
-        ...prev[exerciseId],
-        completed: !prev[exerciseId].completed
+    const log = exerciseLogs[exerciseId]
+    const isCurrentlyCompleted = log?.completed
+
+    setExerciseLogs(prev => {
+      const currentLog = prev[exerciseId]
+      const newCompleted = !currentLog.completed
+      let updatedSets = [...currentLog.sets]
+
+      // When uncompleting, ensure there's an empty set to continue with
+      if (!newCompleted) {
+        const hasUncompletedSet = updatedSets.some(s => !s.completed)
+        if (!hasUncompletedSet) {
+          updatedSets.push({
+            setNumber: updatedSets.length + 1,
+            reps: '',
+            weight: '',
+            completed: false,
+            isPR: false,
+            difficulty: null
+          })
+        }
       }
-    }))
+
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...currentLog,
+          completed: newCompleted,
+          sets: updatedSets
+        }
+      }
+    })
 
     // If uncompleting, expand it so user can continue
-    const log = exerciseLogs[exerciseId]
-    if (log?.completed) {
+    if (isCurrentlyCompleted) {
       setExpandedExercise(exerciseId)
     } else {
       setExpandedExercise(null)
