@@ -1163,6 +1163,73 @@ function Today() {
     }
   }
 
+  // Add exercises to current workout ad-hoc
+  const handleAddExercisesToWorkout = async (exercises) => {
+    if (!exercises || exercises.length === 0) return
+
+    // Add each exercise to the current workout display
+    const newExercises = exercises.map((ex, idx) => ({
+      id: `adhoc-${Date.now()}-${idx}`, // Temporary ID for display
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      sets: 3,
+      reps: '8-12',
+      isAdhoc: true // Mark as ad-hoc exercise
+    }))
+
+    // Update todayWorkout to include new exercises
+    setTodayWorkout(prev => ({
+      ...prev,
+      exercises: [...(prev?.exercises || []), ...newExercises]
+    }))
+
+    // Initialize exercise logs for new exercises
+    setExerciseLogs(prev => {
+      const updated = { ...prev }
+      newExercises.forEach(ex => {
+        updated[ex.id] = {
+          completed: false,
+          logId: null,
+          targetSets: ex.sets,
+          isAdhoc: true,
+          sets: [{
+            setNumber: 1,
+            reps: '',
+            weight: '',
+            completed: false,
+            isPR: false,
+            difficulty: null
+          }]
+        }
+      })
+      return updated
+    })
+
+    // If workout is started, create exercise logs on server
+    if (workoutStarted && activeSession) {
+      for (const ex of newExercises) {
+        try {
+          const response = await api.post(`/workouts/${activeSession.id}/exercises`, {
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName
+          })
+          // Update logId for the exercise
+          setExerciseLogs(prev => ({
+            ...prev,
+            [ex.id]: {
+              ...prev[ex.id],
+              logId: response.data.exerciseLog.id
+            }
+          }))
+        } catch (error) {
+          console.error('Error creating exercise log:', error)
+        }
+      }
+    }
+
+    setShowAddExerciseModal(false)
+  }
+
   const getExerciseImage = (exerciseId) => {
     const details = exerciseDetails[exerciseId]
     if (details?.images?.[0]) {
@@ -1428,6 +1495,14 @@ function Today() {
           exercise={showExerciseModal}
           details={exerciseDetails[showExerciseModal.exerciseId]}
           onClose={() => setShowExerciseModal(null)}
+        />
+      )}
+
+      {/* Add Exercise Modal */}
+      {showAddExerciseModal && (
+        <ExerciseCatalogModal
+          onClose={() => setShowAddExerciseModal(false)}
+          onAddExercises={handleAddExercisesToWorkout}
         />
       )}
 
@@ -2015,7 +2090,20 @@ function Today() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-400">Exercises</h2>
-            <Link to="/schedule" className="text-accent text-sm">Edit</Link>
+            <div className="flex items-center gap-3">
+              {workoutStarted && (
+                <button
+                  onClick={() => setShowAddExerciseModal(true)}
+                  className="text-accent text-sm hover:text-accent-hover flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add
+                </button>
+              )}
+              <Link to="/schedule" className="text-accent text-sm">Edit</Link>
+            </div>
           </div>
 
           {todayWorkout.isRestDay ? (
