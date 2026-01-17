@@ -247,29 +247,84 @@ function Today() {
 
   // Fetch today's workout and check for active session
   useEffect(() => {
-    const fetchTodayWorkout = async () => {
+    // Restore exercise logs with workout context for proper matching
+    const restoreExerciseLogsFromActive = (active, workout, logs) => {
+      if (!active?.exerciseLogs?.length) return logs
+
+      const updated = { ...logs }
+      active.exerciseLogs.forEach(log => {
+        // Find the scheduled exercise that matches this log's exerciseId
+        const matchingExercise = workout?.exercises?.find(ex => ex.exerciseId === log.exerciseId)
+        const matchingKey = matchingExercise?.id
+
+        if (matchingKey && updated[matchingKey]) {
+          // Restore all logged sets, including any that were dynamically added
+          const restoredSets = log.sets.map(loggedSet => ({
+            setNumber: loggedSet.setNumber,
+            reps: loggedSet.reps?.toString() || '',
+            weight: loggedSet.weight?.toString() || '',
+            completed: true,
+            isPR: loggedSet.isPR || false,
+            difficulty: null
+          }))
+          // Add an empty set at the end for the next entry
+          restoredSets.push({
+            setNumber: restoredSets.length + 1,
+            reps: '',
+            weight: '',
+            completed: false,
+            isPR: false,
+            difficulty: null
+          })
+          updated[matchingKey] = {
+            ...updated[matchingKey],
+            logId: log.id,
+            sets: restoredSets,
+            completed: false // Still in progress
+          }
+        }
+      })
+      return updated
+    }
+
+    const fetchUserProfile = async () => {
+      try {
+        const response = await api.get('/users/profile')
+        setUserTrainingStyle(response.data.user.trainingStyle || 'GENERAL')
+        // Set social settings for the social cards section
+        if (response.data.user.settings) {
+          setSocialSettings(response.data.user.settings)
+          // Set weight tracking settings
+          setShowWeightTracking(response.data.user.settings.showWeightTracking || false)
+          setWeightUnit(response.data.user.settings.weightUnit || 'LBS')
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+      }
+    }
+
+    // Run in sequence to avoid race conditions
+    const initWorkout = async () => {
+      // First fetch today's workout and initialize logs
       let workout = null
       let recurringWkts = []
+      let logs = {}
 
       try {
         const response = await api.get('/schedules/today')
         workout = response.data.workout
         recurringWkts = response.data.recurringWorkouts || []
 
-        // Cache workout data for offline use
         if (workout) {
           cacheWorkoutData(workout, workout.exercises?.map(e => ({ id: e.exerciseId, ...e })))
         }
       } catch (error) {
         console.error('Error fetching today workout:', error)
-
-        // Try to load from cache if offline
         if (!isOnline || error.response?.status === 503) {
           try {
             const cachedWorkout = await getCachedWorkout()
             if (cachedWorkout) {
               workout = cachedWorkout
-              console.log('Loaded workout from offline cache')
             }
           } catch (cacheError) {
             console.error('Error loading cached workout:', cacheError)
@@ -280,27 +335,25 @@ function Today() {
       setTodayWorkout(workout)
       setRecurringWorkouts(recurringWkts)
 
-      // Initialize exercise logs - start with just 1 set, dynamically add more
-      const logs = {}
+      // Initialize exercise logs
       if (workout?.exercises) {
         workout.exercises.forEach(ex => {
           logs[ex.id] = {
             completed: false,
             logId: null,
-            targetSets: ex.sets, // Keep track of planned sets
+            targetSets: ex.sets,
             sets: [{
               setNumber: 1,
               reps: '',
               weight: '',
               completed: false,
               isPR: false,
-              difficulty: null // Optional per-set difficulty
+              difficulty: null
             }]
           }
         })
       }
 
-      // Also initialize logs for recurring workout exercises
       if (recurringWkts?.length > 0) {
         recurringWkts.forEach(recurring => {
           recurring.exercises?.forEach((ex, idx) => {
@@ -324,40 +377,30 @@ function Today() {
         })
       }
 
-      setExerciseLogs(logs)
-
-      setLoading(false)
-    }
-
-    const checkActiveWorkout = async () => {
+      // Now check for active workout and restore logs if present
       try {
         const response = await api.get('/workouts/active')
         const active = response.data.activeWorkout
 
         if (active) {
-          // Restore active workout state
           setActiveSession(active)
           setWorkoutStarted(true)
 
-          // Calculate elapsed time from startTime using database pause state
           const startTime = new Date(active.startTime)
           const now = new Date()
           const totalPausedTime = active.totalPausedTime || 0
 
           if (active.pausedAt) {
-            // Currently paused - calculate time up to when it was paused
             const pausedAtTime = new Date(active.pausedAt)
             const elapsed = Math.floor((pausedAtTime - startTime) / 1000) - totalPausedTime
             setElapsedTime(Math.max(0, elapsed))
             setWorkoutPaused(true)
           } else {
-            // Not paused - calculate current elapsed minus total paused time
             const elapsed = Math.floor((now - startTime) / 1000) - totalPausedTime
             setElapsedTime(Math.max(0, elapsed))
             setWorkoutPaused(false)
           }
 
-          // Restore rest timer if active
           if (active.restTimerEndAt) {
             const endTime = new Date(active.restTimerEndAt)
             const remaining = Math.floor((endTime - now) / 1000)
@@ -368,64 +411,18 @@ function Today() {
             }
           }
 
-          // Restore exercise logs from active workout
-          if (active.exerciseLogs?.length > 0) {
-            setExerciseLogs(prev => {
-              const updated = { ...prev }
-              active.exerciseLogs.forEach(log => {
-                // Find matching scheduled exercise
-                const matchingKey = Object.keys(updated).find(key => {
-                  const scheduled = updated[key]
-                  return scheduled && log.exerciseId
-                })
-                if (matchingKey) {
-                  updated[matchingKey] = {
-                    ...updated[matchingKey],
-                    logId: log.id,
-                    sets: updated[matchingKey].sets.map((set, i) => {
-                      const loggedSet = log.sets.find(s => s.setNumber === i + 1)
-                      if (loggedSet) {
-                        return {
-                          ...set,
-                          reps: loggedSet.reps?.toString() || '',
-                          weight: loggedSet.weight?.toString() || '',
-                          completed: loggedSet.completed || true,
-                          isPR: loggedSet.isPR || false
-                        }
-                      }
-                      return set
-                    }),
-                    completed: log.sets.length >= updated[matchingKey].sets.length
-                  }
-                }
-              })
-              return updated
-            })
-          }
+          // Restore logs with proper matching using workout context
+          logs = restoreExerciseLogsFromActive(active, workout, logs)
         }
       } catch (error) {
         console.error('Error checking active workout:', error)
       }
+
+      setExerciseLogs(logs)
+      setLoading(false)
     }
 
-    const fetchUserProfile = async () => {
-      try {
-        const response = await api.get('/users/profile')
-        setUserTrainingStyle(response.data.user.trainingStyle || 'GENERAL')
-        // Set social settings for the social cards section
-        if (response.data.user.settings) {
-          setSocialSettings(response.data.user.settings)
-          // Set weight tracking settings
-          setShowWeightTracking(response.data.user.settings.showWeightTracking || false)
-          setWeightUnit(response.data.user.settings.weightUnit || 'LBS')
-        }
-      } catch (error) {
-        console.error('Error fetching user profile:', error)
-      }
-    }
-
-    fetchTodayWorkout()
-    checkActiveWorkout()
+    initWorkout()
     fetchStats()
     fetchCompletedWorkouts()
     fetchUserProfile()
