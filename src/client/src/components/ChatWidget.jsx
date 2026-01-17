@@ -41,6 +41,8 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   const [aiProvider, setAiProvider] = useState(null)
   const [checkingAi, setCheckingAi] = useState(true)
   const [pendingQuestion, setPendingQuestion] = useState(null)
+  const [pendingWorkout, setPendingWorkout] = useState(null) // For exercise clarification flow
+  const [pendingRemoval, setPendingRemoval] = useState(null) // For removal confirmation flow
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -73,6 +75,8 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
     sessionStorage.removeItem('ai-chat-timestamp')
     setMessages([INITIAL_MESSAGE])
     setInput('')
+    setPendingWorkout(null) // Clear any pending workout clarification
+    setPendingRemoval(null) // Clear any pending removal confirmation
   }
 
   // Handle pending question when chat opens
@@ -135,11 +139,55 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
     setLoading(true)
 
     try {
-      const response = await api.post('/ai/chat', {
-        message: userMessage,
-        context,
-        history: messages.slice(-10) // Send last 10 messages for context
-      })
+      let response
+
+      // If we have a pending removal awaiting confirmation, use the clarify endpoint
+      if (pendingRemoval) {
+        response = await api.post('/ai/clarify', {
+          choice: userMessage,
+          pendingRemoval
+        })
+
+        // Clear pending removal based on response
+        if (response.data.removalComplete || response.data.pendingRemoval === null) {
+          setPendingRemoval(null)
+        } else if (response.data.pendingRemoval) {
+          // Still waiting for confirmation
+          setPendingRemoval(response.data.pendingRemoval)
+        }
+      }
+      // If we have a pending workout awaiting clarification, use the clarify endpoint
+      else if (pendingWorkout) {
+        response = await api.post('/ai/clarify', {
+          choice: userMessage,
+          pendingWorkout
+        })
+
+        // Clear pending workout if we got a successful result or new pending workout
+        if (response.data.workoutCreated) {
+          setPendingWorkout(null)
+        } else if (response.data.pendingWorkout) {
+          // Still have ambiguous exercises - update the pending workout
+          setPendingWorkout(response.data.pendingWorkout)
+        }
+      } else {
+        // Normal chat flow
+        response = await api.post('/ai/chat', {
+          message: userMessage,
+          context,
+          history: messages.slice(-10) // Send last 10 messages for context
+        })
+
+        // Check if we received a pending workout (needs clarification)
+        if (response.data.pendingWorkout) {
+          setPendingWorkout(response.data.pendingWorkout)
+        }
+
+        // Check if we received a pending removal (needs confirmation)
+        if (response.data.pendingRemoval) {
+          setPendingRemoval(response.data.pendingRemoval)
+        }
+      }
 
       setMessages(prev => [...prev, { role: 'assistant', content: response.data.message }])
 
@@ -147,9 +195,16 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
       if (response.data.workoutCreated && onWorkoutCreated) {
         onWorkoutCreated(response.data.workoutCreated)
       }
+
+      // If exercises were removed, also notify parent to refresh
+      if (response.data.removalComplete && onWorkoutCreated) {
+        onWorkoutCreated(response.data.removalComplete)
+      }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Sorry, I couldn\'t process that. Please try again.'
       setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
+      setPendingWorkout(null) // Clear on error
+      setPendingRemoval(null) // Clear on error
     } finally {
       setLoading(false)
     }
@@ -280,7 +335,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about workouts, exercises..."
+              placeholder={pendingRemoval ? "Type 'yes' to confirm or 'no' to cancel..." : pendingWorkout ? "Enter your choice (1, 2, 3, or name)..." : "Ask about workouts, exercises..."}
               className="flex-1 bg-dark-elevated text-white placeholder-gray-500 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               disabled={loading}
             />

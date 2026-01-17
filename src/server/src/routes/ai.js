@@ -1,3 +1,4 @@
+// AI routes for chat, workout creation, exercise removal, and disambiguation
 import express from 'express'
 import prisma from '../lib/prisma.js'
 import fs from 'fs'
@@ -250,10 +251,20 @@ Where [reps] is a number or range like 10 or 8-12
 
 EXAMPLES:
 
-User: "Add bench press to Monday"
-Response: Here's your chest exercise for Monday!
+User: "Add shoulder press to Monday"
+Response: Adding shoulder press to Monday!
 WORKOUT:Monday
+Shoulder Press|3|10-12
+
+User: "Add bench press to today"
+Response: Done! Adding bench press!
+WORKOUT:Today
 Bench Press|3|8-10
+
+User: "Add dumbbell shoulder press to Monday"
+Response: Adding dumbbell shoulder press!
+WORKOUT:Monday
+Dumbbell Shoulder Press|3|10-12
 
 User: "Create a leg workout for Tuesday"
 Response: Here's a solid leg workout for Tuesday!
@@ -266,8 +277,8 @@ Leg Curl|3|10-12
 User: "Give me a push workout for today"
 Response: Here's your push workout!
 WORKOUT:Today
-Bench Press|4|8-10
-Overhead Press|3|8-10
+Barbell Bench Press|4|8-10
+Dumbbell Shoulder Press|3|8-10
 Incline Dumbbell Press|3|10-12
 Tricep Pushdowns|3|12-15
 
@@ -283,6 +294,53 @@ CRITICAL RULES:
 3. Do NOT use markdown, bullets, or any other formatting for the workout
 4. Write a brief friendly message BEFORE the WORKOUT: block
 5. Today is ${todayName} (${new Date().toISOString().split('T')[0]})
+6. ONLY add exactly what the user asks for! If they say "add shoulder press", add ONLY shoulder press (1 exercise). If they say "create a leg workout", THEN you can create multiple exercises. Never add extra exercises unless they ask for a full workout.
+7. Use the EXACT exercise name the user provided - do not add equipment prefixes unless they did. If user says "shoulder press", output "Shoulder Press", NOT "Barbell Shoulder Press" or multiple variations.
+
+=== REMOVING EXERCISES ===
+When a user asks to REMOVE, DELETE, or CLEAR exercises from a day, respond with this format:
+
+REMOVE:[Day]
+[Exercise Name or "all"]
+
+REMOVAL EXAMPLES:
+
+User: "Remove bench press from Monday"
+Response: I'll remove Bench Press from Monday. Please confirm by typing "yes".
+REMOVE:Monday
+Bench Press
+
+User: "Clear all exercises from Tuesday"
+Response: I'll remove all exercises from Tuesday. Please confirm by typing "yes".
+REMOVE:Tuesday
+all
+
+User: "Delete squats from today"
+Response: I'll remove Squats from today. Please confirm by typing "yes".
+REMOVE:Today
+Squats
+
+User: (after you just added Dumbbell Shoulder Press to Monday) "Remove that from today"
+Response: I'll remove Dumbbell Shoulder Press from Monday. Please confirm by typing "yes".
+REMOVE:Monday
+Dumbbell Shoulder Press
+
+User: (after adding Barbell Bench Press to Monday) "can you remove that now"
+Response: I'll remove Barbell Bench Press from Monday. Please confirm by typing "yes".
+REMOVE:Monday
+Barbell Bench Press
+
+User: (after adding Cable Rows to Wednesday) "actually delete it"
+Response: I'll remove Cable Rows from Wednesday. Please confirm by typing "yes".
+REMOVE:Wednesday
+Cable Rows
+
+CRITICAL REMOVAL RULES:
+1. Always ask for confirmation before removing exercises!
+2. CONTEXT IS EVERYTHING: When user says "that", "it", "the exercise", "remove that now", or similar references, you MUST use the exercise from recent conversation history. Look at what was just added or discussed!
+3. Use the SAME day the exercise was added to - if you added to Monday, remove from Monday
+4. NEVER ask "which exercise?" if you just added one in the recent messages - use that exercise name
+5. NEVER give generic examples like "Bench Press OR Squats" - use the ACTUAL exercise from conversation
 
 === GENERAL FITNESS HELP ===
 For questions about exercise form, muscles, nutrition, or training advice, just answer helpfully.
@@ -499,6 +557,171 @@ function isWorkoutCreationRequest(message) {
   return hasCreateWord && (hasWorkoutWord || hasDayWord)
 }
 
+// POST /api/ai/clarify - Handle user clarification for ambiguous exercises
+router.post('/clarify', async (req, res) => {
+  try {
+    const { choice, pendingWorkout, pendingRemoval } = req.body
+
+    // Handle removal confirmation
+    if (pendingRemoval) {
+      const choiceLower = choice.toLowerCase().trim()
+
+      // Check if user confirmed
+      if (choiceLower === 'yes' || choiceLower === 'y' || choiceLower === 'confirm') {
+        const result = await removeExercisesFromSchedule(req.user.id, pendingRemoval)
+
+        if (result.success) {
+          return res.json({
+            message: `Done! ${result.message}`,
+            removalComplete: result
+          })
+        } else {
+          return res.json({
+            message: result.message,
+            pendingRemoval: null // Clear the pending removal
+          })
+        }
+      } else if (choiceLower === 'no' || choiceLower === 'n' || choiceLower === 'cancel') {
+        return res.json({
+          message: "No problem, I won't remove anything.",
+          pendingRemoval: null
+        })
+      } else {
+        // Unrecognized response - ask again with context
+        const whatToRemove = pendingRemoval.removeAll
+          ? `all exercises from ${pendingRemoval.dayName}`
+          : `${pendingRemoval.exercisesToRemove.join(', ')} from ${pendingRemoval.dayName}`
+        return res.json({
+          message: `I'll remove ${whatToRemove}. Please type "yes" to confirm, or "no" to cancel.`,
+          pendingRemoval // Keep the pending removal
+        })
+      }
+    }
+
+    if (!pendingWorkout || !pendingWorkout.exercises) {
+      return res.status(400).json({ message: 'No pending workout to clarify' })
+    }
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const dayName = pendingWorkout.dayOfWeek !== undefined ? dayNames[pendingWorkout.dayOfWeek] : 'your schedule'
+    const choiceLower = choice.toLowerCase().trim()
+
+    // Find the FIRST ambiguous exercise to resolve (one at a time for clarity)
+    const firstAmbiguousIndex = pendingWorkout.exercises.findIndex(e => e.isAmbiguous)
+    if (firstAmbiguousIndex === -1) {
+      return res.status(400).json({ message: 'No ambiguous exercises to clarify' })
+    }
+
+    const exercise = pendingWorkout.exercises[firstAmbiguousIndex]
+    const alternatives = exercise.alternatives || []
+    let resolved = null
+
+    // Check if choice is a number (1, 2, 3, etc.)
+    const numChoice = parseInt(choiceLower)
+    if (!isNaN(numChoice) && numChoice >= 1 && numChoice <= alternatives.length) {
+      const chosen = alternatives[numChoice - 1]
+      resolved = {
+        ...exercise,
+        exerciseId: chosen.id,
+        exerciseName: chosen.name,
+        isAmbiguous: false
+      }
+    }
+
+    // Check if choice matches an alternative name
+    if (!resolved) {
+      for (const alt of alternatives) {
+        if (alt.name.toLowerCase().includes(choiceLower) ||
+            choiceLower.includes(alt.name.toLowerCase().split(' ')[0])) {
+          resolved = {
+            ...exercise,
+            exerciseId: alt.id,
+            exerciseName: alt.name,
+            isAmbiguous: false
+          }
+          break
+        }
+      }
+    }
+
+    // Check for equipment keywords
+    if (!resolved) {
+      const equipmentKeywords = ['dumbbell', 'barbell', 'cable', 'machine', 'bodyweight', 'kettlebell', 'band']
+      for (const keyword of equipmentKeywords) {
+        if (choiceLower.includes(keyword)) {
+          const match = alternatives.find(alt =>
+            (alt.equipment || '').toLowerCase().includes(keyword) ||
+            alt.name.toLowerCase().includes(keyword)
+          )
+          if (match) {
+            resolved = {
+              ...exercise,
+              exerciseId: match.id,
+              exerciseName: match.name,
+              isAmbiguous: false
+            }
+            break
+          }
+        }
+      }
+    }
+
+    // Build updated exercises list
+    const updatedExercises = pendingWorkout.exercises.map((ex, i) => {
+      if (i === firstAmbiguousIndex && resolved) {
+        return resolved
+      }
+      return ex
+    })
+
+    // If we couldn't resolve, keep it ambiguous
+    if (!resolved) {
+      console.log(`[AI] Could not match choice "${choice}" for "${exercise.originalSearch}", keeping ambiguous`)
+    }
+
+    // Check if user sent a new workout request instead of a clarification
+    const looksLikeNewRequest = /\b(add|create|make|schedule|give me|build)\b.*\b(workout|exercise|to|for)\b/i.test(choice)
+    if (looksLikeNewRequest) {
+      return res.status(400).json({
+        message: "It looks like you're asking for a new workout. Please first choose from the options above (enter a number like 1, 2, 3, or say 'dumbbell', 'barbell', etc.), or click the reset button to start fresh.",
+        pendingWorkout // Keep the pending workout
+      })
+    }
+
+    // Check if there are still ambiguous exercises
+    const stillAmbiguous = updatedExercises.filter(e => e.isAmbiguous)
+    if (stillAmbiguous.length > 0) {
+      const clarificationMessage = formatAmbiguityMessage(
+        stillAmbiguous.map(e => ({ original: e.originalSearch, alternatives: e.alternatives })),
+        dayName
+      )
+      return res.json({
+        message: clarificationMessage,
+        pendingWorkout: { ...pendingWorkout, exercises: updatedExercises }
+      })
+    }
+
+    // All exercises resolved - create the workout
+    const workoutResult = await createWorkoutForUser(req.user.id, {
+      ...pendingWorkout,
+      exercises: updatedExercises
+    })
+
+    if (workoutResult.success) {
+      const exerciseNames = updatedExercises.map(e => e.exerciseName).join(', ')
+      return res.json({
+        message: `Done! I've added ${exerciseNames} to ${dayName}.`,
+        workoutCreated: workoutResult
+      })
+    } else {
+      return res.status(500).json({ message: workoutResult.message || 'Failed to create workout' })
+    }
+  } catch (error) {
+    console.error('Error in clarify:', error)
+    res.status(500).json({ message: 'An error occurred. Please try again.' })
+  }
+})
+
 // POST /api/ai/chat - Send a message to AI (OpenAI or Ollama)
 router.post('/chat', async (req, res) => {
   try {
@@ -580,6 +803,31 @@ router.post('/chat', async (req, res) => {
       if (toolCall.function.name === 'create_workout') {
         try {
           const args = JSON.parse(toolCall.function.arguments)
+
+          // Check for ambiguous exercises before creating workout
+          const { resolvedExercises, ambiguousExercises } = checkForAmbiguousExercises(args.exercises || [])
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+          const dayName = args.dayOfWeek !== undefined ? dayNames[args.dayOfWeek] : 'your schedule'
+
+          if (ambiguousExercises.length > 0) {
+            // Don't create workout yet - ask user to clarify
+            const pendingWorkout = {
+              ...args,
+              exercises: resolvedExercises,
+              ambiguousExercises
+            }
+
+            const clarificationMessage = formatAmbiguityMessage(ambiguousExercises, dayName)
+
+            return res.json({
+              message: clarificationMessage,
+              source: config.source,
+              provider: config.provider,
+              pendingWorkout
+            })
+          }
+
+          // No ambiguous exercises - create the workout
           const workoutResult = await createWorkoutForUser(req.user.id, args)
 
           // Get a follow-up response from the AI
@@ -625,6 +873,30 @@ router.post('/chat', async (req, res) => {
     console.log('[AI] Parsed workout result:', parsedWorkout)
     if (parsedWorkout) {
       try {
+        // Check for ambiguous exercises before creating
+        const { resolvedExercises, ambiguousExercises } = checkForAmbiguousExercises(parsedWorkout.exercises)
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        const dayName = parsedWorkout.dayOfWeek !== undefined ? dayNames[parsedWorkout.dayOfWeek] : 'your schedule'
+
+        if (ambiguousExercises.length > 0) {
+          // Store pending workout in session for when user clarifies
+          const pendingWorkout = {
+            ...parsedWorkout,
+            exercises: resolvedExercises,
+            ambiguousExercises
+          }
+
+          const clarificationMessage = formatAmbiguityMessage(ambiguousExercises, dayName)
+
+          return res.json({
+            message: clarificationMessage,
+            source: config.source,
+            provider: config.provider,
+            pendingWorkout // Client can store this and send back with clarification
+          })
+        }
+
+        // No ambiguity - create the workout
         const workoutResult = await createWorkoutForUser(req.user.id, parsedWorkout)
         if (workoutResult.success) {
           // Clean up the response message to remove the structured data
@@ -656,6 +928,25 @@ router.post('/chat', async (req, res) => {
       } catch (error) {
         console.error('Error creating workout from parsed text:', error)
       }
+    }
+
+    // Check for removal request in the response
+    const parsedRemoval = parseRemovalFromText(assistantMessage)
+    if (parsedRemoval) {
+      // Clean up the message to remove the REMOVE: block
+      let cleanMessage = assistantMessage
+        .replace(/REMOVE:\s*\w+/gi, '')
+        .replace(/^all$/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+
+      // Return with pendingRemoval for confirmation
+      return res.json({
+        message: cleanMessage,
+        source: config.source,
+        provider: config.provider,
+        pendingRemoval: parsedRemoval
+      })
     }
 
     res.json({ message: assistantMessage, source: config.source, provider: config.provider })
@@ -829,6 +1120,65 @@ function parseWorkoutFromText(text) {
   return null
 }
 
+// Parse removal request from AI text response
+function parseRemovalFromText(text) {
+  if (!text) return null
+
+  console.log('[parseRemoval] Checking text for removal pattern...')
+
+  const dayMapping = {
+    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+    'thursday': 4, 'friday': 5, 'saturday': 6
+  }
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+  // Pattern: "REMOVE:Monday" followed by exercise name(s) or "all"
+  const removePattern = /REMOVE:\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today)/i
+  const removeMatch = text.match(removePattern)
+
+  if (!removeMatch) {
+    console.log('[parseRemoval] No REMOVE: pattern found')
+    return null
+  }
+
+  const dayStr = removeMatch[1].toLowerCase()
+  let dayOfWeek
+  if (dayStr === 'today') {
+    dayOfWeek = new Date().getDay()
+  } else {
+    dayOfWeek = dayMapping[dayStr]
+  }
+
+  // Get exercise names after the REMOVE: line
+  const afterRemove = text.substring(text.indexOf(removeMatch[0]) + removeMatch[0].length)
+  const lines = afterRemove.split('\n').filter(l => l.trim())
+
+  const exercisesToRemove = []
+  let removeAll = false
+
+  for (const line of lines) {
+    const trimmed = line.trim().toLowerCase()
+    if (trimmed === 'all') {
+      removeAll = true
+      break
+    }
+    // Only capture exercise names (not empty lines or other text)
+    if (trimmed && !trimmed.includes('confirm') && !trimmed.includes('please') && trimmed.length > 1) {
+      exercisesToRemove.push(line.trim())
+      break // Usually just one exercise per removal request
+    }
+  }
+
+  console.log('[parseRemoval] Found removal request for day', dayOfWeek, 'removeAll:', removeAll, 'exercises:', exercisesToRemove)
+
+  return {
+    dayOfWeek,
+    dayName: dayNames[dayOfWeek],
+    removeAll,
+    exercisesToRemove
+  }
+}
+
 // Helper function to generate a slug-based exerciseId from exercise name
 function generateExerciseId(exerciseName) {
   return 'ai-' + exerciseName
@@ -858,45 +1208,126 @@ function loadExerciseDatabase() {
   }
 }
 
-// Find the best matching exercise from the database
-function findExerciseMatch(searchName) {
+// Helper function to score exercises for sorting (lower = better priority)
+function getExercisePriority(exercise, searchTerm) {
+  const name = exercise.name.toLowerCase()
+  const search = searchTerm.toLowerCase()
+  let score = 0
+
+  // Heavily prioritize standard equipment types (barbell and dumbbell are most common)
+  if (name.startsWith('barbell ')) score -= 100
+  else if (name.startsWith('dumbbell ')) score -= 90
+  else if (name.startsWith('cable ')) score -= 70
+  else if (name.startsWith('machine ')) score -= 60
+
+  // Penalize specialty/uncommon variations
+  if (name.includes(' with chains')) score += 50
+  if (name.includes(' with bands') || name.includes('- with bands')) score += 50
+  if (name.includes('reverse band')) score += 40
+  if (name.includes('smith machine')) score += 30
+  if (name.includes('one arm') || name.includes('one-arm')) score += 20
+  if (name.includes('close-grip') || name.includes('wide-grip')) score += 15
+  if (name.includes('incline') || name.includes('decline')) score += 10
+
+  // Bonus if the exercise name closely matches the search
+  if (name === search) score -= 200
+  if (name === `barbell ${search}`) score -= 150
+  if (name === `dumbbell ${search}`) score -= 140
+
+  // Add name length as a small tiebreaker (shorter names slightly preferred)
+  score += name.length * 0.1
+
+  return score
+}
+
+// Find all matching exercises from the database (for disambiguation)
+function findAllExerciseMatches(searchName) {
   const exercises = loadExerciseDatabase()
-  if (!exercises.length) return null
+  if (!exercises.length) return { matches: [], exact: false }
 
   const searchLower = searchName.toLowerCase().trim()
-  const searchWords = searchLower.split(/\s+/)
+  const searchWords = searchLower.split(/\s+/).filter(w => w.length >= 2)
 
-  // 1. Exact match (case-insensitive)
+  // Extract core exercise name (remove equipment prefixes/suffixes for better matching)
+  const coreWords = searchWords.filter(w =>
+    !['dumbbell', 'barbell', 'cable', 'machine', 'band', 'kettlebell', 'ez', 'smith'].includes(w)
+  )
+  const coreSearch = coreWords.join(' ')
+
+  // 1. Exact match (case-insensitive) - use it directly, no need to ask
   const exactMatch = exercises.find(e => e.name.toLowerCase() === searchLower)
   if (exactMatch) {
     console.log(`[AI] Exact match: "${searchName}" -> "${exactMatch.name}"`)
-    return exactMatch
+    return { matches: [exactMatch], exact: true }
   }
 
-  // 2. Search name is contained in exercise name (e.g., "bench press" matches "Barbell Bench Press")
+  // 2. Check if search includes equipment specifier - if so, find that specific variation
+  const equipmentWords = ['dumbbell', 'barbell', 'cable', 'machine', 'band', 'kettlebell', 'ez', 'smith', 'lever', 'leverage']
+  const hasEquipmentSpecifier = searchWords.some(w => equipmentWords.includes(w))
+
+  if (hasEquipmentSpecifier) {
+    // User/AI specified equipment, find exercises matching both equipment and core name
+    const specificMatches = exercises.filter(e => {
+      const nameLower = e.name.toLowerCase()
+      return searchWords.every(word => nameLower.includes(word))
+    })
+    if (specificMatches.length > 0) {
+      specificMatches.sort((a, b) => getExercisePriority(a, searchLower) - getExercisePriority(b, searchLower))
+      // Check if there are OTHER variations with same core (e.g., other "shoulder press" types)
+      const coreVariations = exercises.filter(e => {
+        const nameLower = e.name.toLowerCase()
+        return coreWords.every(word => nameLower.includes(word))
+      })
+      // If there are many core variations (dumbbell, barbell, cable, etc.), but user specified equipment,
+      // only show the equipment-specific matches, NOT all core variations
+      if (coreVariations.length > 3) {
+        console.log(`[AI] Equipment specified ("${searchLower}"), using ${specificMatches.length} equipment-specific matches instead of ${coreVariations.length} core variations`)
+        // Return only equipment-specific matches - user asked for a specific equipment type
+        return { matches: specificMatches.slice(0, 6), exact: specificMatches.length === 1 }
+      }
+      console.log(`[AI] Equipment-specific match for "${searchName}": ${specificMatches[0].name}`)
+      return { matches: specificMatches.slice(0, 6), exact: specificMatches.length === 1 }
+    }
+  }
+
+  // 3. Search name is contained in exercise name (for generic searches without equipment)
   const containsMatches = exercises.filter(e =>
     e.name.toLowerCase().includes(searchLower)
   )
-  if (containsMatches.length === 1) {
-    console.log(`[AI] Contains match: "${searchName}" -> "${containsMatches[0].name}"`)
-    return containsMatches[0]
+  if (containsMatches.length > 0) {
+    containsMatches.sort((a, b) => getExercisePriority(a, searchLower) - getExercisePriority(b, searchLower))
+    console.log(`[AI] Contains matches for "${searchName}": ${containsMatches.length} found, top: ${containsMatches.slice(0, 3).map(e => e.name).join(', ')}`)
+    // For generic searches, show options if there are multiple
+    return { matches: containsMatches.slice(0, 6), exact: containsMatches.length === 1 }
   }
 
-  // 3. All search words appear in exercise name
+  // 4. Core words match (for searches like "shoulder press" that should show dumbbell/barbell/cable options)
+  if (coreSearch.length > 2 && !hasEquipmentSpecifier) {
+    const coreMatches = exercises.filter(e => {
+      const nameLower = e.name.toLowerCase()
+      return coreWords.every(word => nameLower.includes(word))
+    })
+    if (coreMatches.length > 0) {
+      coreMatches.sort((a, b) => getExercisePriority(a, searchLower) - getExercisePriority(b, searchLower))
+      console.log(`[AI] Core word matches for "${searchName}" (core: "${coreSearch}"): ${coreMatches.length} found, top: ${coreMatches.slice(0, 3).map(e => e.name).join(', ')}`)
+      // Always show options for generic searches with multiple matches
+      return { matches: coreMatches.slice(0, 6), exact: coreMatches.length === 1 }
+    }
+  }
+
+  // 5. All search words appear in exercise name
   const allWordsMatches = exercises.filter(e => {
     const nameLower = e.name.toLowerCase()
     return searchWords.every(word => nameLower.includes(word))
   })
   if (allWordsMatches.length > 0) {
-    // Prefer shorter names (more specific matches)
-    allWordsMatches.sort((a, b) => a.name.length - b.name.length)
-    console.log(`[AI] All-words match: "${searchName}" -> "${allWordsMatches[0].name}"`)
-    return allWordsMatches[0]
+    allWordsMatches.sort((a, b) => getExercisePriority(a, searchLower) - getExercisePriority(b, searchLower))
+    console.log(`[AI] All-words matches for "${searchName}": ${allWordsMatches.length} found`)
+    return { matches: allWordsMatches.slice(0, 6), exact: allWordsMatches.length === 1 }
   }
 
-  // 4. Fuzzy match - most words match
-  let bestMatch = null
-  let bestScore = 0
+  // 6. Fuzzy match - find exercises where most words match
+  const fuzzyMatches = []
 
   for (const exercise of exercises) {
     const nameLower = exercise.name.toLowerCase()
@@ -905,44 +1336,114 @@ function findExerciseMatch(searchName) {
     // Count matching words
     let matchingWords = 0
     for (const searchWord of searchWords) {
-      if (searchWord.length < 3) continue // Skip short words like "a", "to"
+      if (searchWord.length < 3) continue
       if (nameWords.some(nw => nw.includes(searchWord) || searchWord.includes(nw))) {
         matchingWords++
       }
     }
 
-    // Score based on matching words and name similarity
-    const score = matchingWords / Math.max(searchWords.length, 1)
-
-    if (score > bestScore && score >= 0.5) {
-      bestScore = score
-      bestMatch = exercise
+    const score = matchingWords / Math.max(searchWords.filter(w => w.length >= 3).length, 1)
+    if (score >= 0.5) {
+      fuzzyMatches.push({ exercise, score })
     }
   }
 
-  if (bestMatch) {
-    console.log(`[AI] Fuzzy match (${(bestScore * 100).toFixed(0)}%): "${searchName}" -> "${bestMatch.name}"`)
-    return bestMatch
+  if (fuzzyMatches.length > 0) {
+    fuzzyMatches.sort((a, b) => b.score - a.score || a.exercise.name.length - b.exercise.name.length)
+    const matches = fuzzyMatches.slice(0, 6).map(m => m.exercise)
+    console.log(`[AI] Fuzzy matches for "${searchName}": ${matches.length} found`)
+    return { matches, exact: matches.length === 1 }
   }
 
-  console.log(`[AI] No match found for: "${searchName}"`)
-  return null
+  console.log(`[AI] No matches found for: "${searchName}"`)
+  return { matches: [], exact: false }
+}
+
+// Find the best matching exercise from the database (for backwards compatibility)
+function findExerciseMatch(searchName) {
+  const { matches, exact } = findAllExerciseMatches(searchName)
+  return matches[0] || null
 }
 
 // Resolve exercise name to actual exercise from database
+// Returns { exerciseId, exerciseName, alternatives?, isAmbiguous }
 function resolveExercise(exerciseName) {
-  const match = findExerciseMatch(exerciseName)
-  if (match) {
+  const { matches, exact } = findAllExerciseMatches(exerciseName)
+
+  if (matches.length === 0) {
+    // No matches - fall back to AI-generated ID
     return {
-      exerciseId: match.id,
-      exerciseName: match.name
+      exerciseId: generateExerciseId(exerciseName),
+      exerciseName: exerciseName,
+      isAmbiguous: false
     }
   }
-  // Fall back to AI-generated ID if no match
-  return {
-    exerciseId: generateExerciseId(exerciseName),
-    exerciseName: exerciseName
+
+  if (exact || matches.length === 1) {
+    // Single match - use it
+    return {
+      exerciseId: matches[0].id,
+      exerciseName: matches[0].name,
+      isAmbiguous: false
+    }
   }
+
+  // Multiple matches - return alternatives for user to choose
+  return {
+    exerciseId: matches[0].id,
+    exerciseName: matches[0].name,
+    originalSearch: exerciseName,
+    isAmbiguous: true,
+    alternatives: matches.map(m => ({
+      id: m.id,
+      name: m.name,
+      equipment: m.equipment,
+      primaryMuscles: m.primaryMuscles?.slice(0, 2)
+    }))
+  }
+}
+
+// Check if any exercises in a workout are ambiguous and need clarification
+function checkForAmbiguousExercises(exercises) {
+  const resolvedExercises = []
+  const ambiguousExercises = []
+
+  for (const exercise of exercises) {
+    const resolved = resolveExercise(exercise.exerciseName)
+    resolvedExercises.push({ ...exercise, ...resolved })
+
+    if (resolved.isAmbiguous) {
+      ambiguousExercises.push({
+        original: exercise.exerciseName,
+        alternatives: resolved.alternatives
+      })
+    }
+  }
+
+  return { resolvedExercises, ambiguousExercises }
+}
+
+// Format ambiguous exercises into a user-friendly message
+// Only shows ONE exercise at a time to avoid confusion
+function formatAmbiguityMessage(ambiguousExercises, dayName) {
+  // Only show the FIRST ambiguous exercise to avoid confusion
+  const amb = ambiguousExercises[0]
+  const remaining = ambiguousExercises.length - 1
+
+  let message = `I found multiple exercises matching "${amb.original}". Which one did you mean?\n\n`
+
+  amb.alternatives.forEach((alt, i) => {
+    const equipment = alt.equipment ? ` (${alt.equipment})` : ''
+    message += `${i + 1}. ${alt.name}${equipment}\n`
+  })
+
+  message += `\nJust reply with the number (1-${amb.alternatives.length}) or type the equipment type (e.g., "barbell", "dumbbell") to add it to ${dayName}.`
+
+  if (remaining > 0) {
+    message += `\n\n(${remaining} more exercise${remaining > 1 ? 's' : ''} to choose after this)`
+  }
+
+  return message
 }
 
 // Helper function to create a workout for the user
@@ -1051,6 +1552,86 @@ async function createWorkoutForUser(userId, args) {
     return {
       success: false,
       message: 'Failed to create workout: ' + error.message
+    }
+  }
+}
+
+// Remove exercises from a user's schedule
+async function removeExercisesFromSchedule(userId, args) {
+  const { dayOfWeek, removeAll, exercisesToRemove } = args
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+  try {
+    // Get the current schedule for this day
+    const schedule = await prisma.weeklySchedule.findFirst({
+      where: {
+        userId,
+        dayOfWeek
+      },
+      include: { exercises: true }
+    })
+
+    if (!schedule) {
+      return {
+        success: false,
+        message: `No workout found for ${dayNames[dayOfWeek]}`
+      }
+    }
+
+    if (removeAll) {
+      // Delete all exercises from this day
+      await prisma.scheduledExercise.deleteMany({
+        where: { weeklyScheduleId: schedule.id }
+      })
+
+      return {
+        success: true,
+        dayName: dayNames[dayOfWeek],
+        removedCount: schedule.exercises.length,
+        message: `Removed all ${schedule.exercises.length} exercises from ${dayNames[dayOfWeek]}`
+      }
+    }
+
+    // Find and remove specific exercises
+    const removedExercises = []
+    for (const exerciseName of exercisesToRemove) {
+      const normalizedName = exerciseName.toLowerCase().trim()
+
+      // Find matching exercises (fuzzy match)
+      const matchingExercises = schedule.exercises.filter(e => {
+        const schedName = e.exerciseName.toLowerCase()
+        return schedName === normalizedName ||
+               schedName.includes(normalizedName) ||
+               normalizedName.includes(schedName)
+      })
+
+      for (const exercise of matchingExercises) {
+        await prisma.scheduledExercise.delete({
+          where: { id: exercise.id }
+        })
+        removedExercises.push(exercise.exerciseName)
+      }
+    }
+
+    if (removedExercises.length === 0) {
+      return {
+        success: false,
+        message: `Could not find "${exercisesToRemove.join(', ')}" in ${dayNames[dayOfWeek]}'s workout`
+      }
+    }
+
+    return {
+      success: true,
+      dayName: dayNames[dayOfWeek],
+      removedExercises,
+      removedCount: removedExercises.length,
+      message: `Removed ${removedExercises.join(', ')} from ${dayNames[dayOfWeek]}`
+    }
+  } catch (error) {
+    console.error('Error removing exercises:', error)
+    return {
+      success: false,
+      message: 'Failed to remove exercises: ' + error.message
     }
   }
 }
@@ -1292,9 +1873,96 @@ function calculateSetSuggestion(lastSets, trainingStyle, setNumber, difficultyFe
         reason = `No change - you rated ${difficultyFeedback}/5 which is ideal`
       }
     } else {
-      // No difficulty feedback - suggest same as last set
-      tip = 'Match your previous set.'
-      reason = `Repeating last set${weight ? ` (${weight}lbs × ${reps})` : ` (${reps} reps)`} - rate difficulty to get adjustments`
+      // No difficulty feedback - provide style-specific guidance
+      if (style === 'BODYBUILDING') {
+        // For bodybuilding, suggest progressive overload strategies
+        const setNum = setNumber || lastSets.length + 1
+        if (setNum <= 2) {
+          // Early sets: suggest slight weight increase or same weight with push for more reps
+          if (weight && reps < range.max) {
+            reps = Math.min(reps + 1, range.max)
+            tip = `Push for ${reps} reps this set - progressive overload builds muscle.`
+            reason = `Set ${setNum}: aiming for +1 rep to drive hypertrophy`
+          } else {
+            tip = 'Focus on controlled tempo and mind-muscle connection.'
+            reason = `Set ${setNum}: maintain intensity with good form`
+          }
+        } else if (setNum === 3) {
+          // Set 3: this is often the "money set" for hypertrophy
+          tip = 'This is your working set - push close to failure with good form.'
+          reason = `Set ${setNum}: maximize muscle tension for growth`
+        } else {
+          // Later sets (4+): fatigue sets in, maintain or slight reduction
+          if (reps > range.min) {
+            tip = `Maintain weight, aim for ${reps} reps. Drop to ${reps - 1} if needed.`
+            reason = `Set ${setNum}: accumulate volume even as fatigue builds`
+          } else {
+            tip = 'Maintain intensity - every rep counts for muscle growth.'
+            reason = `Set ${setNum}: finishing strong`
+          }
+        }
+      } else if (style === 'POWERLIFTING' || style === 'STRENGTH') {
+        // For strength/powerlifting, rest well and maintain heavy weight
+        const setNum = setNumber || lastSets.length + 1
+        if (setNum === 1) {
+          tip = 'First working set - focus on technique and bar speed.'
+          reason = `Set ${setNum}: establish your groove for the heavy sets`
+        } else if (setNum <= 3) {
+          tip = 'Rest fully (3-5 min) and maintain your working weight.'
+          reason = `Set ${setNum}: quality reps at heavy weight matter more than speed`
+        } else {
+          // Later sets - fatigue management
+          tip = 'Maintain weight if form is solid. Drop 5-10% if bar speed slows.'
+          reason = `Set ${setNum}: prioritize technique over grinding reps`
+        }
+      } else if (style === 'ENDURANCE') {
+        // For endurance, focus on maintaining pace and building stamina
+        const setNum = setNumber || lastSets.length + 1
+        if (setNum === 1) {
+          tip = 'Start at a sustainable pace - save energy for later sets.'
+          reason = `Set ${setNum}: building endurance requires consistent effort across all sets`
+        } else if (reps < range.max) {
+          // Push for more reps within the endurance range
+          reps = Math.min(reps + 2, range.max)
+          tip = `Try for ${reps} reps - build your stamina progressively.`
+          reason = `Set ${setNum}: increasing reps builds muscular endurance`
+        } else {
+          tip = 'Keep the pace steady. Focus on breathing and rhythm.'
+          reason = `Set ${setNum}: maintain high rep output for endurance adaptation`
+        }
+      } else if (style === 'ATHLETIC') {
+        // For athletic training, focus on power and explosiveness
+        const setNum = setNumber || lastSets.length + 1
+        if (setNum === 1) {
+          tip = 'Focus on explosive movement - speed matters more than weight.'
+          reason = `Set ${setNum}: prime your nervous system for power output`
+        } else if (setNum <= 3) {
+          tip = 'Rest 2-3 min between sets. Maintain explosiveness.'
+          reason = `Set ${setNum}: athletic training requires quality power output each set`
+        } else {
+          // Later sets - maintain quality
+          if (reps > range.min) {
+            tip = `Keep it explosive. Drop to ${reps - 1} reps if power fades.`
+            reason = `Set ${setNum}: sloppy reps don't build athletic power`
+          } else {
+            tip = 'Maintain explosive intent on every rep.'
+            reason = `Set ${setNum}: finish with quality movement`
+          }
+        }
+      } else {
+        // GENERAL - balanced guidance for general fitness
+        const setNum = setNumber || lastSets.length + 1
+        if (setNum === 1) {
+          tip = 'First set - find a challenging but manageable weight.'
+          reason = `Set ${setNum}: establish your working weight for today`
+        } else if (setNum <= 3) {
+          tip = 'Maintain your weight. Rate difficulty to get personalized adjustments.'
+          reason = `Set ${setNum}: consistent effort builds fitness`
+        } else {
+          tip = 'Push through! Final sets build mental and physical toughness.'
+          reason = `Set ${setNum}: finishing strong matters`
+        }
+      }
     }
   } else {
     // NO history - don't suggest weight, only give rep range guidance

@@ -7,6 +7,7 @@ import { SocialSection } from '../components/SocialCards'
 import WeightTrackingCard from '../components/WeightTrackingCard'
 import { SyncStatus } from '../components/SyncStatus'
 import { useOfflineWorkout } from '../hooks/useOfflineWorkout'
+import ExerciseCatalogModal from '../components/ExerciseCatalogModal'
 
 function Today() {
   const [todayWorkout, setTodayWorkout] = useState(null)
@@ -30,6 +31,7 @@ function Today() {
   const [expandedCompletedWorkout, setExpandedCompletedWorkout] = useState(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showExerciseModal, setShowExerciseModal] = useState(null)
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false)
   const [showHistoryFor, setShowHistoryFor] = useState(null)
   const [userTrainingStyle, setUserTrainingStyle] = useState('GENERAL')
   const [socialSettings, setSocialSettings] = useState(null)

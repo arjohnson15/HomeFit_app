@@ -319,7 +319,7 @@ router.put('/calendar/:id', async (req, res, next) => {
     // Update using a transaction: delete old exercises and create new ones
     const event = await prisma.$transaction(async (tx) => {
       // Delete existing exercises
-      await tx.calendarExercise.deleteMany({
+      await tx.scheduledExercise.deleteMany({
         where: { calendarWorkoutId: req.params.id }
       })
 
