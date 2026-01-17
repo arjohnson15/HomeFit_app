@@ -152,7 +152,7 @@ export const useOfflineWorkout = () => {
   const logExerciseOfflineFirst = useCallback(async (sessionId, exerciseId, exerciseName) => {
     const realSessionId = getRealId(sessionId)
 
-    if (isOnline && !sessionId.toString().startsWith('temp_')) {
+    if (isOnline && sessionId && !sessionId.toString().startsWith('temp_')) {
       try {
         const response = await api.post(`/workouts/${realSessionId}/exercises`, {
           exerciseId,
@@ -175,7 +175,7 @@ export const useOfflineWorkout = () => {
     const realSessionId = getRealId(sessionId)
     const realLogId = getRealId(exerciseLogId)
 
-    if (isOnline && !sessionId.toString().startsWith('temp_') && !exerciseLogId.toString().startsWith('temp_')) {
+    if (isOnline && sessionId && exerciseLogId && !sessionId.toString().startsWith('temp_') && !exerciseLogId.toString().startsWith('temp_')) {
       try {
         const response = await api.post(
           `/workouts/${realSessionId}/exercises/${realLogId}/sets`,
@@ -197,7 +197,7 @@ export const useOfflineWorkout = () => {
   const togglePauseOfflineFirst = useCallback(async (sessionId, isPaused, elapsedTime) => {
     const realSessionId = getRealId(sessionId)
 
-    if (isOnline && !sessionId.toString().startsWith('temp_')) {
+    if (isOnline && sessionId && !sessionId.toString().startsWith('temp_')) {
       try {
         const response = await api.post(`/workouts/${realSessionId}/pause`)
         return { success: true, workout: response.data, offline: false }
@@ -216,7 +216,7 @@ export const useOfflineWorkout = () => {
   const endWorkoutOfflineFirst = useCallback(async (sessionId, completionData) => {
     const realSessionId = getRealId(sessionId)
 
-    if (isOnline && !sessionId.toString().startsWith('temp_')) {
+    if (isOnline && sessionId && !sessionId.toString().startsWith('temp_')) {
       try {
         await api.patch(`/workouts/${realSessionId}`, completionData)
         await setOfflineSession(null)
@@ -236,7 +236,7 @@ export const useOfflineWorkout = () => {
   const cancelWorkoutOfflineFirst = useCallback(async (sessionId) => {
     const realSessionId = getRealId(sessionId)
 
-    if (isOnline && !sessionId.toString().startsWith('temp_')) {
+    if (isOnline && sessionId && !sessionId.toString().startsWith('temp_')) {
       try {
         await api.post('/workouts/cleanup-orphaned')
         await setOfflineSession(null)
