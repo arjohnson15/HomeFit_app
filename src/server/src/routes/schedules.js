@@ -298,6 +298,58 @@ router.post('/calendar', async (req, res, next) => {
   }
 })
 
+// PUT /api/schedules/calendar/:id - Update calendar event
+router.put('/calendar/:id', async (req, res, next) => {
+  try {
+    const { name, exercises } = req.body
+
+    // Verify ownership
+    const existing = await prisma.calendarWorkout.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Calendar workout not found' })
+    }
+
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' })
+    }
+
+    // Update using a transaction: delete old exercises and create new ones
+    const event = await prisma.$transaction(async (tx) => {
+      // Delete existing exercises
+      await tx.calendarExercise.deleteMany({
+        where: { calendarWorkoutId: req.params.id }
+      })
+
+      // Update the calendar workout with new exercises
+      return tx.calendarWorkout.update({
+        where: { id: req.params.id },
+        data: {
+          name,
+          exercises: {
+            create: exercises.map((e, i) => ({
+              exerciseId: e.exerciseId,
+              exerciseName: e.exerciseName,
+              sets: e.sets,
+              reps: e.reps,
+              order: i
+            }))
+          }
+        },
+        include: {
+          exercises: true
+        }
+      })
+    })
+
+    res.json({ event })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // DELETE /api/schedules/calendar/:id
 router.delete('/calendar/:id', async (req, res, next) => {
   try {
