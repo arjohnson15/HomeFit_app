@@ -248,43 +248,66 @@ function Today() {
   // Fetch today's workout and check for active session
   useEffect(() => {
     // Restore exercise logs with workout context for proper matching
+    // Returns { logs, adhocExercises } where adhocExercises are exercises not in the schedule
     const restoreExerciseLogsFromActive = (active, workout, logs) => {
-      if (!active?.exerciseLogs?.length) return logs
+      if (!active?.exerciseLogs?.length) return { logs, adhocExercises: [] }
 
       const updated = { ...logs }
+      const adhocExercises = []
+
       active.exerciseLogs.forEach(log => {
         // Find the scheduled exercise that matches this log's exerciseId
         const matchingExercise = workout?.exercises?.find(ex => ex.exerciseId === log.exerciseId)
         const matchingKey = matchingExercise?.id
 
+        // Restore all logged sets, including any that were dynamically added
+        const restoredSets = log.sets.map(loggedSet => ({
+          setNumber: loggedSet.setNumber,
+          reps: loggedSet.reps?.toString() || '',
+          weight: loggedSet.weight?.toString() || '',
+          completed: true,
+          isPR: loggedSet.isPR || false,
+          difficulty: null
+        }))
+        // Add an empty set at the end for the next entry
+        restoredSets.push({
+          setNumber: restoredSets.length + 1,
+          reps: '',
+          weight: '',
+          completed: false,
+          isPR: false,
+          difficulty: null
+        })
+
         if (matchingKey && updated[matchingKey]) {
-          // Restore all logged sets, including any that were dynamically added
-          const restoredSets = log.sets.map(loggedSet => ({
-            setNumber: loggedSet.setNumber,
-            reps: loggedSet.reps?.toString() || '',
-            weight: loggedSet.weight?.toString() || '',
-            completed: true,
-            isPR: loggedSet.isPR || false,
-            difficulty: null
-          }))
-          // Add an empty set at the end for the next entry
-          restoredSets.push({
-            setNumber: restoredSets.length + 1,
-            reps: '',
-            weight: '',
-            completed: false,
-            isPR: false,
-            difficulty: null
-          })
+          // Exercise is in the schedule - update its log
           updated[matchingKey] = {
             ...updated[matchingKey],
             logId: log.id,
             sets: restoredSets,
             completed: false // Still in progress
           }
+        } else {
+          // Exercise is NOT in the schedule - it's an ad-hoc exercise
+          const adhocId = `adhoc-restored-${log.id}`
+          adhocExercises.push({
+            id: adhocId,
+            exerciseId: log.exerciseId,
+            exerciseName: log.exerciseName,
+            sets: 3,
+            reps: '8-12',
+            isAdhoc: true
+          })
+          updated[adhocId] = {
+            completed: false,
+            logId: log.id,
+            targetSets: 3,
+            isAdhoc: true,
+            sets: restoredSets
+          }
         }
       })
-      return updated
+      return { logs: updated, adhocExercises }
     }
 
     const fetchUserProfile = async () => {
@@ -412,7 +435,17 @@ function Today() {
           }
 
           // Restore logs with proper matching using workout context
-          logs = restoreExerciseLogsFromActive(active, workout, logs)
+          const restored = restoreExerciseLogsFromActive(active, workout, logs)
+          logs = restored.logs
+
+          // If there are ad-hoc exercises (not in schedule), add them to the workout display
+          if (restored.adhocExercises.length > 0) {
+            workout = {
+              ...workout,
+              exercises: [...(workout?.exercises || []), ...restored.adhocExercises]
+            }
+            setTodayWorkout(workout)
+          }
         }
       } catch (error) {
         console.error('Error checking active workout:', error)
