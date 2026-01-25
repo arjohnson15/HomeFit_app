@@ -174,34 +174,58 @@ function Social() {
           </div>
           <div className="space-y-2">
             {requests.map((request) => (
-              <div key={request.id} className="flex items-center gap-3 bg-dark-elevated p-3 rounded-xl">
-                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
-                  {getInitials(request.user?.name)}
+              <div key={request.id} className="bg-dark-elevated p-3 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium flex-shrink-0">
+                    {getInitials(request.user?.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm sm:text-base">
+                      {request.user?.name || 'Unknown'}
+                    </p>
+                    <p className="text-gray-400 text-xs sm:text-sm">
+                      @{request.user?.username || 'user'}
+                    </p>
+                  </div>
+                  {/* Desktop: buttons inline */}
+                  <div className="hidden sm:flex gap-2">
+                    <button
+                      onClick={() => handleRequest(request.id, 'accept')}
+                      className="p-2 rounded-lg bg-accent text-white"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleRequest(request.id, 'reject')}
+                      className="p-2 rounded-lg bg-dark-card text-gray-400"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium truncate">
-                    {request.user?.name || 'Unknown'}
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    @{request.user?.username || 'user'}
-                  </p>
-                </div>
-                <div className="flex gap-2">
+                {/* Mobile: buttons on separate row */}
+                <div className="flex sm:hidden justify-end gap-2 mt-2">
                   <button
                     onClick={() => handleRequest(request.id, 'accept')}
-                    className="p-2 rounded-lg bg-accent text-white"
+                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm flex items-center gap-1"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
+                    Accept
                   </button>
                   <button
                     onClick={() => handleRequest(request.id, 'reject')}
-                    className="p-2 rounded-lg bg-dark-card text-gray-400"
+                    className="px-3 py-1.5 rounded-lg bg-dark-card text-gray-400 text-sm flex items-center gap-1"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
+                    Decline
                   </button>
                 </div>
               </div>
@@ -282,39 +306,67 @@ function Social() {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        className="flex items-center gap-3 cursor-pointer"
-                        onClick={() => navigate(`/friend/${friend.id}`)}
-                      >
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium text-sm sm:text-base flex-shrink-0">
-                          {getInitials(friend.name)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-medium text-sm sm:text-base truncate">{friend.name}</h3>
-                          <p className="text-gray-400 text-xs sm:text-sm truncate">@{friend.username || 'user'}</p>
-                          <p className="text-gray-500 text-xs sm:hidden">{friend.workoutCount || 0} workouts • {friend.streak || 0} day streak</p>
-                        </div>
-                        <div className="hidden sm:block text-right text-sm flex-shrink-0">
-                          <p className="text-white">{friend.workoutCount || 0} workouts</p>
-                          <p className="text-gray-500">{friend.streak || 0} day streak</p>
-                        </div>
-                        <FollowButton
-                          friendId={friend.id}
-                          initialFollowing={friend.isFollowing}
-                          size="small"
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setConfirmUnfriend(friend.id)
-                          }}
-                          className="p-1.5 sm:p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
-                          title="Remove friend"
+                      <div className="space-y-2">
+                        {/* Main row - avatar, name, and buttons on desktop */}
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => navigate(`/friend/${friend.id}`)}
                         >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-                          </svg>
-                        </button>
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium text-sm sm:text-base flex-shrink-0">
+                            {getInitials(friend.name)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-medium text-sm sm:text-base">{friend.name}</h3>
+                            <p className="text-gray-400 text-xs sm:text-sm">@{friend.username || 'user'}</p>
+                          </div>
+                          {/* Desktop: stats and buttons inline */}
+                          <div className="hidden sm:flex items-center gap-3">
+                            <div className="text-right text-sm flex-shrink-0">
+                              <p className="text-white">{friend.workoutCount || 0} workouts</p>
+                              <p className="text-gray-500">{friend.streak || 0} day streak</p>
+                            </div>
+                            <FollowButton
+                              friendId={friend.id}
+                              initialFollowing={friend.isFollowing}
+                              size="small"
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setConfirmUnfriend(friend.id)
+                              }}
+                              className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
+                              title="Remove friend"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        {/* Mobile: stats and buttons on separate row */}
+                        <div className="flex sm:hidden items-center justify-between pl-13">
+                          <p className="text-gray-500 text-xs">{friend.workoutCount || 0} workouts • {friend.streak || 0} day streak</p>
+                          <div className="flex items-center gap-2">
+                            <FollowButton
+                              friendId={friend.id}
+                              initialFollowing={friend.isFollowing}
+                              size="small"
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setConfirmUnfriend(friend.id)
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Remove friend"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
