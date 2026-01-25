@@ -99,6 +99,7 @@ function Catalog() {
       try {
         const response = await api.get('/users/me')
         const apiEquipment = response.data.user?.settings?.availableEquipment || []
+        console.log('[Catalog] API equipment:', apiEquipment)
         if (apiEquipment.length > 0) {
           setUserEquipment(apiEquipment)
           // Sync to localStorage if it was missing
@@ -108,9 +109,11 @@ function Catalog() {
             settings.equipmentAccess = apiEquipment
             localStorage.setItem('trainingSettings', JSON.stringify(settings))
           }
+        } else {
+          console.log('[Catalog] No equipment in API, localStorage had:', localEquipment)
         }
       } catch (error) {
-        // API failed, stick with localStorage data
+        console.log('[Catalog] API error loading equipment:', error.message)
       }
     }
     loadEquipmentFromAPI()
