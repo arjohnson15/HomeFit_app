@@ -193,22 +193,24 @@ function TrainingSettings() {
       setSettings(prev => ({ ...prev, ...merged }))
     }
 
-    // Auto-sync equipment to server if localStorage has it but server doesn't
+    // Auto-sync equipment to server if localStorage has more equipment
     const syncEquipmentToServer = async () => {
       try {
         const response = await api.get('/users/me')
         const serverEquipment = response.data.user?.settings?.availableEquipment || []
         const localEquipment = merged.equipmentAccess || []
 
-        // If localStorage has equipment but server doesn't, sync it
-        if (localEquipment.length > 0 && serverEquipment.length === 0) {
+        console.log('[TrainingSettings] Server equipment:', serverEquipment.length, 'Local equipment:', localEquipment.length)
+
+        // If localStorage has more equipment than server, sync it (local is source of truth on desktop)
+        if (localEquipment.length > serverEquipment.length) {
           console.log('[TrainingSettings] Syncing equipment to server:', localEquipment)
           await api.put('/users/settings', {
             availableEquipment: localEquipment
           })
         }
       } catch (error) {
-        // Ignore sync errors
+        console.log('[TrainingSettings] Sync error:', error.message)
       }
     }
     syncEquipmentToServer()
