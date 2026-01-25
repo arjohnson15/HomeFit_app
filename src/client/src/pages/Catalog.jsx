@@ -66,6 +66,8 @@ function Catalog() {
   const [offset, setOffset] = useState(0)
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [myEquipmentOnly, setMyEquipmentOnly] = useState(false)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState(new Set())
   const [userEquipment, setUserEquipment] = useState([])
   const [equipmentSearch, setEquipmentSearch] = useState('')
   const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false)
@@ -92,6 +94,18 @@ function Catalog() {
       }
     }
     fetchFilters()
+
+    // Load user's favorite exercise IDs
+    const loadFavorites = async () => {
+      try {
+        const response = await api.get('/exercises/favorites')
+        const ids = new Set(response.data.exercises?.map(e => e.id) || [])
+        setFavoriteIds(ids)
+      } catch (error) {
+        console.log('Could not load favorites')
+      }
+    }
+    loadFavorites()
   }, [])
 
   // Get equipment filter from user's selected equipment
@@ -123,32 +137,46 @@ function Catalog() {
       if (selectedLevel) params.append('level', selectedLevel)
 
       const response = await api.get(`/exercises?${params}`)
-      setExercises(response.data.exercises)
-      setTotal(response.data.total)
+      let fetchedExercises = response.data.exercises
+      let fetchedTotal = response.data.total
 
-      // Load nicknames for these exercises
-      const exerciseIds = response.data.exercises.map(e => e.id)
+      // Load nicknames and favorites for these exercises
+      const exerciseIds = fetchedExercises.map(e => e.id)
       if (exerciseIds.length > 0) {
         try {
           const prefsResponse = await api.post('/exercises/preferences/batch', { ids: exerciseIds })
           const nicknames = {}
+          const favIds = new Set(favoriteIds) // Start with existing favorites
           prefsResponse.data.preferences?.forEach(pref => {
             if (pref.nickname) {
               nicknames[pref.exerciseId] = pref.nickname
             }
+            if (pref.isFavorite) {
+              favIds.add(pref.exerciseId)
+            }
           })
           setExerciseNicknames(prev => ({ ...prev, ...nicknames }))
+          setFavoriteIds(favIds)
         } catch (err) {
           // Preferences endpoint might fail if db not migrated, continue without nicknames
           console.log('Could not load exercise preferences')
         }
       }
+
+      // Filter to favorites only if enabled
+      if (favoritesOnly) {
+        fetchedExercises = fetchedExercises.filter(e => favoriteIds.has(e.id))
+        fetchedTotal = fetchedExercises.length
+      }
+
+      setExercises(fetchedExercises)
+      setTotal(fetchedTotal)
     } catch (error) {
       console.error('Error fetching exercises:', error)
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -156,7 +184,7 @@ function Catalog() {
       fetchExercises()
     }, 300)
     return () => clearTimeout(debounce)
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly, favoritesOnly])
 
   useEffect(() => {
     fetchExercises()
@@ -251,6 +279,31 @@ function Catalog() {
           >
             <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
               myEquipmentOnly ? 'translate-x-6' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+      )}
+
+      {/* Favorites Only Toggle */}
+      {favoriteIds.size > 0 && (
+        <div className="flex items-center justify-between bg-dark-card rounded-xl p-3">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-yellow-400" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            <div>
+              <p className="text-white text-sm font-medium">My Favorites Only</p>
+              <p className="text-gray-500 text-xs">Show only exercises I've starred ({favoriteIds.size})</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFavoritesOnly(!favoritesOnly)}
+            className={`w-12 h-7 rounded-full transition-colors relative ${
+              favoritesOnly ? 'bg-yellow-400' : 'bg-dark-elevated'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+              favoritesOnly ? 'translate-x-6' : 'translate-x-1'
             }`} />
           </button>
         </div>
@@ -440,6 +493,17 @@ function Catalog() {
               [exerciseId]: newNickname || undefined
             }))
           }}
+          onFavoriteChange={(exerciseId, isFavorite) => {
+            setFavoriteIds(prev => {
+              const newSet = new Set(prev)
+              if (isFavorite) {
+                newSet.add(exerciseId)
+              } else {
+                newSet.delete(exerciseId)
+              }
+              return newSet
+            })
+          }}
         />
       )}
 
@@ -450,7 +514,7 @@ function Catalog() {
 }
 
 // Exercise Detail Modal Component
-function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated, onNicknameChange }) {
+function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated, onNicknameChange, onFavoriteChange }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [notes, setNotes] = useState('')
   const [nickname, setNickname] = useState('')
@@ -537,6 +601,10 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated, on
     setIsFavorite(newValue)
     try {
       await api.put(`/exercises/${exercise.id}/favorite`, { isFavorite: newValue })
+      // Notify parent to update favoriteIds
+      if (onFavoriteChange) {
+        onFavoriteChange(exercise.id, newValue)
+      }
     } catch (error) {
       setIsFavorite(!newValue) // Revert on error
       console.error('Error toggling favorite:', error)
