@@ -167,16 +167,43 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const limit = 20
 
-  // Load user equipment from localStorage and favorite IDs on mount
+  // Load user equipment from localStorage and API, favorite IDs on mount
   useEffect(() => {
-    // Load user's equipment settings
+    // Load user's equipment settings from localStorage first
+    let localEquipment = []
     const savedTraining = localStorage.getItem('trainingSettings')
     if (savedTraining) {
-      const parsed = JSON.parse(savedTraining)
-      if (parsed.equipmentAccess) {
-        setUserEquipment(parsed.equipmentAccess)
+      try {
+        const parsed = JSON.parse(savedTraining)
+        if (parsed.equipmentAccess && parsed.equipmentAccess.length > 0) {
+          localEquipment = parsed.equipmentAccess
+          setUserEquipment(localEquipment)
+        }
+      } catch (e) {
+        console.log('Could not parse training settings')
       }
     }
+
+    // Also fetch from API as fallback (for PWA where localStorage might be out of sync)
+    const loadEquipmentFromAPI = async () => {
+      try {
+        const response = await api.get('/users/me')
+        const apiEquipment = response.data.user?.settings?.availableEquipment || []
+        if (apiEquipment.length > 0) {
+          setUserEquipment(apiEquipment)
+          // Sync to localStorage if it was missing
+          if (localEquipment.length === 0) {
+            const existing = localStorage.getItem('trainingSettings')
+            const settings = existing ? JSON.parse(existing) : {}
+            settings.equipmentAccess = apiEquipment
+            localStorage.setItem('trainingSettings', JSON.stringify(settings))
+          }
+        }
+      } catch (error) {
+        // API failed, stick with localStorage data
+      }
+    }
+    loadEquipmentFromAPI()
 
     const fetchFilters = async () => {
       try {
