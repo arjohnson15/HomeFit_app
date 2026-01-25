@@ -134,7 +134,7 @@ async function getUserContext(userId) {
           dietaryGoal: true,
           dailyCalorieGoal: true,
           dailyProteinGoal: true,
-          dailyCarbGoal: true,
+          dailyCarbsGoal: true,
           dailyFatGoal: true
         }
       }
@@ -270,7 +270,7 @@ async function getUserContext(userId) {
       goal: user.settings?.dietaryGoal,
       dailyCalories: user.settings?.dailyCalorieGoal,
       dailyProtein: user.settings?.dailyProteinGoal,
-      dailyCarbs: user.settings?.dailyCarbGoal,
+      dailyCarbs: user.settings?.dailyCarbsGoal,
       dailyFat: user.settings?.dailyFatGoal,
       recentLogs: recentNutrition
     },
