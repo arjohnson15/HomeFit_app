@@ -46,7 +46,73 @@ router.get('/profile', async (req, res, next) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       include: {
-        settings: true,
+        // Explicitly select settings fields that exist in database
+        // Excludes: reminderPersonality, reminderFrequency, reminderTime, reminderDaysInactive, enableFunnyReminders
+        settings: {
+          select: {
+            id: true,
+            userId: true,
+            showRestTimer: true,
+            defaultRestTime: true,
+            showSuggestions: true,
+            weightUnit: true,
+            distanceUnit: true,
+            aiWorkoutSuggestions: true,
+            aiFormTips: true,
+            aiNutritionAdvice: true,
+            aiProgressAnalysis: true,
+            aiModel: true,
+            aiProvider: true,
+            ollamaEndpoint: true,
+            ollamaModel: true,
+            ollamaApiKey: true,
+            showWarmupSuggestions: true,
+            showCooldownSuggestions: true,
+            warmupDefaultOn: true,
+            cooldownDefaultOn: true,
+            useAiForWarmups: true,
+            showWeightTracking: true,
+            weightTrackingDefaultOn: true,
+            showDailyTips: true,
+            dismissedTipsToday: true,
+            lastTipDismissDate: true,
+            workoutReminders: true,
+            socialNotifications: true,
+            notifyByEmail: true,
+            notifyBySms: true,
+            notifyByPush: true,
+            phoneNumber: true,
+            phoneCarrier: true,
+            shareProgress: true,
+            shareWorkouts: true,
+            shareMeals: true,
+            profileVisibility: true,
+            showOnLeaderboard: true,
+            showSocialSection: true,
+            showFriendsWorkoutsToday: true,
+            showFriendsPRsToday: true,
+            showFriendsStreaks: true,
+            showFriendsAchievements: true,
+            showGlobalLeaderboard: true,
+            hasCompletedOnboarding: true,
+            dailyCalorieGoal: true,
+            dailyProteinGoal: true,
+            dailyCarbsGoal: true,
+            dailyFatGoal: true,
+            mealReminders: true,
+            nutritionTrackingMode: true,
+            showDetailedMacros: true,
+            showDailyGoals: true,
+            enableFoodLogging: true,
+            dietaryGoal: true,
+            dietaryPreference: true,
+            allergies: true,
+            preferredProteins: true,
+            dislikedFoods: true,
+            availableEquipment: true,
+            gymType: true
+          }
+        },
         _count: {
           select: {
             workoutSessions: true,
@@ -527,7 +593,22 @@ router.get('/:userId/profile', async (req, res, next) => {
     if (userId === requesterId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { settings: true, stats: true }
+        include: {
+          settings: {
+            select: {
+              id: true,
+              weightUnit: true,
+              distanceUnit: true,
+              shareProgress: true,
+              shareWorkouts: true,
+              shareMeals: true,
+              profileVisibility: true,
+              showOnLeaderboard: true,
+              hasCompletedOnboarding: true
+            }
+          },
+          stats: true
+        }
       })
 
       const achievements = await prisma.userAchievement.findMany({

@@ -31,7 +31,7 @@ class FollowNotificationService {
         },
         include: {
           follower: {
-            include: { settings: true }
+            include: { settings: { select: { socialNotifications: true } } }
           }
         }
       })
@@ -96,7 +96,7 @@ class FollowNotificationService {
         },
         include: {
           follower: {
-            include: { settings: true }
+            include: { settings: { select: { socialNotifications: true } } }
           }
         }
       })
@@ -161,7 +161,7 @@ class FollowNotificationService {
         },
         include: {
           follower: {
-            include: { settings: true }
+            include: { settings: { select: { socialNotifications: true } } }
           }
         }
       })

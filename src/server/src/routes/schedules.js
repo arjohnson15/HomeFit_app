@@ -718,9 +718,16 @@ router.get('/warmup-suggestions', async (req, res, next) => {
   try {
     const mappings = loadMappings()
 
-    // Get user settings
+    // Get user settings - only select fields that exist in database
     const settings = await prisma.userSettings.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: req.user.id },
+      select: {
+        showWarmupSuggestions: true,
+        warmupDefaultOn: true,
+        useAiForWarmups: true,
+        dismissedTipsToday: true,
+        lastTipDismissDate: true
+      }
     })
 
     // Check if warmup suggestions are enabled
@@ -876,9 +883,16 @@ router.get('/cooldown-suggestions', async (req, res, next) => {
   try {
     const mappings = loadMappings()
 
-    // Get user settings
+    // Get user settings - only select fields that exist in database
     const settings = await prisma.userSettings.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: req.user.id },
+      select: {
+        showCooldownSuggestions: true,
+        cooldownDefaultOn: true,
+        useAiForWarmups: true,
+        dismissedTipsToday: true,
+        lastTipDismissDate: true
+      }
     })
 
     // Check if cooldown suggestions are enabled
@@ -1041,9 +1055,13 @@ router.post('/dismiss-tip', async (req, res, next) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Get current settings
+    // Get current settings - only select fields that exist in database
     const settings = await prisma.userSettings.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: req.user.id },
+      select: {
+        dismissedTipsToday: true,
+        lastTipDismissDate: true
+      }
     })
 
     // Check if we need to reset dismissals (new day)

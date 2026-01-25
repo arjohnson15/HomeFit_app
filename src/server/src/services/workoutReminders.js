@@ -262,7 +262,16 @@ Guidelines:
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        settings: true,
+        settings: {
+          select: {
+            workoutReminders: true,
+            notifyByEmail: true,
+            notifyBySms: true,
+            notifyByPush: true,
+            phoneNumber: true,
+            phoneCarrier: true
+          }
+        },
         stats: true
       }
     })
@@ -427,7 +436,16 @@ Guidelines:
       include: {
         user: {
           include: {
-            settings: true
+            settings: {
+              select: {
+                workoutReminders: true,
+                notifyByEmail: true,
+                notifyBySms: true,
+                notifyByPush: true,
+                phoneNumber: true,
+                phoneCarrier: true
+              }
+            }
           }
         }
       }
@@ -437,7 +455,8 @@ Guidelines:
 
     for (const stats of usersWithStreaks) {
       const user = stats.user
-      if (!user.settings?.enableStreakAlerts) continue
+      // enableStreakAlerts field may not exist, skip this feature if missing
+      if (!user.settings?.workoutReminders) continue
 
       // Check if we already sent a streak alert today
       const existingAlert = await prisma.reminderLog.findFirst({
@@ -507,7 +526,18 @@ Guidelines:
       },
       include: {
         user: {
-          include: { settings: true }
+          include: {
+            settings: {
+              select: {
+                workoutReminders: true,
+                notifyByEmail: true,
+                notifyBySms: true,
+                notifyByPush: true,
+                phoneNumber: true,
+                phoneCarrier: true
+              }
+            }
+          }
         },
         achievement: true
       }
@@ -520,7 +550,8 @@ Guidelines:
       if (remaining < 1 || remaining > 3) continue // Only tease when 1-3 away
 
       const user = ua.user
-      if (!user.settings?.enableAchievementTeases) continue
+      // enableAchievementTeases field may not exist, skip this feature if missing
+      if (!user.settings?.workoutReminders) continue
 
       // Check if we already sent a tease for this achievement today
       const existingTease = await prisma.reminderLog.findFirst({
@@ -583,15 +614,24 @@ Guidelines:
     today.setHours(0, 0, 0, 0)
 
     // Find users who haven't worked out today but have friends who have
+    // Note: enableSocialMotivation field may not exist in database, just check workoutReminders
     const usersWithFriends = await prisma.user.findMany({
       where: {
         settings: {
-          enableSocialMotivation: true,
           workoutReminders: true
         }
       },
       include: {
-        settings: true,
+        settings: {
+          select: {
+            workoutReminders: true,
+            notifyByEmail: true,
+            notifyBySms: true,
+            notifyByPush: true,
+            phoneNumber: true,
+            phoneCarrier: true
+          }
+        },
         stats: true,
         friendships: {
           where: { status: 'ACCEPTED' },

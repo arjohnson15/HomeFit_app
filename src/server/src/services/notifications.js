@@ -211,10 +211,20 @@ class NotificationService {
     const { title, body, html, url } = notification
 
     try {
-      // Get user settings
+      // Get user settings - only select fields that exist in database
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { settings: true }
+        include: {
+          settings: {
+            select: {
+              notifyByEmail: true,
+              notifyBySms: true,
+              notifyByPush: true,
+              phoneNumber: true,
+              phoneCarrier: true
+            }
+          }
+        }
       })
 
       if (!user) {
