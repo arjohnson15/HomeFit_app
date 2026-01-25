@@ -60,6 +60,7 @@ function Today() {
   const [showEditTimer, setShowEditTimer] = useState(false) // Edit timer modal
   const [editedTime, setEditedTime] = useState({ hours: 0, minutes: 0 }) // For editing elapsed time
   const [lastTimerCheck, setLastTimerCheck] = useState(0) // Track when we last prompted
+  const [exerciseNicknames, setExerciseNicknames] = useState({}) // User's personal nicknames for exercises
   const timerRef = useRef(null)
   const restTimerRef = useRef(null)
   const isRemoteUpdateRef = useRef(false) // Track if update is from another tab/device
@@ -582,6 +583,43 @@ function Today() {
       }
       console.error('Error fetching exercise details:', error)
     }
+  }
+
+  // Load nicknames for exercises in today's workout and recurring workouts
+  useEffect(() => {
+    const loadNicknames = async () => {
+      const exerciseIds = new Set()
+
+      // Add exercise IDs from today's workout
+      todayWorkout?.exercises?.forEach(e => exerciseIds.add(e.exerciseId))
+
+      // Add exercise IDs from recurring workouts
+      recurringWorkouts?.forEach(rw => {
+        rw.exercises?.forEach(e => exerciseIds.add(e.exerciseId))
+      })
+
+      if (exerciseIds.size === 0) return
+
+      try {
+        const response = await api.post('/exercises/preferences/batch', { ids: Array.from(exerciseIds) })
+        const nicknameMap = {}
+        response.data.preferences?.forEach(p => {
+          if (p.nickname) {
+            nicknameMap[p.exerciseId] = p.nickname
+          }
+        })
+        setExerciseNicknames(nicknameMap)
+      } catch (error) {
+        console.error('Error loading nicknames:', error)
+      }
+    }
+    loadNicknames()
+  }, [todayWorkout?.exercises, recurringWorkouts])
+
+  // Get display name for an exercise (nickname or original name)
+  const getDisplayName = (exercise) => {
+    const nickname = exerciseNicknames[exercise.exerciseId]
+    return nickname || exercise.exerciseName
   }
 
   // Auto-fill sets from last session's data
@@ -2009,8 +2047,11 @@ function Today() {
                             {/* Exercise Info */}
                             <div className="flex-1 min-w-0">
                               <h4 className={`font-medium text-sm truncate ${log.completed ? 'text-gray-400 line-through' : 'text-white'}`}>
-                                {ex.exerciseName}
+                                {exerciseNicknames[ex.exerciseId] || ex.exerciseName}
                               </h4>
+                              {exerciseNicknames[ex.exerciseId] && (
+                                <p className="text-gray-500 text-xs truncate">{ex.exerciseName}</p>
+                              )}
                               <p className="text-gray-400 text-xs">
                                 {completedSetCount > 0 ? (
                                   <span className="text-success">{completedSetCount} logged</span>
@@ -2235,8 +2276,11 @@ function Today() {
                       {/* Exercise Info */}
                       <div className="flex-1 min-w-0">
                         <h3 className={`font-medium truncate ${log.completed ? 'text-gray-400 line-through' : 'text-white'}`}>
-                          {exercise.exerciseName}
+                          {getDisplayName(exercise)}
                         </h3>
+                        {exerciseNicknames[exercise.exerciseId] && (
+                          <p className="text-gray-500 text-xs truncate">{exercise.exerciseName}</p>
+                        )}
                         <p className="text-gray-400 text-sm">
                           {completedSetCount > 0 ? (
                             <span className="text-success">{completedSetCount} logged</span>

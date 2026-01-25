@@ -423,22 +423,26 @@ function Catalog() {
 function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [notes, setNotes] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [isFavorite, setIsFavorite] = useState(false)
   const [notesSaving, setNotesSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
 
-  // Load existing notes for this exercise
+  // Load existing preferences for this exercise
   useEffect(() => {
-    const loadNotes = async () => {
+    const loadPrefs = async () => {
       try {
         const response = await api.get(`/exercises/${exercise.id}/notes`)
         setNotes(response.data.notes || '')
+        setNickname(response.data.nickname || '')
+        setIsFavorite(response.data.isFavorite || false)
       } catch (error) {
-        // Notes might not exist yet, that's ok
-        console.log('No notes found for exercise')
+        // Preferences might not exist yet, that's ok
+        console.log('No preferences found for exercise')
       }
     }
-    loadNotes()
+    loadPrefs()
   }, [exercise.id])
 
   // Save notes
@@ -452,6 +456,27 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
       console.error('Error saving notes:', error)
     } finally {
       setNotesSaving(false)
+    }
+  }
+
+  // Save nickname
+  const saveNickname = async () => {
+    try {
+      await api.put(`/exercises/${exercise.id}/nickname`, { nickname })
+    } catch (error) {
+      console.error('Error saving nickname:', error)
+    }
+  }
+
+  // Toggle favorite status
+  const toggleFavorite = async () => {
+    const newValue = !isFavorite
+    setIsFavorite(newValue)
+    try {
+      await api.put(`/exercises/${exercise.id}/favorite`, { isFavorite: newValue })
+    } catch (error) {
+      setIsFavorite(!newValue) // Revert on error
+      console.error('Error toggling favorite:', error)
     }
   }
 
@@ -477,6 +502,18 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
         <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between z-10">
           <h2 className="text-xl font-bold text-white truncate pr-4">{exercise.name}</h2>
           <div className="flex items-center gap-2">
+            {/* Favorite Toggle */}
+            <button
+              onClick={toggleFavorite}
+              className={`btn-ghost p-2 transition-colors ${
+                isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
+              }`}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </button>
             {isAdmin && (
               <button
                 onClick={() => setShowEditModal(true)}
@@ -609,6 +646,20 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
               </ol>
             </div>
           )}
+
+          {/* Personal Nickname Section */}
+          <div>
+            <h3 className="text-white font-medium mb-2">My Nickname</h3>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              onBlur={saveNickname}
+              placeholder={exercise.name}
+              className="input w-full text-sm"
+            />
+            <p className="text-gray-500 text-xs mt-1">Give this exercise a personal name (saves automatically)</p>
+          </div>
 
           {/* Personal Notes Section */}
           <div>

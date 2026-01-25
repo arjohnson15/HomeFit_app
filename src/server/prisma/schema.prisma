@@ -478,11 +478,17 @@ model ExerciseNote {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   exerciseId  String   // Reference to exercise from JSON database
-  notes       String   @db.Text
+  notes       String?  @db.Text
+
+  // User personalization
+  nickname    String?              // User's personal name for this exercise
+  isFavorite  Boolean  @default(false)  // Quick access flag
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, exerciseId])
+  @@index([userId, isFavorite])  // Fast favorite lookups
   @@map("exercise_notes")
 }
 

@@ -208,10 +208,77 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-// GET /api/exercises/:id/notes - Get user's notes for an exercise
+// GET /api/exercises/favorites - Get user's favorite exercises
+router.get('/favorites', async (req, res, next) => {
+  try {
+    const favorites = await prisma.exerciseNote.findMany({
+      where: {
+        userId: req.user.id,
+        isFavorite: true
+      },
+      select: {
+        exerciseId: true,
+        nickname: true,
+        notes: true
+      }
+    })
+
+    if (favorites.length === 0) {
+      return res.json({ exercises: [] })
+    }
+
+    // Load full exercise data
+    const allExercises = await loadExercises()
+    const favoriteIds = new Set(favorites.map(f => f.exerciseId))
+    const prefsMap = new Map(favorites.map(f => [f.exerciseId, f]))
+
+    const favoriteExercises = allExercises
+      .filter(ex => favoriteIds.has(ex.id))
+      .map(ex => ({
+        ...ex,
+        displayName: prefsMap.get(ex.id)?.nickname || ex.name,
+        nickname: prefsMap.get(ex.id)?.nickname || null,
+        isFavorite: true,
+        hasNotes: !!prefsMap.get(ex.id)?.notes
+      }))
+
+    res.json({ exercises: favoriteExercises })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/exercises/preferences/batch - Get preferences for multiple exercises
+router.post('/preferences/batch', async (req, res, next) => {
+  try {
+    const { ids } = req.body
+
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({ message: 'ids array required' })
+    }
+
+    const preferences = await prisma.exerciseNote.findMany({
+      where: {
+        userId: req.user.id,
+        exerciseId: { in: ids }
+      },
+      select: {
+        exerciseId: true,
+        nickname: true,
+        isFavorite: true
+      }
+    })
+
+    res.json({ preferences })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/exercises/:id/notes - Get user's preferences for an exercise
 router.get('/:id/notes', async (req, res, next) => {
   try {
-    const note = await prisma.exerciseNote.findUnique({
+    const pref = await prisma.exerciseNote.findUnique({
       where: {
         userId_exerciseId: {
           userId: req.user.id,
@@ -220,7 +287,11 @@ router.get('/:id/notes', async (req, res, next) => {
       }
     })
 
-    res.json({ notes: note?.notes || '' })
+    res.json({
+      notes: pref?.notes || '',
+      nickname: pref?.nickname || null,
+      isFavorite: pref?.isFavorite || false
+    })
   } catch (error) {
     next(error)
   }
@@ -247,6 +318,59 @@ router.put('/:id/notes', async (req, res, next) => {
     })
 
     res.json({ notes: note.notes })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/exercises/:id/nickname - Set user's nickname for an exercise
+router.put('/:id/nickname', async (req, res, next) => {
+  try {
+    const { nickname } = req.body
+    const cleanNickname = nickname?.trim() || null
+
+    const updated = await prisma.exerciseNote.upsert({
+      where: {
+        userId_exerciseId: {
+          userId: req.user.id,
+          exerciseId: req.params.id
+        }
+      },
+      update: { nickname: cleanNickname },
+      create: {
+        userId: req.user.id,
+        exerciseId: req.params.id,
+        nickname: cleanNickname
+      }
+    })
+
+    res.json({ nickname: updated.nickname })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/exercises/:id/favorite - Toggle favorite status for an exercise
+router.put('/:id/favorite', async (req, res, next) => {
+  try {
+    const { isFavorite } = req.body
+
+    const updated = await prisma.exerciseNote.upsert({
+      where: {
+        userId_exerciseId: {
+          userId: req.user.id,
+          exerciseId: req.params.id
+        }
+      },
+      update: { isFavorite: !!isFavorite },
+      create: {
+        userId: req.user.id,
+        exerciseId: req.params.id,
+        isFavorite: !!isFavorite
+      }
+    })
+
+    res.json({ isFavorite: updated.isFavorite })
   } catch (error) {
     next(error)
   }

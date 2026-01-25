@@ -151,6 +151,9 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
   const [offset, setOffset] = useState(0)
   const [selectedExercises, setSelectedExercises] = useState([])
   const [viewingExercise, setViewingExercise] = useState(null)
+  const [activeTab, setActiveTab] = useState('all') // 'all' | 'favorites'
+  const [favorites, setFavorites] = useState([])
+  const [loadingFavorites, setLoadingFavorites] = useState(false)
   const limit = 20
 
   useEffect(() => {
@@ -164,6 +167,25 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
     }
     fetchFilters()
   }, [])
+
+  // Load favorites when tab changes
+  useEffect(() => {
+    if (activeTab === 'favorites') {
+      loadFavorites()
+    }
+  }, [activeTab])
+
+  const loadFavorites = async () => {
+    setLoadingFavorites(true)
+    try {
+      const response = await api.get('/exercises/favorites')
+      setFavorites(response.data.exercises || [])
+    } catch (error) {
+      console.error('Error loading favorites:', error)
+    } finally {
+      setLoadingFavorites(false)
+    }
+  }
 
   const fetchExercises = useCallback(async () => {
     setLoading(true)
@@ -225,179 +247,301 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-dark-border flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-xl font-bold text-white">Add Exercises</h2>
-            <p className="text-gray-400 text-sm">{total.toLocaleString()} exercises available</p>
-          </div>
-          <button onClick={onClose} className="btn-ghost p-2">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="p-4 space-y-3 border-b border-dark-border flex-shrink-0">
-          {/* Search */}
-          <div className="relative">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search exercises..."
-              className="input pl-12 w-full"
-              autoFocus
-            />
+        <div className="p-4 border-b border-dark-border flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-xl font-bold text-white">Add Exercises</h2>
+              <p className="text-gray-400 text-sm">
+                {activeTab === 'favorites'
+                  ? `${favorites.length} favorite${favorites.length !== 1 ? 's' : ''}`
+                  : `${total.toLocaleString()} exercises available`
+                }
+              </p>
+            </div>
+            <button onClick={onClose} className="btn-ghost p-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
-          {/* Muscle Group Pills */}
-          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-            {muscleGroups.map((muscle) => (
-              <button
-                key={muscle.id}
-                onClick={() => setSelectedMuscle(muscle.id)}
-                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
-                  selectedMuscle === muscle.id
-                    ? 'bg-accent text-white'
-                    : 'bg-dark-elevated text-gray-400 hover:text-white'
-                }`}
-              >
-                {muscle.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Additional Filters */}
+          {/* Tabs */}
           <div className="flex gap-2">
-            <select
-              value={selectedEquipment}
-              onChange={(e) => setSelectedEquipment(e.target.value)}
-              className="input flex-1 text-sm"
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'all' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
+              }`}
             >
-              <option value="">All Equipment</option>
-              {filterOptions.equipment?.map(eq => (
-                <option key={eq} value={eq}>{eq}</option>
-              ))}
-            </select>
-            <select
-              value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.value)}
-              className="input flex-1 text-sm"
+              All Exercises
+            </button>
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'favorites' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
+              }`}
             >
-              <option value="">All Levels</option>
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="expert">Expert</option>
-            </select>
+              <svg className="w-4 h-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+              Favorites
+            </button>
           </div>
         </div>
+
+        {/* Search and Filters - Only show for "all" tab */}
+        {activeTab === 'all' && (
+          <div className="p-4 space-y-3 border-b border-dark-border flex-shrink-0">
+            {/* Search */}
+            <div className="relative">
+              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search exercises..."
+                className="input pl-12 w-full"
+                autoFocus
+              />
+            </div>
+
+            {/* Muscle Group Pills */}
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+              {muscleGroups.map((muscle) => (
+                <button
+                  key={muscle.id}
+                  onClick={() => setSelectedMuscle(muscle.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
+                    selectedMuscle === muscle.id
+                      ? 'bg-accent text-white'
+                      : 'bg-dark-elevated text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {muscle.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Additional Filters */}
+            <div className="flex gap-2">
+              <select
+                value={selectedEquipment}
+                onChange={(e) => setSelectedEquipment(e.target.value)}
+                className="input flex-1 text-sm"
+              >
+                <option value="">All Equipment</option>
+                {filterOptions.equipment?.map(eq => (
+                  <option key={eq} value={eq}>{eq}</option>
+                ))}
+              </select>
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="input flex-1 text-sm"
+              >
+                <option value="">All Levels</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Exercise List */}
         <div className="flex-1 overflow-y-auto p-4">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {exercises.map((exercise) => (
-                <div
-                  key={exercise.id}
-                  className={`card flex items-center gap-3 cursor-pointer transition-colors ${
-                    isSelected(exercise.id) ? 'ring-2 ring-accent bg-accent/10' : 'hover:bg-dark-elevated'
-                  }`}
-                  onClick={() => toggleExerciseSelection(exercise)}
-                >
-                  {/* Checkbox */}
-                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    isSelected(exercise.id) ? 'bg-accent border-accent' : 'border-gray-500'
-                  }`}>
-                    {isSelected(exercise.id) && (
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-
-                  {/* Exercise Image */}
-                  <div className="w-14 h-14 rounded-xl bg-dark-elevated flex-shrink-0 overflow-hidden flex items-center justify-center">
-                    {exercise.images?.[0] ? (
-                      <img
-                        src={`/api/exercise-images/${exercise.images[0]}`}
-                        alt={exercise.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none'
-                        }}
-                      />
-                    ) : (
-                      <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-medium truncate">{exercise.name}</h3>
-                    <p className="text-gray-400 text-sm capitalize truncate">
-                      {exercise.primaryMuscles?.join(', ')} {exercise.equipment && `• ${exercise.equipment}`}
-                    </p>
-                  </div>
-
-                  {/* Level Badge - hidden on mobile */}
-                  {exercise.level && (
-                    <span className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${levelColors[exercise.level] || 'bg-gray-500/20 text-gray-400'}`}>
-                      {exercise.level}
-                    </span>
-                  )}
-
-                  {/* View Details */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setViewingExercise(exercise)
-                    }}
-                    className="btn-ghost p-2 text-gray-400 hover:text-white flex-shrink-0"
+          {activeTab === 'favorites' ? (
+            // Favorites Tab Content
+            loadingFavorites ? (
+              <div className="flex justify-center py-8">
+                <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : favorites.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                <p className="text-gray-400 font-medium mb-1">No favorite exercises yet</p>
+                <p className="text-gray-500 text-sm">Star exercises in the catalog to add them here</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {favorites.map((exercise) => (
+                  <div
+                    key={exercise.id}
+                    className={`card flex items-center gap-3 cursor-pointer transition-colors ${
+                      isSelected(exercise.id) ? 'ring-2 ring-accent bg-accent/10' : 'hover:bg-dark-elevated'
+                    }`}
+                    onClick={() => toggleExerciseSelection(exercise)}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    {/* Checkbox */}
+                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      isSelected(exercise.id) ? 'bg-accent border-accent' : 'border-gray-500'
+                    }`}>
+                      {isSelected(exercise.id) && (
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Favorite Star */}
+                    <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
+
+                    {/* Exercise Image */}
+                    <div className="w-14 h-14 rounded-xl bg-dark-elevated flex-shrink-0 overflow-hidden flex items-center justify-center">
+                      {exercise.images?.[0] ? (
+                        <img
+                          src={`/api/exercise-images/${exercise.images[0]}`}
+                          alt={exercise.displayName || exercise.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none' }}
+                        />
+                      ) : (
+                        <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-medium truncate">
+                        {exercise.displayName || exercise.name}
+                      </h3>
+                      {exercise.nickname && (
+                        <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
+                      )}
+                      <p className="text-gray-400 text-sm capitalize truncate">
+                        {exercise.primaryMuscles?.join(', ')} {exercise.equipment && `• ${exercise.equipment}`}
+                      </p>
+                    </div>
+
+                    {/* View Details */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setViewingExercise(exercise)
+                      }}
+                      className="btn-ghost p-2 text-gray-400 hover:text-white flex-shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            // All Exercises Tab Content
+            <>
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {exercises.map((exercise) => (
+                    <div
+                      key={exercise.id}
+                      className={`card flex items-center gap-3 cursor-pointer transition-colors ${
+                        isSelected(exercise.id) ? 'ring-2 ring-accent bg-accent/10' : 'hover:bg-dark-elevated'
+                      }`}
+                      onClick={() => toggleExerciseSelection(exercise)}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isSelected(exercise.id) ? 'bg-accent border-accent' : 'border-gray-500'
+                      }`}>
+                        {isSelected(exercise.id) && (
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Exercise Image */}
+                      <div className="w-14 h-14 rounded-xl bg-dark-elevated flex-shrink-0 overflow-hidden flex items-center justify-center">
+                        {exercise.images?.[0] ? (
+                          <img
+                            src={`/api/exercise-images/${exercise.images[0]}`}
+                            alt={exercise.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                            }}
+                          />
+                        ) : (
+                          <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium truncate">{exercise.name}</h3>
+                        <p className="text-gray-400 text-sm capitalize truncate">
+                          {exercise.primaryMuscles?.join(', ')} {exercise.equipment && `• ${exercise.equipment}`}
+                        </p>
+                      </div>
+
+                      {/* Level Badge - hidden on mobile */}
+                      {exercise.level && (
+                        <span className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${levelColors[exercise.level] || 'bg-gray-500/20 text-gray-400'}`}>
+                          {exercise.level}
+                        </span>
+                      )}
+
+                      {/* View Details */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setViewingExercise(exercise)
+                        }}
+                        className="btn-ghost p-2 text-gray-400 hover:text-white flex-shrink-0"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  {exercises.length === 0 && !loading && (
+                    <p className="text-gray-500 text-center py-8">No exercises found</p>
+                  )}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {!loading && total > limit && (
+                <div className="flex justify-center gap-2 pt-4">
+                  <button
+                    onClick={() => setOffset(Math.max(0, offset - limit))}
+                    disabled={offset === 0}
+                    className="btn-secondary px-4 py-2 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="flex items-center text-gray-400 px-4">
+                    {Math.floor(offset / limit) + 1} of {Math.ceil(total / limit)}
+                  </span>
+                  <button
+                    onClick={() => setOffset(offset + limit)}
+                    disabled={offset + limit >= total}
+                    className="btn-secondary px-4 py-2 disabled:opacity-50"
+                  >
+                    Next
                   </button>
                 </div>
-              ))}
-
-              {exercises.length === 0 && !loading && (
-                <p className="text-gray-500 text-center py-8">No exercises found</p>
               )}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {!loading && total > limit && (
-            <div className="flex justify-center gap-2 pt-4">
-              <button
-                onClick={() => setOffset(Math.max(0, offset - limit))}
-                disabled={offset === 0}
-                className="btn-secondary px-4 py-2 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="flex items-center text-gray-400 px-4">
-                {Math.floor(offset / limit) + 1} of {Math.ceil(total / limit)}
-              </span>
-              <button
-                onClick={() => setOffset(offset + limit)}
-                disabled={offset + limit >= total}
-                className="btn-secondary px-4 py-2 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+            </>
           )}
         </div>
 
