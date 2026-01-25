@@ -16,11 +16,39 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// Register service worker for PWA
+// Register service worker for PWA with proper update handling
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js')
+
+      // Check for updates immediately and every 60 seconds
+      registration.update()
+      setInterval(() => registration.update(), 60000)
+
+      // When a new service worker is waiting, activate it immediately
+      registration.addEventListener('waiting', () => {
+        if (registration.waiting) {
+          // Tell the waiting service worker to skip waiting
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+      })
+
+      // Handle the case where a new SW is already waiting on page load
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+      }
+
+      // Reload page when new service worker takes control
+      let refreshing = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true
+          window.location.reload()
+        }
+      })
+    } catch (error) {
       // Service worker registration failed - app will work without offline support
-    })
+    }
   })
 }
