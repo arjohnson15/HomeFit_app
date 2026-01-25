@@ -427,6 +427,7 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
   const [isFavorite, setIsFavorite] = useState(false)
   const [notesSaving, setNotesSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
+  const [nicknameSaved, setNicknameSaved] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
 
   // Load existing preferences for this exercise
@@ -463,6 +464,8 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
   const saveNickname = async () => {
     try {
       await api.put(`/exercises/${exercise.id}/nickname`, { nickname })
+      setNicknameSaved(true)
+      setTimeout(() => setNicknameSaved(false), 2000)
     } catch (error) {
       console.error('Error saving nickname:', error)
     }
@@ -596,6 +599,29 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
             )}
           </div>
 
+          {/* Personal Nickname - Right below the exercise */}
+          <div className="bg-dark-elevated rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-gray-400 text-sm">My Nickname</label>
+              {nicknameSaved && (
+                <span className="text-success text-xs flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Saved
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              onBlur={saveNickname}
+              placeholder={exercise.name}
+              className="input w-full text-sm py-2"
+            />
+          </div>
+
           {/* Quick Info */}
           <div className="grid grid-cols-2 gap-3">
             <div className="card">
@@ -646,20 +672,6 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
               </ol>
             </div>
           )}
-
-          {/* Personal Nickname Section */}
-          <div>
-            <h3 className="text-white font-medium mb-2">My Nickname</h3>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              onBlur={saveNickname}
-              placeholder={exercise.name}
-              className="input w-full text-sm"
-            />
-            <p className="text-gray-500 text-xs mt-1">Give this exercise a personal name (saves automatically)</p>
-          </div>
 
           {/* Personal Notes Section */}
           <div>
