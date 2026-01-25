@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../services/authStore'
 import ChatWidget from '../components/ChatWidget'
@@ -69,6 +69,7 @@ function Catalog() {
   const [userEquipment, setUserEquipment] = useState([])
   const [equipmentSearch, setEquipmentSearch] = useState('')
   const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false)
+  const [exerciseNicknames, setExerciseNicknames] = useState({}) // Map of exerciseId -> nickname
   const limit = 30
 
   // Load user equipment from localStorage and fetch filter options on mount
@@ -124,6 +125,24 @@ function Catalog() {
       const response = await api.get(`/exercises?${params}`)
       setExercises(response.data.exercises)
       setTotal(response.data.total)
+
+      // Load nicknames for these exercises
+      const exerciseIds = response.data.exercises.map(e => e.id)
+      if (exerciseIds.length > 0) {
+        try {
+          const prefsResponse = await api.post('/exercises/preferences/batch', { ids: exerciseIds })
+          const nicknames = {}
+          prefsResponse.data.preferences?.forEach(pref => {
+            if (pref.nickname) {
+              nicknames[pref.exerciseId] = pref.nickname
+            }
+          })
+          setExerciseNicknames(prev => ({ ...prev, ...nicknames }))
+        } catch (err) {
+          // Preferences endpoint might fail if db not migrated, continue without nicknames
+          console.log('Could not load exercise preferences')
+        }
+      }
     } catch (error) {
       console.error('Error fetching exercises:', error)
     } finally {
@@ -360,7 +379,12 @@ function Catalog() {
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium truncate">{exercise.name}</h3>
+                <h3 className="text-white font-medium truncate">
+                  {exerciseNicknames[exercise.id] || exercise.name}
+                </h3>
+                {exerciseNicknames[exercise.id] && (
+                  <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
+                )}
                 <p className="text-gray-400 text-sm capitalize">
                   {exercise.primaryMuscles?.join(', ')} • {exercise.equipment}
                 </p>
@@ -410,6 +434,12 @@ function Catalog() {
           onClose={() => setSelectedExercise(null)}
           isAdmin={user?.role?.toLowerCase() === 'admin'}
           onExerciseUpdated={fetchExercises}
+          onNicknameChange={(exerciseId, newNickname) => {
+            setExerciseNicknames(prev => ({
+              ...prev,
+              [exerciseId]: newNickname || undefined
+            }))
+          }}
         />
       )}
 
@@ -420,7 +450,7 @@ function Catalog() {
 }
 
 // Exercise Detail Modal Component
-function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) {
+function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated, onNicknameChange }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [notes, setNotes] = useState('')
   const [nickname, setNickname] = useState('')
@@ -429,6 +459,8 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
   const [notesSaved, setNotesSaved] = useState(false)
   const [nicknameSaved, setNicknameSaved] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [prefsLoaded, setPrefsLoaded] = useState(false)
+  const nicknameTimeoutRef = useRef(null)
 
   // Load existing preferences for this exercise
   useEffect(() => {
@@ -438,9 +470,11 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
         setNotes(response.data.notes || '')
         setNickname(response.data.nickname || '')
         setIsFavorite(response.data.isFavorite || false)
+        setPrefsLoaded(true)
       } catch (error) {
         // Preferences might not exist yet, that's ok
         console.log('No preferences found for exercise')
+        setPrefsLoaded(true)
       }
     }
     loadPrefs()
@@ -460,16 +494,42 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
     }
   }
 
-  // Save nickname
-  const saveNickname = async () => {
+  // Save nickname with debounce
+  const saveNickname = async (value) => {
     try {
-      await api.put(`/exercises/${exercise.id}/nickname`, { nickname })
+      await api.put(`/exercises/${exercise.id}/nickname`, { nickname: value })
       setNicknameSaved(true)
       setTimeout(() => setNicknameSaved(false), 2000)
+      // Notify parent to update the list
+      if (onNicknameChange) {
+        onNicknameChange(exercise.id, value)
+      }
     } catch (error) {
       console.error('Error saving nickname:', error)
     }
   }
+
+  // Handle nickname change with debounced auto-save
+  const handleNicknameChange = (value) => {
+    setNickname(value)
+    // Clear existing timeout
+    if (nicknameTimeoutRef.current) {
+      clearTimeout(nicknameTimeoutRef.current)
+    }
+    // Set new timeout to save after 800ms of no typing
+    nicknameTimeoutRef.current = setTimeout(() => {
+      saveNickname(value)
+    }, 800)
+  }
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (nicknameTimeoutRef.current) {
+        clearTimeout(nicknameTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Toggle favorite status
   const toggleFavorite = async () => {
@@ -502,37 +562,59 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between z-10">
-          <h2 className="text-xl font-bold text-white truncate pr-4">{exercise.name}</h2>
-          <div className="flex items-center gap-2">
-            {/* Favorite Toggle */}
-            <button
-              onClick={toggleFavorite}
-              className={`btn-ghost p-2 transition-colors ${
-                isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
-              }`}
-              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-            {isAdmin && (
+        <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border z-10">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold text-white truncate pr-4">{exercise.name}</h2>
+            <div className="flex items-center gap-2">
+              {/* Favorite Toggle */}
               <button
-                onClick={() => setShowEditModal(true)}
-                className="btn-ghost p-2 text-accent hover:bg-accent/10"
-                title="Edit Exercise"
+                onClick={toggleFavorite}
+                className={`btn-ghost p-2 transition-colors ${
+                  isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
+                }`}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
               </button>
-            )}
-            <button onClick={onClose} className="btn-ghost p-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="btn-ghost p-2 text-accent hover:bg-accent/10"
+                  title="Edit Exercise"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
+              <button onClick={onClose} className="btn-ghost p-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          {/* Nickname Input - Right below exercise name */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => handleNicknameChange(e.target.value)}
+                placeholder="Add a nickname..."
+                className="input w-full text-sm py-2 pr-16"
+              />
+              {nicknameSaved && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-success text-xs flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Saved
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -597,29 +679,6 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated }) 
                 <p className="text-gray-500 text-sm">Exercise demonstration</p>
               </div>
             )}
-          </div>
-
-          {/* Personal Nickname - Right below the exercise */}
-          <div className="bg-dark-elevated rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-gray-400 text-sm">My Nickname</label>
-              {nicknameSaved && (
-                <span className="text-success text-xs flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Saved
-                </span>
-              )}
-            </div>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              onBlur={saveNickname}
-              placeholder={exercise.name}
-              className="input w-full text-sm py-2"
-            />
           </div>
 
           {/* Quick Info */}
