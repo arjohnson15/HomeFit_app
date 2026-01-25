@@ -460,7 +460,7 @@ function getRandomJoke() {
   return getRandomMessage(RANDOM_JOKES)
 }
 
-module.exports = {
+export {
   PERSONALITIES,
   REMINDER_MESSAGES,
   STREAK_ALERTS,
