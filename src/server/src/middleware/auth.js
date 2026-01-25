@@ -13,6 +13,8 @@ export const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
     // Get user from database
+    // Note: Don't select 'settings: true' here as it may include fields not yet migrated
+    // Routes that need settings should fetch them explicitly
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -22,8 +24,7 @@ export const authenticateToken = async (req, res, next) => {
         name: true,
         role: true,
         trainingStyle: true,
-        avatarUrl: true,
-        settings: true
+        avatarUrl: true
       }
     })
 
@@ -66,11 +67,12 @@ export const optionalAuth = async (req, res, next) => {
         username: true,
         name: true,
         role: true,
+        trainingStyle: true,
         avatarUrl: true
       }
     })
     req.user = user
-  } catch (error) {
+  } catch {
     // Token invalid, but that's ok for optional auth
   }
 
