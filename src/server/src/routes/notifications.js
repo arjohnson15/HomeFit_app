@@ -2,6 +2,7 @@ import express from 'express'
 import prisma from '../lib/prisma.js'
 import { authenticateToken } from '../middleware/auth.js'
 import notificationService from '../services/notifications.js'
+import workoutReminderService, { PERSONALITIES } from '../services/workoutReminders.js'
 
 const router = express.Router()
 
@@ -156,6 +157,215 @@ router.post('/test', async (req, res, next) => {
     }
 
     res.json({ results })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ===========================================
+// Workout Reminder Routes
+// ===========================================
+
+// GET /api/notifications/reminder-personalities
+// Get available reminder personalities
+router.get('/reminder-personalities', async (req, res, next) => {
+  try {
+    res.json({ personalities: PERSONALITIES })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/notifications/reminder-settings
+// Get user's reminder settings
+router.get('/reminder-settings', async (req, res, next) => {
+  try {
+    let settings = await prisma.userSettings.findUnique({
+      where: { userId: req.user.id }
+    })
+
+    if (!settings) {
+      settings = await prisma.userSettings.create({
+        data: { userId: req.user.id }
+      })
+    }
+
+    res.json({
+      reminderPersonality: settings.reminderPersonality,
+      reminderFrequency: settings.reminderFrequency,
+      reminderTime: settings.reminderTime,
+      reminderDaysInactive: settings.reminderDaysInactive,
+      enableFunnyReminders: settings.enableFunnyReminders,
+      enableStreakAlerts: settings.enableStreakAlerts,
+      enableAchievementTeases: settings.enableAchievementTeases,
+      enableSocialMotivation: settings.enableSocialMotivation,
+      workoutReminders: settings.workoutReminders
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PATCH /api/notifications/reminder-settings
+// Update user's reminder settings
+router.patch('/reminder-settings', async (req, res, next) => {
+  try {
+    const {
+      reminderPersonality,
+      reminderFrequency,
+      reminderTime,
+      reminderDaysInactive,
+      enableFunnyReminders,
+      enableStreakAlerts,
+      enableAchievementTeases,
+      enableSocialMotivation,
+      workoutReminders
+    } = req.body
+
+    // Validate personality if provided
+    if (reminderPersonality && !PERSONALITIES[reminderPersonality]) {
+      return res.status(400).json({ message: 'Invalid personality type' })
+    }
+
+    // Validate frequency if provided
+    if (reminderFrequency && !['daily', 'smart', 'off'].includes(reminderFrequency)) {
+      return res.status(400).json({ message: 'Invalid frequency' })
+    }
+
+    // Validate time format if provided (HH:mm)
+    if (reminderTime && !/^\d{2}:\d{2}$/.test(reminderTime)) {
+      return res.status(400).json({ message: 'Invalid time format (use HH:mm)' })
+    }
+
+    const settings = await prisma.userSettings.upsert({
+      where: { userId: req.user.id },
+      update: {
+        ...(reminderPersonality !== undefined && { reminderPersonality }),
+        ...(reminderFrequency !== undefined && { reminderFrequency }),
+        ...(reminderTime !== undefined && { reminderTime }),
+        ...(reminderDaysInactive !== undefined && { reminderDaysInactive }),
+        ...(enableFunnyReminders !== undefined && { enableFunnyReminders }),
+        ...(enableStreakAlerts !== undefined && { enableStreakAlerts }),
+        ...(enableAchievementTeases !== undefined && { enableAchievementTeases }),
+        ...(enableSocialMotivation !== undefined && { enableSocialMotivation }),
+        ...(workoutReminders !== undefined && { workoutReminders })
+      },
+      create: {
+        userId: req.user.id,
+        reminderPersonality: reminderPersonality ?? 'supportive',
+        reminderFrequency: reminderFrequency ?? 'daily',
+        reminderTime: reminderTime ?? '09:00',
+        reminderDaysInactive: reminderDaysInactive ?? 1,
+        enableFunnyReminders: enableFunnyReminders ?? true,
+        enableStreakAlerts: enableStreakAlerts ?? true,
+        enableAchievementTeases: enableAchievementTeases ?? true,
+        enableSocialMotivation: enableSocialMotivation ?? true,
+        workoutReminders: workoutReminders ?? true
+      }
+    })
+
+    res.json({
+      reminderPersonality: settings.reminderPersonality,
+      reminderFrequency: settings.reminderFrequency,
+      reminderTime: settings.reminderTime,
+      reminderDaysInactive: settings.reminderDaysInactive,
+      enableFunnyReminders: settings.enableFunnyReminders,
+      enableStreakAlerts: settings.enableStreakAlerts,
+      enableAchievementTeases: settings.enableAchievementTeases,
+      enableSocialMotivation: settings.enableSocialMotivation,
+      workoutReminders: settings.workoutReminders
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/notifications/test-reminder
+// Send a test workout reminder
+router.post('/test-reminder', async (req, res, next) => {
+  try {
+    const { forceTemplate = false } = req.body
+
+    // Initialize the service if needed
+    await workoutReminderService.initialize()
+
+    // Send reminder (bypasses the shouldSendReminder check)
+    const context = await workoutReminderService.getUserReminderContext(req.user.id)
+
+    if (!context) {
+      return res.status(400).json({ message: 'User settings not found' })
+    }
+
+    const { settings, daysInactive, userName, streak, trainingStyle } = context
+    const personality = settings.reminderPersonality || 'supportive'
+
+    let message = null
+    let usedAI = false
+
+    // Try AI message first if enabled and not forcing template
+    if (settings.enableFunnyReminders && !forceTemplate) {
+      message = await workoutReminderService.generateAIMessage(req.user.id, {
+        personality,
+        daysInactive: daysInactive || 1,
+        userName,
+        streak,
+        trainingStyle
+      })
+      usedAI = !!message
+    }
+
+    // Fall back to template message
+    if (!message) {
+      const { getReminderMessage } = await import('../data/reminderMessages.js')
+      message = getReminderMessage(personality, daysInactive || 1, userName)
+    }
+
+    const personalityInfo = PERSONALITIES[personality]
+    const title = `${personalityInfo.emoji} ${personalityInfo.name} Says...`
+
+    // Send via all enabled channels
+    const result = await notificationService.notifyUser(req.user.id, {
+      title,
+      body: message,
+      html: workoutReminderService.generateEmailHTML(title, message, personality),
+      url: '/today'
+    })
+
+    res.json({
+      success: true,
+      message,
+      title,
+      personality,
+      usedAI,
+      channels: {
+        email: result.email,
+        sms: result.sms,
+        push: result.push
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/notifications/reminder-history
+// Get user's reminder history
+router.get('/reminder-history', async (req, res, next) => {
+  try {
+    const { limit = 20, type } = req.query
+
+    const where = { userId: req.user.id }
+    if (type) {
+      where.type = type
+    }
+
+    const reminders = await prisma.reminderLog.findMany({
+      where,
+      orderBy: { sentAt: 'desc' },
+      take: parseInt(limit)
+    })
+
+    res.json({ reminders })
   } catch (error) {
     next(error)
   }

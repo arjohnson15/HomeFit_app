@@ -5,8 +5,9 @@ import WelcomeStep from './steps/WelcomeStep'
 import PrivacyStep from './steps/PrivacyStep'
 import TrainingStep from './steps/TrainingStep'
 import BodyStatsStep from './steps/BodyStatsStep'
+import NotificationsStep from './steps/NotificationsStep'
 
-const STEPS = ['welcome', 'privacy', 'training', 'bodyStats']
+const STEPS = ['welcome', 'privacy', 'training', 'bodyStats', 'notifications']
 
 const initialState = {
   // Privacy
@@ -37,7 +38,14 @@ const initialState = {
   dailyCalorieGoal: null,
   dailyProteinGoal: null,
   dailyCarbsGoal: null,
-  dailyFatGoal: null
+  dailyFatGoal: null,
+
+  // Notification/Reminder Settings
+  workoutReminders: true,
+  reminderPersonality: 'supportive',
+  enableStreakAlerts: true,
+  enableAchievementTeases: true,
+  enableSocialMotivation: true
 }
 
 function OnboardingWizard({ onComplete }) {
@@ -106,6 +114,17 @@ function OnboardingWizard({ onComplete }) {
               preferredProteins: data.preferredProteins
             }).catch(() => {})
           }
+          break
+
+        case 'notifications':
+          // Save reminder settings
+          await api.patch('/notifications/reminder-settings', {
+            workoutReminders: data.workoutReminders,
+            reminderPersonality: data.reminderPersonality,
+            enableStreakAlerts: data.enableStreakAlerts,
+            enableAchievementTeases: data.enableAchievementTeases,
+            enableSocialMotivation: data.enableSocialMotivation
+          }).catch(() => {})
           break
       }
     } catch (error) {
@@ -188,6 +207,13 @@ function OnboardingWizard({ onComplete }) {
             updateData={updateData}
             showDietary={showDietary}
             setShowDietary={setShowDietary}
+          />
+        )
+      case 'notifications':
+        return (
+          <NotificationsStep
+            data={data}
+            updateData={updateData}
           />
         )
       default:

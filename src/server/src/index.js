@@ -35,6 +35,7 @@ import goalRoutes from './routes/goals.js'
 
 // Services
 import backupScheduler from './services/scheduler.js'
+import reminderScheduler from './services/reminderScheduler.js'
 import followNotificationService from './services/followNotifications.js'
 
 // Middleware
@@ -319,6 +320,14 @@ httpServer.listen(PORT, async () => {
     logger.info('Backup scheduler initialized')
   } catch (error) {
     logger.error('Failed to initialize backup scheduler:', error)
+  }
+
+  // Initialize workout reminder scheduler
+  try {
+    await reminderScheduler.initialize()
+    logger.info('Reminder scheduler initialized')
+  } catch (error) {
+    logger.error('Failed to initialize reminder scheduler:', error)
   }
 })
 

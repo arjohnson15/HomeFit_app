@@ -51,6 +51,7 @@ model User {
   following         FriendFollow[] @relation("UserFollowing")
   followers         FriendFollow[] @relation("UserFollowers")
   inAppNotifications InAppNotification[]
+  reminderLogs      ReminderLog[]
   exerciseNotes     ExerciseNote[]
   pushSubscriptions PushSubscription[]
   refreshTokens     RefreshToken[]
@@ -194,6 +195,16 @@ model UserSettings {
   // Available Equipment (for AI workout suggestions)
   availableEquipment     String[] @default([])  // e.g., ["barbell", "dumbbells", "cables", "bench", "squat_rack"]
   gymType                String?  // "home", "commercial", "outdoor", "bodyweight_only"
+
+  // Fun Workout Reminder Settings
+  reminderPersonality    String   @default("supportive") // drill_sergeant, supportive, sarcastic, motivational, dad_jokes
+  reminderFrequency      String   @default("daily")      // daily, smart (based on schedule), off
+  reminderTime           String   @default("09:00")      // Preferred reminder time (HH:mm)
+  reminderDaysInactive   Int      @default(1)            // Days inactive before reminders start
+  enableFunnyReminders   Boolean  @default(true)         // Toggle for fun vs serious reminders
+  enableStreakAlerts     Boolean  @default(true)         // Streak protection alerts
+  enableAchievementTeases Boolean @default(true)         // Achievement progress teasing
+  enableSocialMotivation Boolean  @default(true)         // Include friend activity in reminders
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -459,6 +470,22 @@ model InAppNotification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@map("in_app_notifications")
+}
+
+// Workout Reminder History (prevents spam, tracks sent reminders)
+model ReminderLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String   // workout_reminder, streak_alert, achievement_tease, social_motivation
+  message    String   @db.Text
+  channel    String   // push, email, sms
+  personality String  // Which personality was used
+  sentAt     DateTime @default(now())
+
+  @@index([userId, sentAt])
+  @@index([userId, type, sentAt])
+  @@map("reminder_logs")
 }
 
 enum NotificationType {

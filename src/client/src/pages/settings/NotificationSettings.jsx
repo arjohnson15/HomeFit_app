@@ -9,7 +9,7 @@ function NotificationSettings() {
 
   const [settings, setSettings] = useState({
     workoutReminders: true,
-    reminderTime: '08:00',
+    reminderTime: '09:00',
     restDayReminders: false,
     friendActivity: true,
     achievements: true,
@@ -19,8 +19,20 @@ function NotificationSettings() {
     notifyBySms: false,
     notifyByPush: true,
     phoneNumber: '',
-    phoneCarrier: 'vtext.com'
+    phoneCarrier: 'vtext.com',
+    // Fun reminder settings
+    reminderPersonality: 'supportive',
+    reminderFrequency: 'daily',
+    reminderDaysInactive: 1,
+    enableFunnyReminders: true,
+    enableStreakAlerts: true,
+    enableAchievementTeases: true,
+    enableSocialMotivation: true
   })
+
+  const [personalities, setPersonalities] = useState({})
+  const [testingReminder, setTestingReminder] = useState(false)
+  const [previewMessage, setPreviewMessage] = useState(null)
 
   const carriers = [
     { id: 'vtext.com', label: 'Verizon' },
@@ -47,6 +59,8 @@ function NotificationSettings() {
 
   useEffect(() => {
     loadSettings()
+    loadReminderSettings()
+    loadPersonalities()
     checkNotificationStatus()
     if ('Notification' in window) {
       setPushPermission(Notification.permission)
@@ -70,6 +84,27 @@ function NotificationSettings() {
       }))
     } catch (error) {
       console.error('Error loading notification settings:', error)
+    }
+  }
+
+  const loadReminderSettings = async () => {
+    try {
+      const response = await api.get('/notifications/reminder-settings')
+      setSettings(prev => ({
+        ...prev,
+        ...response.data
+      }))
+    } catch (error) {
+      console.error('Error loading reminder settings:', error)
+    }
+  }
+
+  const loadPersonalities = async () => {
+    try {
+      const response = await api.get('/notifications/reminder-personalities')
+      setPersonalities(response.data.personalities || {})
+    } catch (error) {
+      console.error('Error loading personalities:', error)
     }
   }
 
@@ -168,7 +203,7 @@ function NotificationSettings() {
       // Save to localStorage
       localStorage.setItem('notificationSettings', JSON.stringify(settings))
 
-      // Save to API
+      // Save to API - notification channels
       await api.patch('/notifications/settings', {
         notifyByEmail: settings.notifyByEmail,
         notifyBySms: settings.notifyBySms,
@@ -178,12 +213,47 @@ function NotificationSettings() {
         workoutReminders: settings.workoutReminders,
         socialNotifications: settings.friendActivity
       })
+
+      // Save reminder settings
+      await api.patch('/notifications/reminder-settings', {
+        reminderPersonality: settings.reminderPersonality,
+        reminderFrequency: settings.reminderFrequency,
+        reminderTime: settings.reminderTime,
+        reminderDaysInactive: settings.reminderDaysInactive,
+        enableFunnyReminders: settings.enableFunnyReminders,
+        enableStreakAlerts: settings.enableStreakAlerts,
+        enableAchievementTeases: settings.enableAchievementTeases,
+        enableSocialMotivation: settings.enableSocialMotivation,
+        workoutReminders: settings.workoutReminders
+      })
+
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
       console.error('Error saving settings:', error)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const testReminderNotification = async () => {
+    setTestingReminder(true)
+    try {
+      const response = await api.post('/notifications/test-reminder', {
+        forceTemplate: false
+      })
+      setPreviewMessage({
+        title: response.data.title,
+        message: response.data.message,
+        personality: response.data.personality,
+        usedAI: response.data.usedAI,
+        channels: response.data.channels
+      })
+    } catch (error) {
+      console.error('Error testing reminder:', error)
+      alert('Failed to send test reminder')
+    } finally {
+      setTestingReminder(false)
     }
   }
 
@@ -440,15 +510,34 @@ function NotificationSettings() {
         </div>
 
         {settings.workoutReminders && (
-          <div>
-            <p className="text-gray-400 text-sm mb-2">Reminder Time</p>
-            <input
-              type="time"
-              value={settings.reminderTime}
-              onChange={(e) => setSettings({ ...settings, reminderTime: e.target.value })}
-              className="input w-full"
-            />
-          </div>
+          <>
+            <div>
+              <p className="text-gray-400 text-sm mb-2">Reminder Time</p>
+              <input
+                type="time"
+                value={settings.reminderTime}
+                onChange={(e) => setSettings({ ...settings, reminderTime: e.target.value })}
+                className="input w-full"
+              />
+            </div>
+
+            <div>
+              <p className="text-gray-400 text-sm mb-2">Days inactive before reminders</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="1"
+                  max="7"
+                  value={settings.reminderDaysInactive}
+                  onChange={(e) => setSettings({ ...settings, reminderDaysInactive: parseInt(e.target.value) })}
+                  className="flex-1 accent-accent"
+                />
+                <span className="text-white w-16 text-center">
+                  {settings.reminderDaysInactive} day{settings.reminderDaysInactive > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </>
         )}
 
         <div className="flex items-center justify-between">
@@ -468,6 +557,138 @@ function NotificationSettings() {
           </button>
         </div>
       </div>
+
+      {/* Fun Reminder Personality */}
+      {settings.workoutReminders && (
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-medium">Reminder Personality</h3>
+            <button
+              onClick={() => setSettings({ ...settings, enableFunnyReminders: !settings.enableFunnyReminders })}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.enableFunnyReminders ? 'bg-accent' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.enableFunnyReminders ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+          <p className="text-gray-500 text-sm">Choose how your workout reminders sound</p>
+
+          {settings.enableFunnyReminders && Object.keys(personalities).length > 0 && (
+            <>
+              <div className="grid gap-3">
+                {Object.entries(personalities).map(([key, p]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSettings({ ...settings, reminderPersonality: key })}
+                    className={`p-4 rounded-xl text-left transition-all ${
+                      settings.reminderPersonality === key
+                        ? 'bg-accent/20 border-2 border-accent'
+                        : 'bg-dark-elevated border-2 border-transparent hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{p.emoji}</span>
+                      <span className="text-white font-medium">{p.name}</span>
+                      {settings.reminderPersonality === key && (
+                        <svg className="w-5 h-5 text-accent ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <p className="text-gray-500 text-sm">{p.description}</p>
+                    <p className="text-gray-400 text-xs mt-2 italic">"{p.preview}"</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Test Reminder Button */}
+              <div className="pt-2">
+                <button
+                  onClick={testReminderNotification}
+                  disabled={testingReminder}
+                  className="btn-secondary w-full"
+                >
+                  {testingReminder ? 'Sending...' : 'Send Test Reminder'}
+                </button>
+                {previewMessage && (
+                  <div className="mt-3 p-4 bg-dark-elevated rounded-xl">
+                    <p className="text-white font-medium mb-1">{previewMessage.title}</p>
+                    <p className="text-gray-300 text-sm">{previewMessage.message}</p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      {previewMessage.usedAI && <span className="bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">AI Generated</span>}
+                      {previewMessage.channels.email && <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">Email</span>}
+                      {previewMessage.channels.push && <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Push</span>}
+                      {previewMessage.channels.sms && <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">SMS</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Additional Reminder Types */}
+      {settings.workoutReminders && (
+        <div className="card space-y-4">
+          <h3 className="text-white font-medium">Smart Reminders</h3>
+          <p className="text-gray-500 text-sm">Extra motivation when you need it</p>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white">Streak Alerts</p>
+              <p className="text-gray-500 text-sm">Warn me when my streak is at risk</p>
+            </div>
+            <button
+              onClick={() => setSettings({ ...settings, enableStreakAlerts: !settings.enableStreakAlerts })}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.enableStreakAlerts ? 'bg-accent' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.enableStreakAlerts ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white">Achievement Teases</p>
+              <p className="text-gray-500 text-sm">When I'm close to an achievement</p>
+            </div>
+            <button
+              onClick={() => setSettings({ ...settings, enableAchievementTeases: !settings.enableAchievementTeases })}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.enableAchievementTeases ? 'bg-accent' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.enableAchievementTeases ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white">Social Motivation</p>
+              <p className="text-gray-500 text-sm">When friends are working out</p>
+            </div>
+            <button
+              onClick={() => setSettings({ ...settings, enableSocialMotivation: !settings.enableSocialMotivation })}
+              className={`w-12 h-7 rounded-full transition-colors relative ${
+                settings.enableSocialMotivation ? 'bg-accent' : 'bg-dark-elevated'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.enableSocialMotivation ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Social Notifications */}
       <div className="card space-y-4">
