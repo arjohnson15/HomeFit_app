@@ -7,8 +7,14 @@ import {
   getStreakAlertMessage,
   getAchievementTeaseMessage,
   getSocialMessage,
-  getRandomJoke
+  getRandomJoke,
+  getDaysCategory
 } from '../data/reminderMessages.js'
+
+// Cache settings
+const CACHE_EXPIRY_DAYS = 7  // Messages expire after 7 days for freshness
+const MIN_CACHED_MESSAGES = 5  // Minimum messages per personality/days combo before reusing
+const MAX_CACHED_MESSAGES = 20  // Maximum messages to keep per combo
 
 class WorkoutReminderService {
   constructor() {
@@ -20,8 +26,121 @@ class WorkoutReminderService {
 
     // Load notification service settings
     await notificationService.loadSettings()
+
+    // Schedule cache cleanup (runs on init, then handled by scheduler)
+    this.cleanupExpiredCache().catch(err => {
+      console.error('[WorkoutReminders] Cache cleanup error:', err)
+    })
+
     this.initialized = true
     console.log('[WorkoutReminders] Service initialized')
+  }
+
+  // Clean up expired AI message cache entries
+  async cleanupExpiredCache() {
+    try {
+      const deleted = await prisma.aIMessageCache.deleteMany({
+        where: {
+          expiresAt: { lt: new Date() }
+        }
+      })
+      if (deleted.count > 0) {
+        console.log(`[WorkoutReminders] Cleaned up ${deleted.count} expired cache entries`)
+      }
+    } catch (error) {
+      // Table might not exist yet
+      console.log('[WorkoutReminders] Cache table not ready, skipping cleanup')
+    }
+  }
+
+  // Get cached AI message if available
+  async getCachedMessage(type, personality, daysCategory) {
+    try {
+      // Find all non-expired cached messages for this combo
+      const cached = await prisma.aIMessageCache.findMany({
+        where: {
+          type,
+          personality,
+          daysCategory,
+          expiresAt: { gt: new Date() }
+        },
+        orderBy: { usageCount: 'asc' }  // Prefer less-used messages for variety
+      })
+
+      if (cached.length === 0) return null
+
+      // Randomly select from cached messages (weighted toward less-used)
+      const selected = cached[Math.floor(Math.random() * Math.min(cached.length, 3))]
+
+      // Increment usage count
+      await prisma.aIMessageCache.update({
+        where: { id: selected.id },
+        data: { usageCount: { increment: 1 } }
+      })
+
+      console.log(`[WorkoutReminders] Using cached AI message (${cached.length} available)`)
+      return selected.message
+    } catch (error) {
+      console.error('[WorkoutReminders] Cache lookup error:', error)
+      return null
+    }
+  }
+
+  // Cache a new AI-generated message
+  async cacheMessage(type, personality, daysCategory, message) {
+    try {
+      // Check current cache count for this combo
+      const currentCount = await prisma.aIMessageCache.count({
+        where: { type, personality, daysCategory }
+      })
+
+      // If at max, delete oldest/most-used before adding
+      if (currentCount >= MAX_CACHED_MESSAGES) {
+        const oldest = await prisma.aIMessageCache.findFirst({
+          where: { type, personality, daysCategory },
+          orderBy: [{ usageCount: 'desc' }, { createdAt: 'asc' }]
+        })
+        if (oldest) {
+          await prisma.aIMessageCache.delete({ where: { id: oldest.id } })
+        }
+      }
+
+      // Add to cache
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + CACHE_EXPIRY_DAYS)
+
+      await prisma.aIMessageCache.create({
+        data: {
+          type,
+          personality,
+          daysCategory,
+          message,
+          expiresAt
+        }
+      })
+
+      console.log(`[WorkoutReminders] Cached new AI message for ${personality}/${daysCategory}`)
+    } catch (error) {
+      console.error('[WorkoutReminders] Cache save error:', error)
+      // Non-critical, continue without caching
+    }
+  }
+
+  // Check if we have enough cached messages (avoid API calls)
+  async hasSufficientCache(type, personality, daysCategory) {
+    try {
+      const count = await prisma.aIMessageCache.count({
+        where: {
+          type,
+          personality,
+          daysCategory,
+          expiresAt: { gt: new Date() }
+        }
+      })
+      return count >= MIN_CACHED_MESSAGES
+    } catch {
+      return false
+    }
   }
 
   // Get AI configuration for a user (for AI-generated messages)
@@ -56,17 +175,32 @@ class WorkoutReminderService {
     return null
   }
 
-  // Generate AI-powered reminder message
-  async generateAIMessage(userId, context) {
+  // Generate AI-powered reminder message (with caching)
+  async generateAIMessage(userId, context, messageType = 'workout_reminder') {
+    const { personality, daysInactive, userName } = context
+    const daysCategory = getDaysCategory(daysInactive)
+
+    // First, check cache for existing messages
+    const hasSufficient = await this.hasSufficientCache(messageType, personality, daysCategory)
+
+    if (hasSufficient) {
+      // Use cached message and replace {name} placeholder
+      const cachedMessage = await this.getCachedMessage(messageType, personality, daysCategory)
+      if (cachedMessage) {
+        return cachedMessage.replace(/\{name\}/g, userName)
+      }
+    }
+
+    // Not enough cached messages or cache miss - generate new one
     const aiConfig = await this.getUserAIConfig(userId)
     if (!aiConfig) return null
 
-    const { personality, daysInactive, userName, streak, trainingStyle, recentPRs } = context
-
+    const { streak, trainingStyle, recentPRs } = context
     const personalityInfo = PERSONALITIES[personality] || PERSONALITIES.supportive
 
+    // Use {name} placeholder in prompts so cached messages can be personalized later
     const systemPrompt = `You are a fitness coach with a "${personalityInfo.name}" personality (${personalityInfo.description}).
-Generate a workout reminder message for ${userName}.
+Generate a workout reminder message. Use {name} as a placeholder for the user's name.
 
 Context:
 - Days since last workout: ${daysInactive}
@@ -79,7 +213,8 @@ Guidelines:
 - Match the ${personalityInfo.name} personality style exactly
 - Reference their specific situation (days off, streak, etc.)
 - Be creative and fun, but motivating
-- Don't use generic phrases - make it personal and memorable`
+- Don't use generic phrases - make it memorable
+- Use {name} when addressing the user (e.g., "Hey {name}!" or "Come on {name}!")`
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -105,7 +240,17 @@ Guidelines:
       }
 
       const data = await response.json()
-      return data.choices?.[0]?.message?.content?.trim() || null
+      const generatedMessage = data.choices?.[0]?.message?.content?.trim()
+
+      if (generatedMessage) {
+        // Cache the message with {name} placeholder for reuse
+        await this.cacheMessage(messageType, personality, daysCategory, generatedMessage)
+
+        // Return with actual name replaced
+        return generatedMessage.replace(/\{name\}/g, userName)
+      }
+
+      return null
     } catch (error) {
       console.error('[WorkoutReminders] AI generation error:', error)
       return null

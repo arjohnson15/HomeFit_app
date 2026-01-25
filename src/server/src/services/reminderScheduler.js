@@ -10,6 +10,7 @@ class ReminderScheduler {
     this.streakAlertJob = null
     this.achievementTeaseJob = null
     this.socialMotivationJob = null
+    this.cacheCleanupJob = null
     this.initialized = false
   }
 
@@ -75,6 +76,16 @@ class ReminderScheduler {
         }
       })
 
+      // Schedule AI message cache cleanup daily at 3am
+      this.cacheCleanupJob = cron.schedule('0 3 * * *', async () => {
+        console.log('[ReminderScheduler] Running AI cache cleanup...')
+        try {
+          await workoutReminderService.cleanupExpiredCache()
+        } catch (error) {
+          console.error('[ReminderScheduler] Cache cleanup failed:', error)
+        }
+      })
+
       this.initialized = true
       console.log('[ReminderScheduler] Initialized successfully')
       console.log('[ReminderScheduler] Scheduled jobs:')
@@ -82,6 +93,7 @@ class ReminderScheduler {
       console.log('  - Streak alerts: Hourly 6:30-11:30 PM')
       console.log('  - Achievement teases: 7:00 PM')
       console.log('  - Social motivation: 5:00 PM')
+      console.log('  - AI cache cleanup: 3:00 AM')
     } catch (error) {
       console.error('[ReminderScheduler] Initialization failed:', error)
     }
@@ -103,7 +115,8 @@ class ReminderScheduler {
       dailyReminderJobActive: this.dailyReminderJob?.running || false,
       streakAlertJobActive: this.streakAlertJob?.running || false,
       achievementTeaseJobActive: this.achievementTeaseJob?.running || false,
-      socialMotivationJobActive: this.socialMotivationJob?.running || false
+      socialMotivationJobActive: this.socialMotivationJob?.running || false,
+      cacheCleanupJobActive: this.cacheCleanupJob?.running || false
     }
   }
 
@@ -135,6 +148,7 @@ class ReminderScheduler {
     if (this.streakAlertJob) this.streakAlertJob.stop()
     if (this.achievementTeaseJob) this.achievementTeaseJob.stop()
     if (this.socialMotivationJob) this.socialMotivationJob.stop()
+    if (this.cacheCleanupJob) this.cacheCleanupJob.stop()
     this.initialized = false
   }
 }

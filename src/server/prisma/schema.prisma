@@ -488,6 +488,22 @@ model ReminderLog {
   @@map("reminder_logs")
 }
 
+// AI Message Cache (reuse AI-generated messages across users to save API costs)
+model AIMessageCache {
+  id           String   @id @default(cuid())
+  type         String   // workout_reminder, streak_alert, achievement_tease
+  personality  String   // drill_sergeant, supportive, sarcastic, motivational, dad_jokes
+  daysCategory Int      // 1, 2, 3, 5, 7, 14 (bucketed days inactive)
+  message      String   @db.Text
+  usageCount   Int      @default(1)  // Track popularity
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime // Auto-expire old messages for freshness
+
+  @@index([type, personality, daysCategory])
+  @@index([expiresAt])
+  @@map("ai_message_cache")
+}
+
 enum NotificationType {
   FRIEND_WORKOUT_COMPLETED
   FRIEND_ACHIEVEMENT_UNLOCKED
