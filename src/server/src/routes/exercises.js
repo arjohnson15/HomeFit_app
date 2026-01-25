@@ -136,9 +136,18 @@ router.get('/', async (req, res, next) => {
 
     if (muscle) {
       const muscleLower = muscle.toLowerCase()
+      // Map category names to actual muscle names in database
+      const muscleMapping = {
+        'back': ['lats', 'lower back', 'middle back', 'traps'],
+        'arms': ['biceps', 'triceps', 'forearms'],
+        'legs': ['quadriceps', 'hamstrings', 'calves', 'glutes'],
+        'core': ['abdominals', 'lower back']
+      }
+      const musclesToMatch = muscleMapping[muscleLower] || [muscleLower]
+
       exercises = exercises.filter(e =>
-        e.primaryMuscles?.some(m => m.toLowerCase() === muscleLower) ||
-        e.secondaryMuscles?.some(m => m.toLowerCase() === muscleLower)
+        e.primaryMuscles?.some(m => musclesToMatch.includes(m.toLowerCase())) ||
+        e.secondaryMuscles?.some(m => musclesToMatch.includes(m.toLowerCase()))
       )
     }
 
