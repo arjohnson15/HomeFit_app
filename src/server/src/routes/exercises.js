@@ -103,9 +103,35 @@ router.get('/', async (req, res, next) => {
     // Apply filters
     if (search) {
       const searchLower = search.toLowerCase()
-      exercises = exercises.filter(e =>
-        e.name.toLowerCase().includes(searchLower)
-      )
+
+      // Load user's nicknames if authenticated
+      let nicknameMap = new Map()
+      if (req.user?.id) {
+        try {
+          const userNicknames = await prisma.exerciseNote.findMany({
+            where: {
+              userId: req.user.id,
+              nickname: { not: null }
+            },
+            select: {
+              exerciseId: true,
+              nickname: true
+            }
+          })
+          nicknameMap = new Map(userNicknames.map(n => [n.exerciseId, n.nickname.toLowerCase()]))
+        } catch (err) {
+          // If nickname lookup fails, continue with name-only search
+          console.error('Error loading nicknames for search:', err)
+        }
+      }
+
+      // Search by both name AND nickname
+      exercises = exercises.filter(e => {
+        const nameMatch = e.name.toLowerCase().includes(searchLower)
+        const nickname = nicknameMap.get(e.id)
+        const nicknameMatch = nickname && nickname.includes(searchLower)
+        return nameMatch || nicknameMatch
+      })
     }
 
     if (muscle) {
