@@ -22,8 +22,9 @@ const levelColors = {
 }
 
 // Quick View for exercise details
-function ExerciseQuickView({ exercise, onClose, isSelected, onToggleSelect }) {
+function ExerciseQuickView({ exercise, onClose, isSelected, onToggleSelect, nickname }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const displayName = nickname || exercise.name
 
   return (
     <div
@@ -36,7 +37,12 @@ function ExerciseQuickView({ exercise, onClose, isSelected, onToggleSelect }) {
       >
         {/* Header */}
         <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between z-10">
-          <h2 className="text-lg font-bold text-white truncate pr-4">{exercise.name}</h2>
+          <div className="truncate pr-4">
+            <h2 className="text-lg font-bold text-white truncate">{displayName}</h2>
+            {nickname && (
+              <p className="text-gray-500 text-sm truncate">{exercise.name}</p>
+            )}
+          </div>
           <button onClick={onClose} className="btn-ghost p-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -154,6 +160,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
   const [activeTab, setActiveTab] = useState('all') // 'all' | 'favorites'
   const [favorites, setFavorites] = useState([])
   const [loadingFavorites, setLoadingFavorites] = useState(false)
+  const [exerciseNicknames, setExerciseNicknames] = useState({}) // Map of exerciseId -> nickname
   const limit = 20
 
   useEffect(() => {
@@ -179,7 +186,25 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
     setLoadingFavorites(true)
     try {
       const response = await api.get('/exercises/favorites')
-      setFavorites(response.data.exercises || [])
+      const favExercises = response.data.exercises || []
+      setFavorites(favExercises)
+
+      // Load nicknames for favorites
+      const exerciseIds = favExercises.map(e => e.id)
+      if (exerciseIds.length > 0) {
+        try {
+          const prefsResponse = await api.post('/exercises/preferences/batch', { ids: exerciseIds })
+          const nicknames = {}
+          prefsResponse.data.preferences?.forEach(pref => {
+            if (pref.nickname) {
+              nicknames[pref.exerciseId] = pref.nickname
+            }
+          })
+          setExerciseNicknames(prev => ({ ...prev, ...nicknames }))
+        } catch (err) {
+          console.log('Could not load exercise preferences')
+        }
+      }
     } catch (error) {
       console.error('Error loading favorites:', error)
     } finally {
@@ -202,6 +227,23 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       const response = await api.get(`/exercises?${params}`)
       setExercises(response.data.exercises)
       setTotal(response.data.total)
+
+      // Load nicknames for these exercises
+      const exerciseIds = response.data.exercises.map(e => e.id)
+      if (exerciseIds.length > 0) {
+        try {
+          const prefsResponse = await api.post('/exercises/preferences/batch', { ids: exerciseIds })
+          const nicknames = {}
+          prefsResponse.data.preferences?.forEach(pref => {
+            if (pref.nickname) {
+              nicknames[pref.exerciseId] = pref.nickname
+            }
+          })
+          setExerciseNicknames(prev => ({ ...prev, ...nicknames }))
+        } catch (err) {
+          console.log('Could not load exercise preferences')
+        }
+      }
     } catch (error) {
       console.error('Error fetching exercises:', error)
     } finally {
@@ -397,7 +439,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                       {exercise.images?.[0] ? (
                         <img
                           src={`/api/exercise-images/${exercise.images[0]}`}
-                          alt={exercise.displayName || exercise.name}
+                          alt={exerciseNicknames[exercise.id] || exercise.name}
                           className="w-full h-full object-cover"
                           onError={(e) => { e.target.style.display = 'none' }}
                         />
@@ -411,9 +453,9 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white font-medium truncate">
-                        {exercise.displayName || exercise.name}
+                        {exerciseNicknames[exercise.id] || exercise.name}
                       </h3>
-                      {exercise.nickname && (
+                      {exerciseNicknames[exercise.id] && (
                         <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
                       )}
                       <p className="text-gray-400 text-sm capitalize truncate">
@@ -470,7 +512,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                         {exercise.images?.[0] ? (
                           <img
                             src={`/api/exercise-images/${exercise.images[0]}`}
-                            alt={exercise.name}
+                            alt={exerciseNicknames[exercise.id] || exercise.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.target.style.display = 'none'
@@ -485,7 +527,12 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium truncate">{exercise.name}</h3>
+                        <h3 className="text-white font-medium truncate">
+                          {exerciseNicknames[exercise.id] || exercise.name}
+                        </h3>
+                        {exerciseNicknames[exercise.id] && (
+                          <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
+                        )}
                         <p className="text-gray-400 text-sm capitalize truncate">
                           {exercise.primaryMuscles?.join(', ')} {exercise.equipment && `• ${exercise.equipment}`}
                         </p>
@@ -572,6 +619,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
           onClose={() => setViewingExercise(null)}
           isSelected={isSelected(viewingExercise.id)}
           onToggleSelect={() => toggleExerciseSelection(viewingExercise)}
+          nickname={exerciseNicknames[viewingExercise.id]}
         />
       )}
     </div>
