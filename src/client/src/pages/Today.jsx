@@ -61,8 +61,15 @@ function Today() {
   const [editedTime, setEditedTime] = useState({ hours: 0, minutes: 0 }) // For editing elapsed time
   const [lastTimerCheck, setLastTimerCheck] = useState(0) // Track when we last prompted
   const [exerciseNicknames, setExerciseNicknames] = useState({}) // User's personal nicknames for exercises
+  const [restTimerSoundEnabled, setRestTimerSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('restTimerSoundEnabled')
+    return saved !== 'false' // Default to true if not set
+  })
+  const [lastSessionCollapsed, setLastSessionCollapsed] = useState(false) // Last session collapsed state
+  const [showOlderSessions, setShowOlderSessions] = useState(false) // Show older sessions beyond the last one
   const timerRef = useRef(null)
   const restTimerRef = useRef(null)
+  const audioContextRef = useRef(null) // For rest timer sound
   const isRemoteUpdateRef = useRef(false) // Track if update is from another tab/device
   const chatWidgetRef = useRef(null) // Ref to control ChatWidget programmatically
 
@@ -192,6 +199,59 @@ function Today() {
     onSetLogged: handleSetLogged,
     onTimerUpdate: handleTimerUpdate
   })
+
+  // Play notification sound when rest timer ends
+  const playRestTimerSound = useCallback(() => {
+    if (!restTimerSoundEnabled) return
+
+    try {
+      // Create audio context if not exists
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+      }
+      const ctx = audioContextRef.current
+
+      // Resume context if suspended (required for mobile)
+      if (ctx.state === 'suspended') {
+        ctx.resume()
+      }
+
+      // Create a pleasant two-tone notification sound
+      const playTone = (frequency, startTime, duration) => {
+        const oscillator = ctx.createOscillator()
+        const gainNode = ctx.createGain()
+
+        oscillator.connect(gainNode)
+        gainNode.connect(ctx.destination)
+
+        oscillator.frequency.value = frequency
+        oscillator.type = 'sine'
+
+        // Envelope for smooth sound
+        gainNode.gain.setValueAtTime(0, startTime)
+        gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
+
+        oscillator.start(startTime)
+        oscillator.stop(startTime + duration)
+      }
+
+      const now = ctx.currentTime
+      // Play a pleasant "ding ding" notification
+      playTone(880, now, 0.15)        // A5
+      playTone(1100, now + 0.15, 0.2) // C#6
+      playTone(1320, now + 0.35, 0.3) // E6
+    } catch (error) {
+      console.error('Error playing rest timer sound:', error)
+    }
+  }, [restTimerSoundEnabled])
+
+  // Toggle rest timer sound setting
+  const toggleRestTimerSound = () => {
+    const newValue = !restTimerSoundEnabled
+    setRestTimerSoundEnabled(newValue)
+    localStorage.setItem('restTimerSoundEnabled', newValue.toString())
+  }
 
   // Load timer settings from localStorage
   useEffect(() => {
@@ -815,6 +875,8 @@ function Today() {
             if (activeSession) {
               api.post(`/workouts/${activeSession.id}/rest`, { duration: 0 }).catch(() => {})
             }
+            // Play sound and vibrate to notify user
+            playRestTimerSound()
             if ('vibrate' in navigator) {
               navigator.vibrate([200, 100, 200])
             }
@@ -827,7 +889,7 @@ function Today() {
       clearInterval(restTimerRef.current)
     }
     return () => clearInterval(restTimerRef.current)
-  }, [restTimerRunning, restTimer, activeSession])
+  }, [restTimerRunning, restTimer, activeSession, playRestTimerSound])
 
   const formatTime = (seconds) => {
     const hrs = Math.floor(seconds / 3600)
@@ -1660,6 +1722,13 @@ function Today() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={toggleRestTimerSound}
+                    className={`px-2 py-1 text-xs rounded ${restTimerSoundEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-dark-elevated text-gray-500'}`}
+                    title={restTimerSoundEnabled ? 'Sound on' : 'Sound off'}
+                  >
+                    {restTimerSoundEnabled ? '🔔' : '🔕'}
+                  </button>
+                  <button
                     onClick={() => startRestTimer(restTimer + 30)}
                     className="px-2 py-1 text-xs bg-dark-elevated text-gray-300 rounded hover:bg-dark-card"
                   >
@@ -2372,59 +2441,81 @@ function Today() {
                           </div>
                         </div>
 
-                        {/* Past History Toggle */}
-                        <div className="mb-4">
-                          <button
-                            onClick={() => setShowHistoryFor(showHistoryFor === exercise.id ? null : exercise.id)}
-                            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white"
-                          >
-                            <svg className={`w-4 h-4 transition-transform ${showHistoryFor === exercise.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                            View Past Sessions ({history?.history?.length || 0})
-                          </button>
+                        {/* Past Sessions - Collapsible Last Session + Show More */}
+                        {history?.lastSession && (
+                          <div className="mb-4">
+                            {/* Collapsible Header */}
+                            <button
+                              onClick={() => setLastSessionCollapsed(!lastSessionCollapsed)}
+                              className="w-full flex items-center justify-between text-sm text-gray-400 hover:text-white mb-2"
+                            >
+                              <div className="flex items-center gap-2">
+                                <svg className={`w-4 h-4 transition-transform ${lastSessionCollapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span>Last Session</span>
+                                <span className="text-gray-500">({new Date(history.lastSession.session.date).toLocaleDateString()})</span>
+                              </div>
+                              {!lastSessionCollapsed && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    autoFillFromHistory(exercise.id, exercise.exerciseId)
+                                  }}
+                                  className="text-xs text-accent hover:text-accent-hover"
+                                >
+                                  Copy to sets
+                                </button>
+                              )}
+                            </button>
 
-                          {showHistoryFor === exercise.id && history?.history?.length > 0 && (
-                            <div className="mt-3 space-y-2">
-                              {history.history.map((session, idx) => (
-                                <div key={idx} className="p-3 bg-dark-elevated rounded-lg">
-                                  <p className="text-xs text-gray-400 mb-2">
-                                    {new Date(session.session.date).toLocaleDateString()} - {session.session.name}
-                                  </p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {session.sets.map((set, i) => (
-                                      <span key={i} className={`px-2 py-1 rounded text-sm ${set.isPR ? 'bg-success/20 text-success' : 'bg-dark-card text-gray-300'}`}>
-                                        {set.isPR && '🏆 '}{set.weight > 0 ? `${set.weight}lbs × ` : ''}{set.reps} reps
-                                      </span>
-                                    ))}
-                                  </div>
+                            {/* Last Session Content */}
+                            {!lastSessionCollapsed && (
+                              <div className="p-3 bg-dark-elevated rounded-lg">
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {history.lastSession.sets.map((set, i) => (
+                                    <span key={i} className="px-2 py-1 bg-dark-card rounded text-sm text-gray-300">
+                                      {set.weight > 0 ? `${set.weight}lbs × ` : ''}{set.reps} reps
+                                    </span>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Last Session Info - Quick View */}
-                        {history?.lastSession && showHistoryFor !== exercise.id && (
-                          <div className="mb-4 p-3 bg-dark-elevated rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs text-gray-400">
-                                Last time ({new Date(history.lastSession.session.date).toLocaleDateString()}):
-                              </p>
-                              <button
-                                onClick={() => autoFillFromHistory(exercise.id, exercise.exerciseId)}
-                                className="text-xs text-accent hover:text-accent-hover"
-                              >
-                                Copy to sets
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {history.lastSession.sets.map((set, i) => (
-                                <span key={i} className="px-2 py-1 bg-dark-card rounded text-sm text-gray-300">
-                                  {set.weight > 0 ? `${set.weight}lbs × ` : ''}{set.reps} reps
-                                </span>
-                              ))}
-                            </div>
+                                {/* Show More Sessions Link */}
+                                {history?.history?.length > 1 && (
+                                  <div>
+                                    <button
+                                      onClick={() => setShowOlderSessions(!showOlderSessions)}
+                                      className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                                    >
+                                      <svg className={`w-3 h-3 transition-transform ${showOlderSessions ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                      {showOlderSessions ? 'Hide' : `Show ${history.history.length - 1} older session${history.history.length - 1 > 1 ? 's' : ''}`}
+                                    </button>
+
+                                    {/* Older Sessions */}
+                                    {showOlderSessions && (
+                                      <div className="mt-3 space-y-2 border-t border-gray-700 pt-3">
+                                        {history.history.slice(1).map((session, idx) => (
+                                          <div key={idx} className="p-2 bg-dark-card rounded">
+                                            <p className="text-xs text-gray-500 mb-1">
+                                              {new Date(session.session.date).toLocaleDateString()} - {session.session.name}
+                                            </p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {session.sets.map((set, i) => (
+                                                <span key={i} className={`px-2 py-0.5 rounded text-xs ${set.isPR ? 'bg-success/20 text-success' : 'bg-dark-elevated text-gray-400'}`}>
+                                                  {set.isPR && '🏆 '}{set.weight > 0 ? `${set.weight}× ` : ''}{set.reps}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
