@@ -53,6 +53,7 @@ model User {
   inAppNotifications InAppNotification[]
   reminderLogs      ReminderLog[]
   exerciseNotes     ExerciseNote[]
+  customExercises   CustomExercise[]
   pushSubscriptions PushSubscription[]
   refreshTokens     RefreshToken[]
 
@@ -536,7 +537,7 @@ model ExerciseNote {
 }
 
 // ===========================================
-// Custom Exercises (Admin-created)
+// Custom Exercises (User-created and Admin-created)
 // ===========================================
 
 model CustomExercise {
@@ -562,13 +563,24 @@ model CustomExercise {
   // Images - can be uploaded files or URLs
   images          String[] @default([])
 
+  // User ownership (null = admin/system exercise)
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Visibility settings (only applies when userId is set)
+  visibility      ExerciseVisibility @default(PRIVATE)
+
   // Admin tracking
   createdById     String?
   isActive        Boolean  @default(true)
+  isApproved      Boolean  @default(false)  // For community moderation of PUBLIC exercises
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@index([userId])
+  @@index([visibility])
+  @@index([primaryMuscles])
   @@map("custom_exercises")
 }
 
@@ -583,6 +595,12 @@ enum ProfileVisibility {
   PUBLIC        // Anyone can follow without approval
   PRIVATE       // Cannot be searched or followed
   FRIENDS_ONLY  // Can be searched, requires approval to follow
+}
+
+enum ExerciseVisibility {
+  PRIVATE       // Only creator can see
+  FRIENDS       // Creator + accepted friends can see
+  PUBLIC        // Everyone can see (community)
 }
 
 // ===========================================

@@ -1,7 +1,9 @@
 import express from 'express'
 import fs from 'fs/promises'
+import fsSync from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import multer from 'multer'
 import prisma from '../lib/prisma.js'
 
 const router = express.Router()
@@ -9,11 +11,37 @@ const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Cache for exercises data
+// Configure multer for exercise image uploads
+const exerciseUploadsDir = path.join(__dirname, '../../uploads/exercises')
+if (!fsSync.existsSync(exerciseUploadsDir)) {
+  fsSync.mkdirSync(exerciseUploadsDir, { recursive: true })
+}
+
+const exerciseImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, exerciseUploadsDir)
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    cb(null, `exercise-${req.user.id}-${Date.now()}${ext}`)
+  }
+})
+
+const exerciseImageUpload = multer({
+  storage: exerciseImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true)
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'))
+    }
+  }
+})
+
+// Cache for JSON exercises data only (custom exercises need user-specific filtering)
 let exercisesCache = null
-let customExercisesCache = null
-let customExercisesCacheTime = 0
-const CUSTOM_CACHE_TTL = 60000 // 1 minute
 
 // Load exercises from JSON file
 const loadJsonExercises = async () => {
@@ -39,20 +67,64 @@ const loadJsonExercises = async () => {
   }
 }
 
-// Load custom exercises from database
-const loadCustomExercises = async () => {
-  const now = Date.now()
-  if (customExercisesCache && (now - customExercisesCacheTime) < CUSTOM_CACHE_TTL) {
-    return customExercisesCache
-  }
-
+// Load custom exercises from database with visibility filtering
+const loadCustomExercises = async (userId = null) => {
   try {
+    // Build where clause based on visibility
+    // Users can see:
+    // 1. System exercises (userId is null)
+    // 2. Their own exercises (any visibility)
+    // 3. PUBLIC exercises from other users
+    // 4. FRIENDS exercises from their accepted friends
+    let whereClause = { isActive: true }
+
+    if (userId) {
+      // Get user's friend IDs for FRIENDS visibility
+      const friendships = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            { userId: userId, status: 'ACCEPTED' },
+            { friendId: userId, status: 'ACCEPTED' }
+          ]
+        },
+        select: { userId: true, friendId: true }
+      })
+      const friendIds = friendships.map(f =>
+        f.userId === userId ? f.friendId : f.userId
+      )
+
+      whereClause = {
+        isActive: true,
+        OR: [
+          { userId: null }, // System/admin exercises
+          { userId: userId }, // User's own exercises
+          { visibility: 'PUBLIC' }, // Public community exercises
+          { visibility: 'FRIENDS', userId: { in: friendIds } } // Friends' shared exercises
+        ]
+      }
+    } else {
+      // Not logged in: only show system exercises and public exercises
+      whereClause = {
+        isActive: true,
+        OR: [
+          { userId: null },
+          { visibility: 'PUBLIC' }
+        ]
+      }
+    }
+
     const customExercises = await prisma.customExercise.findMany({
-      where: { isActive: true }
+      where: whereClause,
+      include: {
+        user: {
+          select: { id: true, name: true, username: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
     })
 
     // Transform to match JSON exercise format
-    customExercisesCache = customExercises.map(ex => ({
+    return customExercises.map(ex => ({
       id: `custom-${ex.id}`,
       name: ex.name,
       primaryMuscles: ex.primaryMuscles,
@@ -64,10 +136,13 @@ const loadCustomExercises = async () => {
       mechanic: ex.mechanic,
       instructions: ex.instructions,
       images: ex.images,
-      isCustom: true
+      isCustom: true,
+      isUserCreated: !!ex.userId,
+      visibility: ex.visibility,
+      creatorId: ex.userId,
+      creatorName: ex.user?.name || ex.user?.username || null,
+      isOwnExercise: ex.userId === userId
     }))
-    customExercisesCacheTime = now
-    return customExercisesCache
   } catch (error) {
     console.error('Error loading custom exercises:', error)
     return []
@@ -75,10 +150,10 @@ const loadCustomExercises = async () => {
 }
 
 // Load all exercises (JSON + custom)
-const loadExercises = async () => {
+const loadExercises = async (userId = null) => {
   const [jsonExercises, customExercises] = await Promise.all([
     loadJsonExercises(),
-    loadCustomExercises()
+    loadCustomExercises(userId)
   ])
 
   // Custom exercises appear first
@@ -94,11 +169,23 @@ router.get('/', async (req, res, next) => {
       equipment,
       level,
       category,
+      source, // 'official', 'custom', 'community', 'all'
       limit = 50,
       offset = 0
     } = req.query
 
-    let exercises = await loadExercises()
+    let exercises = await loadExercises(req.user?.id)
+
+    // Apply source filter
+    if (source && source !== 'all') {
+      if (source === 'official') {
+        exercises = exercises.filter(e => !e.isCustom)
+      } else if (source === 'custom') {
+        exercises = exercises.filter(e => e.isOwnExercise)
+      } else if (source === 'community') {
+        exercises = exercises.filter(e => e.isCustom && !e.isOwnExercise)
+      }
+    }
 
     // Apply filters
     if (search) {
@@ -201,7 +288,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/exercises/filters/options - Must be before /:id to avoid route conflict
 router.get('/filters/options', async (req, res, next) => {
   try {
-    const exercises = await loadExercises()
+    const exercises = await loadExercises(req.user?.id)
 
     // Extract unique values for filters
     const muscles = new Set()
@@ -230,7 +317,7 @@ router.get('/filters/options', async (req, res, next) => {
 // GET /api/exercises/:id
 router.get('/:id', async (req, res, next) => {
   try {
-    const exercises = await loadExercises()
+    const exercises = await loadExercises(req.user?.id)
     const exercise = exercises.find(e => e.id === req.params.id)
 
     if (!exercise) {
@@ -263,7 +350,7 @@ router.get('/favorites', async (req, res, next) => {
     }
 
     // Load full exercise data
-    const allExercises = await loadExercises()
+    const allExercises = await loadExercises(req.user.id)
     const favoriteIds = new Set(favorites.map(f => f.exerciseId))
     const prefsMap = new Map(favorites.map(f => [f.exerciseId, f]))
 
@@ -453,6 +540,325 @@ router.put('/:id', async (req, res, next) => {
     exercisesCache = null
 
     res.json({ exercise: exercises[exerciseIndex] })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ============================================
+// Custom Exercise Routes (User-created exercises)
+// ============================================
+
+// GET /api/exercises/custom/mine - Get user's own custom exercises
+router.get('/custom/mine', async (req, res, next) => {
+  try {
+    const exercises = await prisma.customExercise.findMany({
+      where: {
+        userId: req.user.id,
+        isActive: true
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    res.json({
+      exercises: exercises.map(ex => ({
+        id: `custom-${ex.id}`,
+        dbId: ex.id,
+        name: ex.name,
+        primaryMuscles: ex.primaryMuscles,
+        secondaryMuscles: ex.secondaryMuscles,
+        equipment: ex.equipment,
+        category: ex.category,
+        force: ex.force,
+        level: ex.level,
+        mechanic: ex.mechanic,
+        instructions: ex.instructions,
+        images: ex.images,
+        visibility: ex.visibility,
+        isCustom: true,
+        isOwnExercise: true,
+        createdAt: ex.createdAt
+      }))
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/exercises/custom - Create a new custom exercise
+router.post('/custom', exerciseImageUpload.array('images', 4), async (req, res, next) => {
+  try {
+    const {
+      name,
+      primaryMuscles,
+      secondaryMuscles,
+      equipment,
+      category,
+      force,
+      level,
+      mechanic,
+      instructions,
+      visibility = 'PRIVATE'
+    } = req.body
+
+    if (!name || !primaryMuscles) {
+      return res.status(400).json({ message: 'Name and primaryMuscles are required' })
+    }
+
+    // Parse arrays from form data
+    const parsePrimaryMuscles = typeof primaryMuscles === 'string'
+      ? JSON.parse(primaryMuscles)
+      : primaryMuscles
+    const parseSecondaryMuscles = secondaryMuscles
+      ? (typeof secondaryMuscles === 'string' ? JSON.parse(secondaryMuscles) : secondaryMuscles)
+      : []
+    const parseInstructions = instructions
+      ? (typeof instructions === 'string' ? JSON.parse(instructions) : instructions)
+      : []
+
+    // Get image URLs from uploaded files
+    const imageUrls = req.files?.map(file => `/uploads/exercises/${file.filename}`) || []
+
+    const exercise = await prisma.customExercise.create({
+      data: {
+        name: name.trim(),
+        primaryMuscles: parsePrimaryMuscles,
+        secondaryMuscles: parseSecondaryMuscles,
+        equipment: equipment || null,
+        category: category || null,
+        force: force || null,
+        level: level || null,
+        mechanic: mechanic || null,
+        instructions: parseInstructions,
+        images: imageUrls,
+        userId: req.user.id,
+        visibility: visibility,
+        isActive: true
+      }
+    })
+
+    res.status(201).json({
+      exercise: {
+        id: `custom-${exercise.id}`,
+        dbId: exercise.id,
+        name: exercise.name,
+        primaryMuscles: exercise.primaryMuscles,
+        secondaryMuscles: exercise.secondaryMuscles,
+        equipment: exercise.equipment,
+        category: exercise.category,
+        force: exercise.force,
+        level: exercise.level,
+        mechanic: exercise.mechanic,
+        instructions: exercise.instructions,
+        images: exercise.images,
+        visibility: exercise.visibility,
+        isCustom: true,
+        isOwnExercise: true
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/exercises/custom/:id - Update a custom exercise
+router.put('/custom/:id', exerciseImageUpload.array('images', 4), async (req, res, next) => {
+  try {
+    const exerciseId = req.params.id
+
+    // Find the exercise and verify ownership
+    const existing = await prisma.customExercise.findUnique({
+      where: { id: exerciseId }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ message: 'You can only edit your own exercises' })
+    }
+
+    const {
+      name,
+      primaryMuscles,
+      secondaryMuscles,
+      equipment,
+      category,
+      force,
+      level,
+      mechanic,
+      instructions,
+      visibility,
+      existingImages
+    } = req.body
+
+    // Parse arrays from form data
+    const parsePrimaryMuscles = primaryMuscles
+      ? (typeof primaryMuscles === 'string' ? JSON.parse(primaryMuscles) : primaryMuscles)
+      : undefined
+    const parseSecondaryMuscles = secondaryMuscles
+      ? (typeof secondaryMuscles === 'string' ? JSON.parse(secondaryMuscles) : secondaryMuscles)
+      : undefined
+    const parseInstructions = instructions
+      ? (typeof instructions === 'string' ? JSON.parse(instructions) : instructions)
+      : undefined
+    const parseExistingImages = existingImages
+      ? (typeof existingImages === 'string' ? JSON.parse(existingImages) : existingImages)
+      : []
+
+    // Combine existing images with new uploads
+    const newImageUrls = req.files?.map(file => `/uploads/exercises/${file.filename}`) || []
+    const allImages = [...parseExistingImages, ...newImageUrls]
+
+    const updateData = {}
+    if (name !== undefined) updateData.name = name.trim()
+    if (parsePrimaryMuscles !== undefined) updateData.primaryMuscles = parsePrimaryMuscles
+    if (parseSecondaryMuscles !== undefined) updateData.secondaryMuscles = parseSecondaryMuscles
+    if (equipment !== undefined) updateData.equipment = equipment || null
+    if (category !== undefined) updateData.category = category || null
+    if (force !== undefined) updateData.force = force || null
+    if (level !== undefined) updateData.level = level || null
+    if (mechanic !== undefined) updateData.mechanic = mechanic || null
+    if (parseInstructions !== undefined) updateData.instructions = parseInstructions
+    if (visibility !== undefined) updateData.visibility = visibility
+    if (existingImages !== undefined || req.files?.length) updateData.images = allImages
+
+    const exercise = await prisma.customExercise.update({
+      where: { id: exerciseId },
+      data: updateData
+    })
+
+    res.json({
+      exercise: {
+        id: `custom-${exercise.id}`,
+        dbId: exercise.id,
+        name: exercise.name,
+        primaryMuscles: exercise.primaryMuscles,
+        secondaryMuscles: exercise.secondaryMuscles,
+        equipment: exercise.equipment,
+        category: exercise.category,
+        force: exercise.force,
+        level: exercise.level,
+        mechanic: exercise.mechanic,
+        instructions: exercise.instructions,
+        images: exercise.images,
+        visibility: exercise.visibility,
+        isCustom: true,
+        isOwnExercise: true
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/exercises/custom/:id - Delete a custom exercise
+router.delete('/custom/:id', async (req, res, next) => {
+  try {
+    const exerciseId = req.params.id
+
+    // Find the exercise and verify ownership
+    const existing = await prisma.customExercise.findUnique({
+      where: { id: exerciseId }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    if (existing.userId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'You can only delete your own exercises' })
+    }
+
+    // Soft delete by setting isActive to false
+    await prisma.customExercise.update({
+      where: { id: exerciseId },
+      data: { isActive: false }
+    })
+
+    // Optionally, delete the image files
+    if (existing.images?.length) {
+      for (const imagePath of existing.images) {
+        try {
+          const fullPath = path.join(__dirname, '../../', imagePath)
+          await fs.unlink(fullPath)
+        } catch (err) {
+          console.error('Error deleting exercise image:', err)
+        }
+      }
+    }
+
+    res.json({ message: 'Exercise deleted successfully' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/exercises/custom/:id - Get a specific custom exercise
+router.get('/custom/:id', async (req, res, next) => {
+  try {
+    const exerciseId = req.params.id
+
+    const exercise = await prisma.customExercise.findUnique({
+      where: { id: exerciseId },
+      include: {
+        user: {
+          select: { id: true, name: true, username: true }
+        }
+      }
+    })
+
+    if (!exercise || !exercise.isActive) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    // Check visibility permissions
+    const isOwner = exercise.userId === req.user?.id
+    const isPublic = exercise.visibility === 'PUBLIC'
+    const isSystem = !exercise.userId
+
+    if (!isOwner && !isPublic && !isSystem) {
+      // Check if FRIENDS visibility and user is a friend
+      if (exercise.visibility === 'FRIENDS') {
+        const friendship = await prisma.friendship.findFirst({
+          where: {
+            status: 'ACCEPTED',
+            OR: [
+              { userId: exercise.userId, friendId: req.user?.id },
+              { userId: req.user?.id, friendId: exercise.userId }
+            ]
+          }
+        })
+        if (!friendship) {
+          return res.status(403).json({ message: 'You do not have permission to view this exercise' })
+        }
+      } else {
+        return res.status(403).json({ message: 'You do not have permission to view this exercise' })
+      }
+    }
+
+    res.json({
+      exercise: {
+        id: `custom-${exercise.id}`,
+        dbId: exercise.id,
+        name: exercise.name,
+        primaryMuscles: exercise.primaryMuscles,
+        secondaryMuscles: exercise.secondaryMuscles,
+        equipment: exercise.equipment,
+        category: exercise.category,
+        force: exercise.force,
+        level: exercise.level,
+        mechanic: exercise.mechanic,
+        instructions: exercise.instructions,
+        images: exercise.images,
+        visibility: exercise.visibility,
+        isCustom: true,
+        isOwnExercise: isOwner,
+        creatorId: exercise.userId,
+        creatorName: exercise.user?.name || exercise.user?.username || null
+      }
+    })
   } catch (error) {
     next(error)
   }

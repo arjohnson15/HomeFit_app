@@ -73,6 +73,10 @@ COPY package.json ./root-package.json
 COPY src/server/prisma ./prisma
 RUN npx prisma generate
 
+# Copy entrypoint script
+COPY production/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 # Copy built backend source
 COPY --from=backend-builder /app/server/src ./src
 
@@ -109,5 +113,6 @@ LABEL org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.source="https://github.com/arjohnson15/HomeFit_app"
 
 # Start with dumb-init for proper signal handling
+# Entrypoint runs migrations automatically before starting
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "src/index.js"]
+CMD ["./entrypoint.sh"]

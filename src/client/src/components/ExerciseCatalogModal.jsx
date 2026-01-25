@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
+import CreateExerciseModal from './CreateExerciseModal'
 
 const muscleGroups = [
   { id: '', label: 'All' },
@@ -162,6 +163,8 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
   const [myEquipmentOnly, setMyEquipmentOnly] = useState(false)
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [favoriteIds, setFavoriteIds] = useState(new Set())
+  const [selectedSource, setSelectedSource] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const limit = 20
 
   // Load user equipment from localStorage and favorite IDs on mount
@@ -223,6 +226,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       }
 
       if (selectedLevel) params.append('level', selectedLevel)
+      if (selectedSource) params.append('source', selectedSource)
 
       const response = await api.get(`/exercises?${params}`)
       let fetchedExercises = response.data.exercises
@@ -263,7 +267,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, selectedSource, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -271,7 +275,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       fetchExercises()
     }, 300)
     return () => clearTimeout(debounce)
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly, favoritesOnly])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, selectedSource, myEquipmentOnly, favoritesOnly])
 
   useEffect(() => {
     fetchExercises()
@@ -424,6 +428,16 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                 <option value="intermediate">Intermediate</option>
                 <option value="expert">Expert</option>
               </select>
+              <select
+                value={selectedSource}
+                onChange={(e) => setSelectedSource(e.target.value)}
+                className="input flex-1 text-sm"
+              >
+                <option value="">All Sources</option>
+                <option value="official">Official</option>
+                <option value="custom">My Custom</option>
+                <option value="community">Community</option>
+              </select>
             </div>
           </div>
 
@@ -474,9 +488,22 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium truncate">
-                          {exerciseNicknames[exercise.id] || exercise.name}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-white font-medium truncate">
+                            {exerciseNicknames[exercise.id] || exercise.name}
+                          </h3>
+                          {/* Custom/Community badges */}
+                          {exercise.isOwnExercise && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-accent/20 text-accent flex-shrink-0">
+                              Custom
+                            </span>
+                          )}
+                          {exercise.isCustom && !exercise.isOwnExercise && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-green-500/20 text-green-400 flex-shrink-0">
+                              Community
+                            </span>
+                          )}
+                        </div>
                         {exerciseNicknames[exercise.id] && (
                           <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
                         )}
@@ -508,7 +535,27 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                   ))}
 
                   {exercises.length === 0 && !loading && (
-                    <p className="text-gray-500 text-center py-8">No exercises found</p>
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-4">No exercises found</p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="text-accent hover:underline text-sm"
+                      >
+                        Can't find it? Create a custom exercise
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Create Custom Link */}
+                  {exercises.length > 0 && (
+                    <div className="text-center pt-4 pb-2">
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="text-accent hover:underline text-sm"
+                      >
+                        Can't find what you're looking for? Create a custom exercise
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -565,6 +612,21 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
           isSelected={isSelected(viewingExercise.id)}
           onToggleSelect={() => toggleExerciseSelection(viewingExercise)}
           nickname={exerciseNicknames[viewingExercise.id]}
+        />
+      )}
+
+      {/* Create Custom Exercise Modal */}
+      {showCreateModal && (
+        <CreateExerciseModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={(newExercise) => {
+            fetchExercises()
+            setShowCreateModal(false)
+            // Optionally auto-select the new exercise
+            if (newExercise) {
+              setSelectedExercises(prev => [...prev, newExercise])
+            }
+          }}
         />
       )}
     </div>

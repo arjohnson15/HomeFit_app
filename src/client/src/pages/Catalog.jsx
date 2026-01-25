@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../services/authStore'
 import ChatWidget from '../components/ChatWidget'
+import CreateExerciseModal from '../components/CreateExerciseModal'
 
 // Display labels for equipment
 const equipmentLabels = {
@@ -72,6 +73,8 @@ function Catalog() {
   const [equipmentSearch, setEquipmentSearch] = useState('')
   const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false)
   const [exerciseNicknames, setExerciseNicknames] = useState({}) // Map of exerciseId -> nickname
+  const [selectedSource, setSelectedSource] = useState('') // 'official', 'custom', 'community', or '' for all
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const limit = 30
 
   // Load user equipment from localStorage and fetch filter options on mount
@@ -135,6 +138,7 @@ function Catalog() {
       }
 
       if (selectedLevel) params.append('level', selectedLevel)
+      if (selectedSource) params.append('source', selectedSource)
 
       const response = await api.get(`/exercises?${params}`)
       let fetchedExercises = response.data.exercises
@@ -176,7 +180,7 @@ function Catalog() {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, selectedSource, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -184,7 +188,7 @@ function Catalog() {
       fetchExercises()
     }, 300)
     return () => clearTimeout(debounce)
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly, favoritesOnly])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, selectedSource, myEquipmentOnly, favoritesOnly])
 
   useEffect(() => {
     fetchExercises()
@@ -394,6 +398,29 @@ function Catalog() {
         </select>
       </div>
 
+      {/* Source Filter */}
+      <div className="flex gap-2 items-center">
+        <select
+          value={selectedSource}
+          onChange={(e) => setSelectedSource(e.target.value)}
+          className="input flex-1 text-sm"
+        >
+          <option value="">All Sources</option>
+          <option value="official">Official Exercises</option>
+          <option value="custom">My Custom Exercises</option>
+          <option value="community">Community Exercises</option>
+        </select>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 whitespace-nowrap"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="hidden sm:inline">Create Exercise</span>
+        </button>
+      </div>
+
       {/* Loading State */}
       {loading && (
         <div className="flex justify-center py-8">
@@ -432,11 +459,28 @@ function Catalog() {
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium truncate">
-                  {exerciseNicknames[exercise.id] || exercise.name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-white font-medium truncate">
+                    {exerciseNicknames[exercise.id] || exercise.name}
+                  </h3>
+                  {/* Custom/Community badges */}
+                  {exercise.isOwnExercise && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-accent/20 text-accent flex-shrink-0">
+                      Custom
+                    </span>
+                  )}
+                  {exercise.isCustom && !exercise.isOwnExercise && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 flex-shrink-0">
+                      Community
+                    </span>
+                  )}
+                </div>
                 {exerciseNicknames[exercise.id] && (
                   <p className="text-gray-500 text-xs truncate">{exercise.name}</p>
+                )}
+                {/* Show creator name for community exercises */}
+                {exercise.isCustom && !exercise.isOwnExercise && exercise.creatorName && (
+                  <p className="text-gray-500 text-xs">by {exercise.creatorName}</p>
                 )}
                 <p className="text-gray-400 text-sm capitalize">
                   {exercise.primaryMuscles?.join(', ')} • {exercise.equipment}
@@ -509,6 +553,17 @@ function Catalog() {
 
       {/* AI Coach Chat */}
       <ChatWidget context="catalog" />
+
+      {/* Create Custom Exercise Modal */}
+      {showCreateModal && (
+        <CreateExerciseModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            fetchExercises()
+            setShowCreateModal(false)
+          }}
+        />
+      )}
     </div>
   )
 }
