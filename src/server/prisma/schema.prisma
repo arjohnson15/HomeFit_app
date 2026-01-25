@@ -149,7 +149,7 @@ model UserSettings {
   socialNotifications Boolean  @default(true)
 
   // Notification Channels
-  notifyByEmail     Boolean  @default(true)
+  notifyByEmail     Boolean  @default(false)
   notifyBySms       Boolean  @default(false)
   notifyByPush      Boolean  @default(true)
   phoneNumber       String?  // For SMS notifications
