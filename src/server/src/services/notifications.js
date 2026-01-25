@@ -148,7 +148,7 @@ class NotificationService {
   // Send web push notification
   async sendPush(userId, title, body, data = {}) {
     if (!this.isPushAvailable()) {
-      console.log('Push not configured, skipping notification')
+      console.log('[Push] Not configured - VAPID keys missing. Configure SMTP first to enable push.')
       return false
     }
 
@@ -157,8 +157,11 @@ class NotificationService {
         where: { userId }
       })
 
+      console.log(`[Push] Found ${subscriptions.length} subscription(s) for user ${userId}`)
+
       if (subscriptions.length === 0) {
-        console.log('No push subscriptions for user:', userId)
+        console.log('[Push] No push subscriptions for user:', userId)
+        console.log('[Push] User needs to enable push notifications in Settings > Notifications')
         return false
       }
 
@@ -174,8 +177,9 @@ class NotificationService {
       })
 
       const results = await Promise.allSettled(
-        subscriptions.map(sub =>
-          webpush.sendNotification(
+        subscriptions.map(sub => {
+          console.log(`[Push] Sending to endpoint: ${sub.endpoint.substring(0, 50)}...`)
+          return webpush.sendNotification(
             {
               endpoint: sub.endpoint,
               keys: {
@@ -185,23 +189,31 @@ class NotificationService {
             },
             payload
           ).catch(async (error) => {
+            console.log(`[Push] Error for subscription ${sub.id}: ${error.statusCode || error.message}`)
             // Remove invalid subscriptions
             if (error.statusCode === 410 || error.statusCode === 404) {
               await prisma.pushSubscription.delete({
                 where: { id: sub.id }
               })
-              console.log('Removed expired push subscription:', sub.id)
+              console.log('[Push] Removed expired push subscription:', sub.id)
             }
             throw error
           })
-        )
+        })
       )
 
       const successful = results.filter(r => r.status === 'fulfilled').length
-      console.log(`Push sent to ${successful}/${subscriptions.length} subscriptions for user ${userId}`)
+      const failed = results.filter(r => r.status === 'rejected')
+
+      if (failed.length > 0) {
+        console.log(`[Push] ${failed.length} notification(s) failed:`)
+        failed.forEach((f, i) => console.log(`  ${i + 1}. ${f.reason?.message || f.reason}`))
+      }
+
+      console.log(`[Push] Sent ${successful}/${subscriptions.length} notifications for user ${userId}`)
       return successful > 0
     } catch (error) {
-      console.error('Failed to send push:', error)
+      console.error('[Push] Failed to send push:', error)
       return false
     }
   }

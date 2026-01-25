@@ -112,6 +112,50 @@ router.delete('/unsubscribe', async (req, res, next) => {
   }
 })
 
+// GET /api/notifications/push-debug
+// Diagnostic endpoint for push notification issues
+router.get('/push-debug', async (req, res, next) => {
+  try {
+    await notificationService.loadSettings()
+
+    // Get user's push subscriptions
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId: req.user.id },
+      select: {
+        id: true,
+        endpoint: true,
+        userAgent: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    })
+
+    // Get app settings (without sensitive data)
+    const appSettings = await prisma.appSettings.findFirst()
+
+    res.json({
+      pushAvailable: notificationService.isPushAvailable(),
+      vapidConfigured: !!appSettings?.vapidPublicKey,
+      smtpConfigured: !!(appSettings?.smtpHost && appSettings?.smtpUser),
+      subscriptionCount: subscriptions.length,
+      subscriptions: subscriptions.map(s => ({
+        id: s.id,
+        endpoint: s.endpoint.substring(0, 60) + '...',
+        userAgent: s.userAgent?.substring(0, 50),
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt
+      })),
+      troubleshooting: !notificationService.isPushAvailable()
+        ? 'VAPID keys not configured. SMTP must be set up first (they are auto-generated when SMTP is configured). Try restarting the server.'
+        : subscriptions.length === 0
+        ? 'No push subscriptions found. User needs to click "Enable" on push notifications in Settings > Notifications.'
+        : 'Push should be working. Try sending a test notification.'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // POST /api/notifications/test
 // Send a test notification
 router.post('/test', async (req, res, next) => {
@@ -154,6 +198,19 @@ router.post('/test', async (req, res, next) => {
         'Push notifications are working!',
         { url: '/settings/notifications' }
       )
+      if (!results.push) {
+        // Add diagnostic info
+        const subscriptions = await prisma.pushSubscription.count({
+          where: { userId: req.user.id }
+        })
+        results.pushDebug = {
+          vapidConfigured: notificationService.isPushAvailable(),
+          subscriptionCount: subscriptions,
+          hint: subscriptions === 0
+            ? 'No push subscriptions. Enable push in Settings > Notifications first.'
+            : 'Subscriptions exist but push failed. Check server logs.'
+        }
+      }
     }
 
     res.json({ results })

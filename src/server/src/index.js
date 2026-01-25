@@ -37,6 +37,9 @@ import goalRoutes from './routes/goals.js'
 import backupScheduler from './services/scheduler.js'
 import reminderScheduler from './services/reminderScheduler.js'
 import followNotificationService from './services/followNotifications.js'
+import notificationService from './services/notifications.js'
+import prisma from './lib/prisma.js'
+import webpush from 'web-push'
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -328,6 +331,33 @@ httpServer.listen(PORT, async () => {
     logger.info('Reminder scheduler initialized')
   } catch (error) {
     logger.error('Failed to initialize reminder scheduler:', error)
+  }
+
+  // Initialize push notifications - auto-generate VAPID keys if SMTP is configured but VAPID isn't
+  try {
+    const settings = await prisma.appSettings.findFirst()
+    if (settings?.smtpHost && settings?.smtpUser && !settings?.vapidPublicKey) {
+      // SMTP is configured but VAPID keys don't exist - generate them
+      const vapidKeys = webpush.generateVAPIDKeys()
+      await prisma.appSettings.update({
+        where: { id: settings.id },
+        data: {
+          vapidPublicKey: vapidKeys.publicKey,
+          vapidPrivateKey: vapidKeys.privateKey,
+          vapidEmail: settings.smtpFrom
+        }
+      })
+      logger.info('Auto-generated VAPID keys for push notifications')
+    }
+    // Load notification settings (including VAPID)
+    await notificationService.loadSettings()
+    if (notificationService.isPushAvailable()) {
+      logger.info('Push notifications available')
+    } else {
+      logger.info('Push notifications not configured (SMTP required first)')
+    }
+  } catch (error) {
+    logger.error('Failed to initialize push notifications:', error)
   }
 })
 
