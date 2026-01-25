@@ -124,40 +124,90 @@ const loadCustomExercises = async (userId = null) => {
     })
 
     // Transform to match JSON exercise format
-    return customExercises.map(ex => ({
-      id: `custom-${ex.id}`,
-      name: ex.name,
-      primaryMuscles: ex.primaryMuscles,
-      secondaryMuscles: ex.secondaryMuscles,
-      equipment: ex.equipment,
-      category: ex.category,
-      force: ex.force,
-      level: ex.level,
-      mechanic: ex.mechanic,
-      instructions: ex.instructions,
-      images: ex.images,
-      isCustom: true,
-      isUserCreated: !!ex.userId,
-      visibility: ex.visibility,
-      creatorId: ex.userId,
-      creatorName: ex.user?.name || ex.user?.username || null,
-      isOwnExercise: ex.userId === userId
-    }))
+    // Filter out overrides - they're handled separately
+    return customExercises
+      .filter(ex => !ex.overridesExerciseId)
+      .map(ex => ({
+        id: `custom-${ex.id}`,
+        name: ex.name,
+        primaryMuscles: ex.primaryMuscles,
+        secondaryMuscles: ex.secondaryMuscles,
+        equipment: ex.equipment,
+        category: ex.category,
+        force: ex.force,
+        level: ex.level,
+        mechanic: ex.mechanic,
+        instructions: ex.instructions,
+        images: ex.images,
+        isCustom: true,
+        isUserCreated: !!ex.userId,
+        visibility: ex.visibility,
+        creatorId: ex.userId,
+        creatorName: ex.user?.name || ex.user?.username || null,
+        isOwnExercise: ex.userId === userId
+      }))
   } catch (error) {
     console.error('Error loading custom exercises:', error)
     return []
   }
 }
 
-// Load all exercises (JSON + custom)
+// Load admin overrides for built-in exercises
+const loadExerciseOverrides = async () => {
+  try {
+    const overrides = await prisma.customExercise.findMany({
+      where: {
+        overridesExerciseId: { not: null },
+        isActive: true
+      }
+    })
+
+    // Create a map of exerciseId -> override data
+    const overrideMap = {}
+    for (const override of overrides) {
+      overrideMap[override.overridesExerciseId] = {
+        name: override.name,
+        primaryMuscles: override.primaryMuscles,
+        secondaryMuscles: override.secondaryMuscles,
+        equipment: override.equipment,
+        category: override.category,
+        force: override.force,
+        level: override.level,
+        mechanic: override.mechanic,
+        instructions: override.instructions,
+        images: override.images
+      }
+    }
+    return overrideMap
+  } catch (error) {
+    console.error('Error loading exercise overrides:', error)
+    return {}
+  }
+}
+
+// Load all exercises (JSON + custom), with admin overrides applied
 const loadExercises = async (userId = null) => {
-  const [jsonExercises, customExercises] = await Promise.all([
+  const [jsonExercises, customExercises, overrides] = await Promise.all([
     loadJsonExercises(),
-    loadCustomExercises(userId)
+    loadCustomExercises(userId),
+    loadExerciseOverrides()
   ])
 
-  // Custom exercises appear first
-  return [...customExercises, ...jsonExercises]
+  // Apply admin overrides to JSON exercises
+  const mergedJsonExercises = jsonExercises.map(ex => {
+    if (overrides[ex.id]) {
+      return {
+        ...ex,
+        ...overrides[ex.id],
+        _isOverridden: true
+      }
+    }
+    return ex
+  })
+
+  // Custom exercises (non-overrides) appear first
+  const nonOverrideCustom = customExercises.filter(ex => !ex.overridesExerciseId)
+  return [...nonOverrideCustom, ...mergedJsonExercises]
 }
 
 // GET /api/exercises
@@ -314,23 +364,8 @@ router.get('/filters/options', async (req, res, next) => {
   }
 })
 
-// GET /api/exercises/:id
-router.get('/:id', async (req, res, next) => {
-  try {
-    const exercises = await loadExercises(req.user?.id)
-    const exercise = exercises.find(e => e.id === req.params.id)
-
-    if (!exercise) {
-      return res.status(404).json({ message: 'Exercise not found' })
-    }
-
-    res.json({ exercise })
-  } catch (error) {
-    next(error)
-  }
-})
-
 // GET /api/exercises/favorites - Get user's favorite exercises
+// NOTE: This must be defined BEFORE /:id to avoid route collision
 router.get('/favorites', async (req, res, next) => {
   try {
     const favorites = await prisma.exerciseNote.findMany({
@@ -392,6 +427,23 @@ router.post('/preferences/batch', async (req, res, next) => {
     })
 
     res.json({ preferences })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/exercises/:id - Get single exercise
+// NOTE: This must be AFTER /favorites and /preferences/batch to avoid route collision
+router.get('/:id', async (req, res, next) => {
+  try {
+    const exercises = await loadExercises(req.user?.id)
+    const exercise = exercises.find(e => e.id === req.params.id)
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    res.json({ exercise })
   } catch (error) {
     next(error)
   }
@@ -499,6 +551,7 @@ router.put('/:id/favorite', async (req, res, next) => {
 })
 
 // PUT /api/exercises/:id - Update exercise (Admin only)
+// Admin modifications are stored in the database as overrides
 router.put('/:id', async (req, res, next) => {
   try {
     // Check if user is admin
@@ -509,7 +562,7 @@ router.put('/:id', async (req, res, next) => {
     const exerciseId = req.params.id
     const updates = req.body
 
-    // Load the exercises JSON file
+    // First, find the original exercise from the JSON catalog
     let exercisesPath = path.join(__dirname, '../../data/exercises.json')
     try {
       await fs.access(exercisesPath)
@@ -519,27 +572,79 @@ router.put('/:id', async (req, res, next) => {
 
     const data = await fs.readFile(exercisesPath, 'utf-8')
     const exercises = JSON.parse(data)
+    const originalExercise = exercises.find(e => e.id === exerciseId)
 
-    // Find and update the exercise
-    const exerciseIndex = exercises.findIndex(e => e.id === exerciseId)
-    if (exerciseIndex === -1) {
-      return res.status(404).json({ message: 'Exercise not found' })
+    if (!originalExercise) {
+      return res.status(404).json({ message: 'Exercise not found in catalog' })
     }
 
-    // Update the exercise
-    exercises[exerciseIndex] = {
-      ...exercises[exerciseIndex],
-      ...updates,
-      id: exerciseId // Ensure ID doesn't change
-    }
+    // Check if an override already exists in the database
+    let override = await prisma.customExercise.findUnique({
+      where: { overridesExerciseId: exerciseId }
+    })
 
-    // Save back to file
-    await fs.writeFile(exercisesPath, JSON.stringify(exercises, null, 2))
+    if (override) {
+      // Update existing override
+      override = await prisma.customExercise.update({
+        where: { id: override.id },
+        data: {
+          name: updates.name ?? override.name,
+          primaryMuscles: updates.primaryMuscles ?? override.primaryMuscles,
+          secondaryMuscles: updates.secondaryMuscles ?? override.secondaryMuscles,
+          equipment: updates.equipment ?? override.equipment,
+          category: updates.category ?? override.category,
+          force: updates.force ?? override.force,
+          level: updates.level ?? override.level,
+          mechanic: updates.mechanic ?? override.mechanic,
+          instructions: updates.instructions ?? override.instructions,
+          images: updates.images ?? override.images
+        }
+      })
+    } else {
+      // Create new override
+      override = await prisma.customExercise.create({
+        data: {
+          overridesExerciseId: exerciseId,
+          name: updates.name ?? originalExercise.name,
+          primaryMuscles: updates.primaryMuscles ?? originalExercise.primaryMuscles ?? [],
+          secondaryMuscles: updates.secondaryMuscles ?? originalExercise.secondaryMuscles ?? [],
+          equipment: updates.equipment ?? originalExercise.equipment,
+          category: updates.category ?? originalExercise.category,
+          force: updates.force ?? originalExercise.force,
+          level: updates.level ?? originalExercise.level,
+          mechanic: updates.mechanic ?? originalExercise.mechanic,
+          instructions: updates.instructions ?? originalExercise.instructions ?? [],
+          images: updates.images ?? originalExercise.images ?? [],
+          userId: null, // Admin/system exercise
+          visibility: 'PUBLIC',
+          isActive: true,
+          isApproved: true,
+          createdById: req.user.id
+        }
+      })
+    }
 
     // Clear cache so next request gets updated data
     exercisesCache = null
 
-    res.json({ exercise: exercises[exerciseIndex] })
+    // Return merged exercise data
+    res.json({
+      exercise: {
+        id: exerciseId,
+        ...originalExercise,
+        name: override.name,
+        primaryMuscles: override.primaryMuscles,
+        secondaryMuscles: override.secondaryMuscles,
+        equipment: override.equipment,
+        category: override.category,
+        force: override.force,
+        level: override.level,
+        mechanic: override.mechanic,
+        instructions: override.instructions,
+        images: override.images,
+        _isOverridden: true
+      }
+    })
   } catch (error) {
     next(error)
   }

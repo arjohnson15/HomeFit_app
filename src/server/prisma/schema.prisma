@@ -575,6 +575,9 @@ model CustomExercise {
   isActive        Boolean  @default(true)
   isApproved      Boolean  @default(false)  // For community moderation of PUBLIC exercises
 
+  // For admin overrides of built-in exercises
+  overridesExerciseId String?  @unique  // ID of the built-in exercise this overrides (null for new exercises)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
