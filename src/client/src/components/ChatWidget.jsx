@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import api from '../services/api'
 
-const INITIAL_MESSAGE = { role: 'assistant', content: 'Hi! I\'m your AI fitness assistant. Ask me anything about workouts, exercises, or building your training plan! I can even create workouts for you - just ask!' }
+const INITIAL_MESSAGE = { role: 'assistant', content: "Hi! I'm your AI fitness coach and nutritionist. Ask me anything about workouts, exercises, nutrition, or your training plan!" }
 const CHAT_TIMEOUT_HOURS = 2 // Auto-reset chat after this many hours of inactivity
 
-const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorkoutCreated }, ref) {
+const ChatWidget = forwardRef(function ChatWidget({ context = 'general' }, ref) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Load messages from sessionStorage on mount, with auto-reset check
@@ -23,16 +23,13 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
       }
 
       const saved = sessionStorage.getItem('ai-chat-messages')
-      console.log('[ChatWidget] Loading from sessionStorage:', saved ? `${saved.length} chars` : 'null')
       if (saved) {
         const parsed = JSON.parse(saved)
-        console.log('[ChatWidget] Parsed messages:', parsed.length)
         return parsed.length > 0 ? parsed : [INITIAL_MESSAGE]
       }
     } catch (e) {
       console.error('Failed to load chat history:', e)
     }
-    console.log('[ChatWidget] Using initial message')
     return [INITIAL_MESSAGE]
   })
   const [input, setInput] = useState('')
@@ -41,8 +38,6 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   const [aiProvider, setAiProvider] = useState(null)
   const [checkingAi, setCheckingAi] = useState(true)
   const [pendingQuestion, setPendingQuestion] = useState(null)
-  const [pendingWorkout, setPendingWorkout] = useState(null) // For exercise clarification flow
-  const [pendingRemoval, setPendingRemoval] = useState(null) // For removal confirmation flow
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -61,7 +56,6 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   // Save messages to sessionStorage whenever they change
   useEffect(() => {
     try {
-      console.log('[ChatWidget] Saving to sessionStorage:', messages.length, 'messages')
       sessionStorage.setItem('ai-chat-messages', JSON.stringify(messages))
       sessionStorage.setItem('ai-chat-timestamp', Date.now().toString())
     } catch (e) {
@@ -75,14 +69,11 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
     sessionStorage.removeItem('ai-chat-timestamp')
     setMessages([INITIAL_MESSAGE])
     setInput('')
-    setPendingWorkout(null) // Clear any pending workout clarification
-    setPendingRemoval(null) // Clear any pending removal confirmation
   }
 
   // Handle pending question when chat opens
   useEffect(() => {
     if (isOpen && pendingQuestion && aiAvailable && !loading) {
-      // Add the user message and send it
       const question = pendingQuestion
       setPendingQuestion(null)
       setMessages(prev => [...prev, { role: 'user', content: question }])
@@ -139,82 +130,26 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
     setLoading(true)
 
     try {
-      let response
-
-      // If we have a pending removal awaiting confirmation, use the clarify endpoint
-      if (pendingRemoval) {
-        response = await api.post('/ai/clarify', {
-          choice: userMessage,
-          pendingRemoval
-        })
-
-        // Clear pending removal based on response
-        if (response.data.removalComplete || response.data.pendingRemoval === null) {
-          setPendingRemoval(null)
-        } else if (response.data.pendingRemoval) {
-          // Still waiting for confirmation
-          setPendingRemoval(response.data.pendingRemoval)
-        }
-      }
-      // If we have a pending workout awaiting clarification, use the clarify endpoint
-      else if (pendingWorkout) {
-        response = await api.post('/ai/clarify', {
-          choice: userMessage,
-          pendingWorkout
-        })
-
-        // Clear pending workout if we got a successful result or new pending workout
-        if (response.data.workoutCreated) {
-          setPendingWorkout(null)
-        } else if (response.data.pendingWorkout) {
-          // Still have ambiguous exercises - update the pending workout
-          setPendingWorkout(response.data.pendingWorkout)
-        }
-      } else {
-        // Normal chat flow
-        response = await api.post('/ai/chat', {
-          message: userMessage,
-          context,
-          history: messages.slice(-10) // Send last 10 messages for context
-        })
-
-        // Check if we received a pending workout (needs clarification)
-        if (response.data.pendingWorkout) {
-          setPendingWorkout(response.data.pendingWorkout)
-        }
-
-        // Check if we received a pending removal (needs confirmation)
-        if (response.data.pendingRemoval) {
-          setPendingRemoval(response.data.pendingRemoval)
-        }
-      }
+      const response = await api.post('/ai/chat', {
+        message: userMessage,
+        context,
+        history: messages.slice(-10)
+      })
 
       setMessages(prev => [...prev, { role: 'assistant', content: response.data.message }])
-
-      // If a workout was created, notify the parent component
-      if (response.data.workoutCreated && onWorkoutCreated) {
-        onWorkoutCreated(response.data.workoutCreated)
-      }
-
-      // If exercises were removed, also notify parent to refresh
-      if (response.data.removalComplete && onWorkoutCreated) {
-        onWorkoutCreated(response.data.removalComplete)
-      }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Sorry, I couldn\'t process that. Please try again.'
       setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
-      setPendingWorkout(null) // Clear on error
-      setPendingRemoval(null) // Clear on error
     } finally {
       setLoading(false)
     }
   }
 
   const quickPrompts = [
-    'Suggest a workout for today',
+    'What should I eat before a workout?',
     'How do I do a proper squat?',
-    'What muscles does bench press work?',
-    'Help me build a weekly plan'
+    'Help me hit my protein goals',
+    'What muscles does bench press work?'
   ]
 
   const handleQuickPrompt = (prompt) => {
@@ -223,16 +158,16 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
   }
 
   if (checkingAi) {
-    return null // Don't show anything while checking
+    return null
   }
 
   if (!aiAvailable) {
-    return null // Don't show chat if AI is not available
+    return null
   }
 
   return (
     <>
-      {/* Floating Chat Button - bottom-chat-button accounts for nav + safe area */}
+      {/* Floating Chat Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed bottom-chat-button right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
@@ -250,7 +185,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
         )}
       </button>
 
-      {/* Chat Window - bottom-chat-window accounts for nav + safe area */}
+      {/* Chat Window */}
       {isOpen && (
         <div className="fixed bottom-chat-window right-4 z-40 w-[calc(100%-2rem)] max-w-md bg-dark-card border border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{ height: 'min(500px, calc(100vh - 220px))' }}
@@ -263,8 +198,8 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-white font-semibold">AI Fitness Assistant</h3>
-              <p className="text-white/70 text-xs">Powered by {aiProvider === 'ollama' ? 'Ollama' : 'ChatGPT'}</p>
+              <h3 className="text-white font-semibold">AI Coach</h3>
+              <p className="text-white/70 text-xs">Powered by ChatGPT</p>
             </div>
             <button
               onClick={resetChat}
@@ -335,7 +270,7 @@ const ChatWidget = forwardRef(function ChatWidget({ context = 'general', onWorko
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={pendingRemoval ? "Type 'yes' to confirm or 'no' to cancel..." : pendingWorkout ? "Enter your choice (1, 2, 3, or name)..." : "Ask about workouts, exercises..."}
+              placeholder="Ask about workouts, nutrition..."
               className="flex-1 bg-dark-elevated text-white placeholder-gray-500 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               disabled={loading}
             />
