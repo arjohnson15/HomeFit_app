@@ -187,10 +187,10 @@ async function getUserContext(userId) {
     take: 10
   })
 
-  // Fetch favorite exercises
-  const favorites = await prisma.favoriteExercise.findMany({
-    where: { userId },
-    select: { exerciseId: true, exerciseName: true },
+  // Fetch favorite exercises (stored as isFavorite flag on ExerciseNote)
+  const favorites = await prisma.exerciseNote.findMany({
+    where: { userId, isFavorite: true },
+    select: { exerciseId: true },
     take: 20
   })
 
@@ -217,25 +217,44 @@ async function getUserContext(userId) {
     orderBy: { dayOfWeek: 'asc' }
   })
 
-  // Fetch recent nutrition logs (last 7 days)
+  // Fetch recent food log entries (last 7 days) for nutrition context
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-  const recentNutrition = await prisma.nutritionLog.findMany({
+  const recentFoodLogs = await prisma.foodLogEntry.findMany({
     where: {
       userId,
       date: { gte: sevenDaysAgo }
     },
     select: {
       date: true,
-      totalCalories: true,
-      totalProtein: true,
-      totalCarbs: true,
-      totalFat: true
+      calories: true,
+      protein: true,
+      carbs: true,
+      fat: true
     },
-    orderBy: { date: 'desc' },
-    take: 7
+    orderBy: { date: 'desc' }
   })
+
+  // Aggregate nutrition by day
+  const nutritionByDay = {}
+  recentFoodLogs.forEach(log => {
+    const dateKey = log.date.toISOString().split('T')[0]
+    if (!nutritionByDay[dateKey]) {
+      nutritionByDay[dateKey] = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    }
+    nutritionByDay[dateKey].calories += log.calories || 0
+    nutritionByDay[dateKey].protein += log.protein || 0
+    nutritionByDay[dateKey].carbs += log.carbs || 0
+    nutritionByDay[dateKey].fat += log.fat || 0
+  })
+  const recentNutrition = Object.entries(nutritionByDay).map(([date, totals]) => ({
+    date,
+    totalCalories: Math.round(totals.calories),
+    totalProtein: Math.round(totals.protein),
+    totalCarbs: Math.round(totals.carbs),
+    totalFat: Math.round(totals.fat)
+  }))
 
   // Calculate age from birthDate
   let age = null
@@ -287,7 +306,7 @@ async function getUserContext(userId) {
       weight: pr.weight,
       reps: pr.reps
     })),
-    favorites: favorites.map(f => f.exerciseName),
+    favorites: favorites.map(f => f.exerciseId),
     mostUsedExercises: mostUsed.map(e => ({
       name: e.exerciseName,
       count: e._count.exerciseName
