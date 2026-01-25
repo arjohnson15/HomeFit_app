@@ -161,9 +161,23 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
   const [favorites, setFavorites] = useState([])
   const [loadingFavorites, setLoadingFavorites] = useState(false)
   const [exerciseNicknames, setExerciseNicknames] = useState({}) // Map of exerciseId -> nickname
+  const [userEquipment, setUserEquipment] = useState([])
+  const [myEquipmentOnly, setMyEquipmentOnly] = useState(false)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState(new Set())
   const limit = 20
 
+  // Load user equipment from localStorage and favorite IDs on mount
   useEffect(() => {
+    // Load user's equipment settings
+    const savedTraining = localStorage.getItem('trainingSettings')
+    if (savedTraining) {
+      const parsed = JSON.parse(savedTraining)
+      if (parsed.equipmentAccess) {
+        setUserEquipment(parsed.equipmentAccess)
+      }
+    }
+
     const fetchFilters = async () => {
       try {
         const response = await api.get('/exercises/filters/options')
@@ -173,6 +187,18 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       }
     }
     fetchFilters()
+
+    // Load user's favorite exercise IDs
+    const loadFavoriteIds = async () => {
+      try {
+        const response = await api.get('/exercises/favorites')
+        const ids = new Set(response.data.exercises?.map(e => e.id) || [])
+        setFavoriteIds(ids)
+      } catch (error) {
+        console.log('Could not load favorites')
+      }
+    }
+    loadFavoriteIds()
   }, [])
 
   // Load favorites when tab changes
@@ -212,6 +238,12 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
     }
   }
 
+  // Get equipment filter from user's selected equipment
+  const getMyEquipmentFilter = useCallback(() => {
+    if (!myEquipmentOnly || userEquipment.length === 0) return null
+    return userEquipment.join(',')
+  }, [myEquipmentOnly, userEquipment])
+
   const fetchExercises = useCallback(async () => {
     setLoading(true)
     try {
@@ -221,35 +253,57 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       })
       if (searchQuery) params.append('search', searchQuery)
       if (selectedMuscle) params.append('muscle', selectedMuscle)
-      if (selectedEquipment) params.append('equipment', selectedEquipment)
+
+      // Use my equipment filter if enabled, otherwise use selected equipment dropdown
+      const myEquipmentFilter = getMyEquipmentFilter()
+      if (myEquipmentFilter) {
+        params.append('equipment', myEquipmentFilter)
+      } else if (selectedEquipment) {
+        params.append('equipment', selectedEquipment)
+      }
+
       if (selectedLevel) params.append('level', selectedLevel)
 
       const response = await api.get(`/exercises?${params}`)
-      setExercises(response.data.exercises)
-      setTotal(response.data.total)
+      let fetchedExercises = response.data.exercises
+      let fetchedTotal = response.data.total
 
-      // Load nicknames for these exercises
-      const exerciseIds = response.data.exercises.map(e => e.id)
+      // Load nicknames and update favoriteIds for these exercises
+      const exerciseIds = fetchedExercises.map(e => e.id)
       if (exerciseIds.length > 0) {
         try {
           const prefsResponse = await api.post('/exercises/preferences/batch', { ids: exerciseIds })
           const nicknames = {}
+          const favIds = new Set(favoriteIds) // Start with existing favorites
           prefsResponse.data.preferences?.forEach(pref => {
             if (pref.nickname) {
               nicknames[pref.exerciseId] = pref.nickname
             }
+            if (pref.isFavorite) {
+              favIds.add(pref.exerciseId)
+            }
           })
           setExerciseNicknames(prev => ({ ...prev, ...nicknames }))
+          setFavoriteIds(favIds)
         } catch (err) {
           console.log('Could not load exercise preferences')
         }
       }
+
+      // Filter to favorites only if enabled
+      if (favoritesOnly) {
+        fetchedExercises = fetchedExercises.filter(e => favoriteIds.has(e.id))
+        fetchedTotal = fetchedExercises.length
+      }
+
+      setExercises(fetchedExercises)
+      setTotal(fetchedTotal)
     } catch (error) {
       console.error('Error fetching exercises:', error)
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, offset, getMyEquipmentFilter, favoritesOnly, favoriteIds])
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -257,7 +311,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       fetchExercises()
     }, 300)
     return () => clearTimeout(debounce)
-  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel])
+  }, [searchQuery, selectedMuscle, selectedEquipment, selectedLevel, myEquipmentOnly, favoritesOnly])
 
   useEffect(() => {
     fetchExercises()
@@ -366,12 +420,63 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
               ))}
             </div>
 
+            {/* My Equipment Toggle */}
+            {userEquipment.length > 0 && (
+              <div className="flex items-center justify-between bg-dark-elevated rounded-xl p-3">
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  <div>
+                    <p className="text-white text-sm font-medium">My Equipment Only</p>
+                    <p className="text-gray-500 text-xs">Hide exercises requiring equipment I don't have</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMyEquipmentOnly(!myEquipmentOnly)}
+                  className={`w-12 h-7 rounded-full transition-colors relative ${
+                    myEquipmentOnly ? 'bg-accent' : 'bg-dark-card'
+                  }`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                    myEquipmentOnly ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            )}
+
+            {/* Favorites Only Toggle */}
+            {favoriteIds.size > 0 && (
+              <div className="flex items-center justify-between bg-dark-elevated rounded-xl p-3">
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  <div>
+                    <p className="text-white text-sm font-medium">My Favorites Only</p>
+                    <p className="text-gray-500 text-xs">Show only exercises I've starred ({favoriteIds.size})</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setFavoritesOnly(!favoritesOnly)}
+                  className={`w-12 h-7 rounded-full transition-colors relative ${
+                    favoritesOnly ? 'bg-yellow-400' : 'bg-dark-card'
+                  }`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                    favoritesOnly ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            )}
+
             {/* Additional Filters */}
             <div className="flex gap-2">
               <select
                 value={selectedEquipment}
                 onChange={(e) => setSelectedEquipment(e.target.value)}
-                className="input flex-1 text-sm"
+                disabled={myEquipmentOnly}
+                className={`input flex-1 text-sm ${myEquipmentOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <option value="">All Equipment</option>
                 {filterOptions.equipment?.map(eq => (
