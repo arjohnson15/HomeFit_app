@@ -94,23 +94,20 @@ function Catalog() {
       }
     }
 
-    // Also fetch from API as fallback (for PWA where localStorage might be out of sync)
+    // Fetch from API - API is the source of truth for equipment settings
     const loadEquipmentFromAPI = async () => {
       try {
         const response = await api.get('/users/me')
         const apiEquipment = response.data.user?.settings?.availableEquipment || []
-        console.log('[Catalog] API equipment:', apiEquipment)
+        console.log('[Catalog] API equipment:', apiEquipment.length, 'items')
         if (apiEquipment.length > 0) {
           setUserEquipment(apiEquipment)
-          // Sync to localStorage if it was missing
-          if (localEquipment.length === 0) {
-            const existing = localStorage.getItem('trainingSettings')
-            const settings = existing ? JSON.parse(existing) : {}
-            settings.equipmentAccess = apiEquipment
-            localStorage.setItem('trainingSettings', JSON.stringify(settings))
-          }
-        } else {
-          console.log('[Catalog] No equipment in API, localStorage had:', localEquipment)
+          // ALWAYS sync API data to localStorage - API is source of truth
+          const existing = localStorage.getItem('trainingSettings')
+          const settings = existing ? JSON.parse(existing) : {}
+          settings.equipmentAccess = apiEquipment
+          localStorage.setItem('trainingSettings', JSON.stringify(settings))
+          console.log('[Catalog] Synced equipment to localStorage')
         }
       } catch (error) {
         console.log('[Catalog] API error loading equipment:', error.message)

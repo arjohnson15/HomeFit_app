@@ -184,20 +184,18 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
       }
     }
 
-    // Also fetch from API as fallback (for PWA where localStorage might be out of sync)
+    // Fetch from API - API is the source of truth for equipment settings
     const loadEquipmentFromAPI = async () => {
       try {
         const response = await api.get('/users/me')
         const apiEquipment = response.data.user?.settings?.availableEquipment || []
         if (apiEquipment.length > 0) {
           setUserEquipment(apiEquipment)
-          // Sync to localStorage if it was missing
-          if (localEquipment.length === 0) {
-            const existing = localStorage.getItem('trainingSettings')
-            const settings = existing ? JSON.parse(existing) : {}
-            settings.equipmentAccess = apiEquipment
-            localStorage.setItem('trainingSettings', JSON.stringify(settings))
-          }
+          // ALWAYS sync API data to localStorage - API is source of truth
+          const existing = localStorage.getItem('trainingSettings')
+          const settings = existing ? JSON.parse(existing) : {}
+          settings.equipmentAccess = apiEquipment
+          localStorage.setItem('trainingSettings', JSON.stringify(settings))
         }
       } catch (error) {
         // API failed, stick with localStorage data
