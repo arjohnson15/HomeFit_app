@@ -283,17 +283,18 @@ function Social() {
                       </div>
                     ) : (
                       <div
-                        className="flex items-center gap-4 cursor-pointer"
+                        className="flex items-center gap-3 cursor-pointer"
                         onClick={() => navigate(`/friend/${friend.id}`)}
                       >
-                        <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-medium text-sm sm:text-base flex-shrink-0">
                           {getInitials(friend.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-medium truncate">{friend.name}</h3>
-                          <p className="text-gray-400 text-sm">@{friend.username || 'user'}</p>
+                          <h3 className="text-white font-medium text-sm sm:text-base truncate">{friend.name}</h3>
+                          <p className="text-gray-400 text-xs sm:text-sm truncate">@{friend.username || 'user'}</p>
+                          <p className="text-gray-500 text-xs sm:hidden">{friend.workoutCount || 0} workouts • {friend.streak || 0} day streak</p>
                         </div>
-                        <div className="text-right text-sm">
+                        <div className="hidden sm:block text-right text-sm flex-shrink-0">
                           <p className="text-white">{friend.workoutCount || 0} workouts</p>
                           <p className="text-gray-500">{friend.streak || 0} day streak</p>
                         </div>
@@ -307,10 +308,10 @@ function Social() {
                             e.stopPropagation()
                             setConfirmUnfriend(friend.id)
                           }}
-                          className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
                           title="Remove friend"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
                           </svg>
                         </button>
