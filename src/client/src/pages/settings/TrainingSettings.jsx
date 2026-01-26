@@ -196,7 +196,7 @@ function TrainingSettings() {
     // Always fetch equipment from server - server is source of truth
     const loadEquipmentFromServer = async () => {
       try {
-        const response = await api.get('/users/me')
+        const response = await api.get('/users/profile')
         const serverEquipment = response.data.user?.settings?.availableEquipment || []
         const localEquipment = merged.equipmentAccess || []
 
