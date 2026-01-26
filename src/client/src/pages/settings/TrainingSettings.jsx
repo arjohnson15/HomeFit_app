@@ -177,7 +177,7 @@ function TrainingSettings() {
   }, [])
 
   useEffect(() => {
-    // Load training settings
+    // Load training settings from localStorage first
     const savedTraining = localStorage.getItem('trainingSettings')
     // Load timer settings (for backwards compatibility)
     const savedTimer = localStorage.getItem('timerSettings')
@@ -193,8 +193,8 @@ function TrainingSettings() {
       setSettings(prev => ({ ...prev, ...merged }))
     }
 
-    // Auto-sync equipment to server if localStorage has more equipment
-    const syncEquipmentToServer = async () => {
+    // Always fetch equipment from server - server is source of truth
+    const loadEquipmentFromServer = async () => {
       try {
         const response = await api.get('/users/me')
         const serverEquipment = response.data.user?.settings?.availableEquipment || []
@@ -202,18 +202,27 @@ function TrainingSettings() {
 
         console.log('[TrainingSettings] Server equipment:', serverEquipment.length, 'Local equipment:', localEquipment.length)
 
-        // If localStorage has more equipment than server, sync it (local is source of truth on desktop)
-        if (localEquipment.length > serverEquipment.length) {
-          console.log('[TrainingSettings] Syncing equipment to server:', localEquipment)
+        // Server has equipment - use it and sync to localStorage
+        if (serverEquipment.length > 0) {
+          console.log('[TrainingSettings] Using server equipment as source of truth')
+          setSettings(prev => ({ ...prev, equipmentAccess: serverEquipment }))
+          // Sync to localStorage
+          const existing = localStorage.getItem('trainingSettings')
+          const parsed = existing ? JSON.parse(existing) : {}
+          parsed.equipmentAccess = serverEquipment
+          localStorage.setItem('trainingSettings', JSON.stringify(parsed))
+        } else if (localEquipment.length > 0) {
+          // Server is empty but local has data - sync TO server
+          console.log('[TrainingSettings] Syncing local equipment to server:', localEquipment)
           await api.put('/users/settings', {
             availableEquipment: localEquipment
           })
         }
       } catch (error) {
-        console.log('[TrainingSettings] Sync error:', error.message)
+        console.log('[TrainingSettings] Load error:', error.message)
       }
     }
-    syncEquipmentToServer()
+    loadEquipmentFromServer()
   }, [])
 
   // Filter equipment options based on search and exclude already selected
