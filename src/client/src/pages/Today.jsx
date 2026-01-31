@@ -8,6 +8,7 @@ import WeightTrackingCard from '../components/WeightTrackingCard'
 import { SyncStatus } from '../components/SyncStatus'
 import { useOfflineWorkout } from '../hooks/useOfflineWorkout'
 import ExerciseCatalogModal from '../components/ExerciseCatalogModal'
+import CopyWorkoutModal from '../components/CopyWorkoutModal'
 
 function Today() {
   const [todayWorkout, setTodayWorkout] = useState(null)
@@ -32,6 +33,8 @@ function Today() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showExerciseModal, setShowExerciseModal] = useState(null)
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showCopyModal, setShowCopyModal] = useState(false)
   const [showHistoryFor, setShowHistoryFor] = useState(null)
   const [userTrainingStyle, setUserTrainingStyle] = useState('GENERAL')
   const [socialSettings, setSocialSettings] = useState(null)
@@ -1363,6 +1366,16 @@ function Today() {
     setShowAddExerciseModal(false)
   }
 
+  const handleCopyExercisesToWorkout = (exercises) => {
+    // Convert copied exercises to the format expected by handleAddExercisesToWorkout
+    const catalogFormat = exercises.map(ex => ({
+      id: ex.exerciseId,
+      name: ex.exerciseName
+    }))
+    handleAddExercisesToWorkout(catalogFormat)
+    setShowCopyModal(false)
+  }
+
   // Remove an ad-hoc exercise from the workout
   const removeAdhocExercise = async (exerciseId, logId) => {
     // Remove from todayWorkout display
@@ -1661,6 +1674,15 @@ function Today() {
         <ExerciseCatalogModal
           onClose={() => setShowAddExerciseModal(false)}
           onAddExercises={handleAddExercisesToWorkout}
+        />
+      )}
+
+      {/* Copy Workout Modal */}
+      {showCopyModal && (
+        <CopyWorkoutModal
+          onClose={() => setShowCopyModal(false)}
+          onCopyExercises={handleCopyExercisesToWorkout}
+          showOwnSchedule={showCopyModal === 'schedule' || showCopyModal === true}
         />
       )}
 
@@ -2259,15 +2281,60 @@ function Today() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-400">Exercises</h2>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowAddExerciseModal(true)}
-                className="text-accent text-sm hover:text-accent-hover flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowAddMenu(!showAddMenu)}
+                  className="text-accent text-sm hover:text-accent-hover flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add
+                </button>
+                {showAddMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-dark-card border border-dark-border rounded-xl shadow-xl z-50 overflow-hidden">
+                      <button
+                        onClick={() => { setShowAddMenu(false); setShowAddExerciseModal(true) }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-elevated transition-colors text-left"
+                      >
+                        <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <div>
+                          <p className="text-white text-sm font-medium">Browse Exercises</p>
+                          <p className="text-gray-500 text-xs">Search the exercise catalog</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setShowAddMenu(false); setShowCopyModal('schedule') }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-elevated transition-colors text-left border-t border-dark-border"
+                      >
+                        <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <div>
+                          <p className="text-white text-sm font-medium">Copy from Schedule</p>
+                          <p className="text-gray-500 text-xs">Use another day's workout</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setShowAddMenu(false); setShowCopyModal('friends') }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-elevated transition-colors text-left border-t border-dark-border"
+                      >
+                        <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <div>
+                          <p className="text-white text-sm font-medium">Copy from Friend</p>
+                          <p className="text-gray-500 text-xs">Use a friend's workout</p>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <Link to="/schedule" className="text-accent text-sm">Edit</Link>
             </div>
           </div>

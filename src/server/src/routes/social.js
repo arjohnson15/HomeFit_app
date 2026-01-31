@@ -1414,6 +1414,7 @@ router.get('/friend/:friendId/schedule', async (req, res, next) => {
       name: day.name,
       isRestDay: day.isRestDay,
       exercises: day.exercises.map(ex => ({
+        exerciseId: ex.exerciseId,
         name: ex.exerciseName,
         sets: ex.sets,
         reps: ex.reps
