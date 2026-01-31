@@ -15,6 +15,9 @@ function Schedule() {
   const [editingRecurring, setEditingRecurring] = useState(null)
   const [showCatalogModal, setShowCatalogModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [editingTemplate, setEditingTemplate] = useState(null)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [draggedExerciseIndex, setDraggedExerciseIndex] = useState(null)
 
@@ -24,6 +27,7 @@ function Schedule() {
   useEffect(() => {
     fetchSchedules()
     fetchRecurringWorkouts()
+    fetchTemplates()
   }, [])
 
   useEffect(() => {
@@ -60,6 +64,73 @@ function Schedule() {
       setRecurringWorkouts(response.data.recurringWorkouts || [])
     } catch (error) {
       console.error('Error fetching recurring workouts:', error)
+    }
+  }
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await api.get('/schedules/templates')
+      setTemplates(response.data.templates || [])
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+    }
+  }
+
+  const startEditingTemplate = (template = null) => {
+    if (template) {
+      setEditingTemplate({
+        id: template.id,
+        name: template.name,
+        exercises: template.exercises.map(ex => ({
+          id: ex.id,
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          sets: ex.sets,
+          reps: ex.reps
+        }))
+      })
+    } else {
+      setEditingTemplate({
+        id: null,
+        name: '',
+        exercises: []
+      })
+    }
+  }
+
+  const saveTemplate = async () => {
+    if (!editingTemplate) return
+    try {
+      const payload = {
+        name: editingTemplate.name || 'Untitled Template',
+        exercises: editingTemplate.exercises.map((ex, i) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          sets: ex.sets || 3,
+          reps: ex.reps || '8-12',
+          order: i
+        }))
+      }
+      if (editingTemplate.id) {
+        await api.put(`/schedules/templates/${editingTemplate.id}`, payload)
+      } else {
+        await api.post('/schedules/templates', payload)
+      }
+      setEditingTemplate(null)
+      fetchTemplates()
+    } catch (error) {
+      console.error('Error saving template:', error)
+    }
+  }
+
+  const deleteTemplate = async () => {
+    if (!editingTemplate?.id) return
+    try {
+      await api.delete(`/schedules/templates/${editingTemplate.id}`)
+      setEditingTemplate(null)
+      fetchTemplates()
+    } catch (error) {
+      console.error('Error deleting template:', error)
     }
   }
 
@@ -128,6 +199,11 @@ function Schedule() {
         ...prev,
         exercises: [...prev.exercises, ...newExercises]
       }))
+    } else if (editingTemplate) {
+      setEditingTemplate(prev => ({
+        ...prev,
+        exercises: [...prev.exercises, ...newExercises]
+      }))
     }
     setShowCatalogModal(false)
   }
@@ -156,6 +232,11 @@ function Schedule() {
         ...prev,
         exercises: [...prev.exercises, ...newExercises]
       }))
+    } else if (editingTemplate) {
+      setEditingTemplate(prev => ({
+        ...prev,
+        exercises: [...prev.exercises, ...newExercises]
+      }))
     }
     setShowCopyModal(false)
   }
@@ -173,6 +254,11 @@ function Schedule() {
       }))
     } else if (editingRecurring) {
       setEditingRecurring(prev => ({
+        ...prev,
+        exercises: prev.exercises.filter((_, i) => i !== index)
+      }))
+    } else if (editingTemplate) {
+      setEditingTemplate(prev => ({
         ...prev,
         exercises: prev.exercises.filter((_, i) => i !== index)
       }))
@@ -201,6 +287,11 @@ function Schedule() {
       }))
     } else if (editingRecurring) {
       setEditingRecurring(prev => ({
+        ...prev,
+        exercises: reorder(prev.exercises)
+      }))
+    } else if (editingTemplate) {
+      setEditingTemplate(prev => ({
         ...prev,
         exercises: reorder(prev.exercises)
       }))
@@ -394,7 +485,7 @@ function Schedule() {
     return date.toDateString() === today.toDateString()
   }
 
-  const currentEditData = editingDay || editingCalendarDate
+  const currentEditData = editingDay || editingCalendarDate || editingTemplate
 
   return (
     <div className="p-4 space-y-6 pb-24">
@@ -428,6 +519,14 @@ function Schedule() {
             }`}
           >
             Recurring
+          </button>
+          <button
+            onClick={() => setView('templates')}
+            className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+              view === 'templates' ? 'bg-accent text-white' : 'text-gray-400'
+            }`}
+          >
+            Templates
           </button>
         </div>
       </div>
@@ -629,9 +728,66 @@ function Schedule() {
             </div>
           )}
         </div>
+      ) : view === 'templates' ? (
+        /* Templates View */
+        <div className="space-y-4">
+          <button
+            onClick={() => startEditingTemplate()}
+            className="btn-primary w-full flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create Template
+          </button>
+
+          <div className="card bg-accent/10 border border-accent/30">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-gray-400 text-sm">
+                Templates are saved workout packages you can quickly apply to any day. Create templates like "Pull Day" or "Arm Day" and reuse them from the Today page or when editing your schedule.
+              </p>
+            </div>
+          </div>
+
+          {templates.length === 0 ? (
+            <div className="card text-center py-8">
+              <svg className="w-12 h-12 text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <p className="text-gray-400">No templates yet</p>
+              <p className="text-gray-500 text-sm mt-1">Create workout packages you can reuse anytime</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  className="card flex items-center gap-4 cursor-pointer hover:bg-dark-elevated transition-colors"
+                  onClick={() => startEditingTemplate(template)}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-medium">{template.name}</h3>
+                    <p className="text-gray-400 text-sm">{template.exercises?.length || 0} exercises</p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : null}
 
-      {/* Edit Day Modal (for both weekly and calendar) */}
+      {/* Edit Day/Template Modal (for weekly, calendar, and templates) */}
       {currentEditData && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => { setEditingDay(null); setEditingCalendarDate(null); }}>
           <div
@@ -642,13 +798,13 @@ function Schedule() {
             <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between z-10">
               <div>
                 <h2 className="text-xl font-bold text-white">
-                  {editingDay ? dayNames[editingDay.dayOfWeek] : editingCalendarDate.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  {editingTemplate ? (editingTemplate.id ? 'Edit Template' : 'New Template') : editingDay ? dayNames[editingDay.dayOfWeek] : editingCalendarDate.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </h2>
                 {editingCalendarDate?.isOverride && (
                   <span className="text-warning text-xs">Custom workout (overrides weekly)</span>
                 )}
               </div>
-              <button onClick={() => { setEditingDay(null); setEditingCalendarDate(null); }} className="btn-ghost p-2">
+              <button onClick={() => { setEditingDay(null); setEditingCalendarDate(null); setEditingTemplate(null); }} className="btn-ghost p-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -666,12 +822,14 @@ function Schedule() {
                   onChange={(e) => {
                     if (editingDay) {
                       setEditingDay(prev => ({ ...prev, name: e.target.value }))
-                    } else {
+                    } else if (editingCalendarDate) {
                       setEditingCalendarDate(prev => ({ ...prev, name: e.target.value }))
+                    } else if (editingTemplate) {
+                      setEditingTemplate(prev => ({ ...prev, name: e.target.value }))
                     }
                   }}
                   className="input"
-                  placeholder="e.g., Push Day, Leg Day..."
+                  placeholder={editingTemplate ? "e.g., Pull Day, Arm Day..." : "e.g., Push Day, Leg Day..."}
                 />
               </div>
 
@@ -759,10 +917,10 @@ function Schedule() {
               {/* Action Buttons */}
               <div className="space-y-2">
                 <button
-                  onClick={editingDay ? saveWeeklySchedule : saveCalendarWorkout}
+                  onClick={editingTemplate ? saveTemplate : editingDay ? saveWeeklySchedule : saveCalendarWorkout}
                   className="btn-primary w-full"
                 >
-                  Save Changes
+                  {editingTemplate ? (editingTemplate.id ? 'Save Template' : 'Create Template') : 'Save Changes'}
                 </button>
 
                 {editingCalendarDate?.id && (
@@ -771,6 +929,14 @@ function Schedule() {
                     className="btn-secondary w-full text-error border-error/30 hover:bg-error/10"
                   >
                     Remove Custom Workout
+                  </button>
+                )}
+                {editingTemplate?.id && (
+                  <button
+                    onClick={deleteTemplate}
+                    className="btn-secondary w-full text-error border-error/30 hover:bg-error/10"
+                  >
+                    Delete Template
                   </button>
                 )}
               </div>

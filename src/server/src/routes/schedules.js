@@ -1170,4 +1170,136 @@ router.put('/warmup-settings', async (req, res, next) => {
   }
 })
 
+// ===========================================
+// Workout Templates
+// ===========================================
+
+// GET /api/schedules/templates - Get all workout templates
+router.get('/templates', async (req, res, next) => {
+  try {
+    const templates = await prisma.workoutTemplate.findMany({
+      where: { userId: req.user.id },
+      include: {
+        exercises: {
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    res.json({ templates })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/schedules/templates - Create a workout template
+router.post('/templates', async (req, res, next) => {
+  try {
+    const { name, exercises } = req.body
+
+    const template = await prisma.workoutTemplate.create({
+      data: {
+        userId: req.user.id,
+        name,
+        exercises: {
+          create: (exercises || []).map((e, i) => ({
+            exerciseId: e.exerciseId,
+            exerciseName: e.exerciseName,
+            sets: e.sets || 3,
+            reps: e.reps || '8-12',
+            restSeconds: e.restSeconds || null,
+            notes: e.notes || null,
+            order: i
+          }))
+        }
+      },
+      include: {
+        exercises: {
+          orderBy: { order: 'asc' }
+        }
+      }
+    })
+
+    res.status(201).json({ template })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/schedules/templates/:id - Update a workout template
+router.put('/templates/:id', async (req, res, next) => {
+  try {
+    const { name, exercises } = req.body
+
+    const existing = await prisma.workoutTemplate.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Template not found' })
+    }
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' })
+    }
+
+    const template = await prisma.$transaction(async (tx) => {
+      await tx.templateExercise.deleteMany({
+        where: { templateId: req.params.id }
+      })
+
+      return tx.workoutTemplate.update({
+        where: { id: req.params.id },
+        data: {
+          name,
+          exercises: {
+            create: (exercises || []).map((e, i) => ({
+              exerciseId: e.exerciseId,
+              exerciseName: e.exerciseName,
+              sets: e.sets || 3,
+              reps: e.reps || '8-12',
+              restSeconds: e.restSeconds || null,
+              notes: e.notes || null,
+              order: i
+            }))
+          }
+        },
+        include: {
+          exercises: {
+            orderBy: { order: 'asc' }
+          }
+        }
+      })
+    })
+
+    res.json({ template })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/schedules/templates/:id - Delete a workout template
+router.delete('/templates/:id', async (req, res, next) => {
+  try {
+    const existing = await prisma.workoutTemplate.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Template not found' })
+    }
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' })
+    }
+
+    await prisma.workoutTemplate.delete({
+      where: { id: req.params.id }
+    })
+
+    res.json({ message: 'Template deleted' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 export default router

@@ -8,10 +8,14 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   const [tab, setTab] = useState(showOwnSchedule ? 'schedule' : 'friends')
   const [friends, setFriends] = useState([])
   const [mySchedule, setMySchedule] = useState([])
+  const [myTemplates, setMyTemplates] = useState([])
+  const [friendTemplates, setFriendTemplates] = useState(null)
   const [selectedFriend, setSelectedFriend] = useState(null)
   const [friendSchedule, setFriendSchedule] = useState(null)
   const [friendScheduleMessage, setFriendScheduleMessage] = useState('')
+  const [friendView, setFriendView] = useState('schedule') // 'schedule' or 'templates'
   const [selectedDay, setSelectedDay] = useState(null)
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [selectedExercises, setSelectedExercises] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -21,6 +25,9 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
     }
     if (tab === 'schedule' && mySchedule.length === 0) {
       fetchMySchedule()
+    }
+    if (tab === 'templates' && myTemplates.length === 0) {
+      fetchMyTemplates()
     }
   }, [tab])
 
@@ -48,6 +55,28 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
     }
   }
 
+  const fetchMyTemplates = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/schedules/templates')
+      setMyTemplates(res.data.templates || [])
+    } catch (err) {
+      console.error('Error fetching templates:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchFriendTemplates = async (friendId) => {
+    try {
+      const res = await api.get(`/social/friend/${friendId}/templates`)
+      setFriendTemplates(res.data.canView !== false ? (res.data.templates || []) : [])
+    } catch (err) {
+      console.error('Error fetching friend templates:', err)
+      setFriendTemplates([])
+    }
+  }
+
   const fetchFriendSchedule = async (friendId) => {
     setLoading(true)
     setFriendScheduleMessage('')
@@ -70,9 +99,13 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   const selectFriend = (friend) => {
     setSelectedFriend(friend)
     setFriendSchedule(null)
+    setFriendTemplates(null)
+    setFriendView('schedule')
     setSelectedDay(null)
+    setSelectedTemplate(null)
     setSelectedExercises([])
     fetchFriendSchedule(friend.id)
+    fetchFriendTemplates(friend.id)
   }
 
   const getScheduleForDay = (dayOfWeek, schedule) => {
@@ -82,9 +115,16 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   const selectDay = (daySchedule) => {
     if (!daySchedule || daySchedule.isRestDay) return
     setSelectedDay(daySchedule)
-    // Select all exercises by default
+    setSelectedTemplate(null)
     const exercises = daySchedule.exercises || []
     setSelectedExercises(exercises.map((_, i) => i))
+  }
+
+  const selectTemplate = (template) => {
+    if (!template || !template.exercises?.length) return
+    setSelectedTemplate(template)
+    setSelectedDay(null)
+    setSelectedExercises(template.exercises.map((_, i) => i))
   }
 
   const toggleExercise = (idx) => {
@@ -94,8 +134,9 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   }
 
   const selectAll = () => {
-    if (!selectedDay) return
-    setSelectedExercises(selectedDay.exercises.map((_, i) => i))
+    const source = selectedDay || selectedTemplate
+    if (!source) return
+    setSelectedExercises(source.exercises.map((_, i) => i))
   }
 
   const deselectAll = () => {
@@ -103,8 +144,9 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   }
 
   const handleCopy = () => {
-    if (!selectedDay || selectedExercises.length === 0) return
-    const exercises = selectedDay.exercises
+    const source = selectedDay || selectedTemplate
+    if (!source || selectedExercises.length === 0) return
+    const exercises = source.exercises
       .filter((_, i) => selectedExercises.includes(i))
       .map(ex => ({
         exerciseId: ex.exerciseId || ex.id,
@@ -117,28 +159,35 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
   }
 
   const goBack = () => {
-    if (selectedDay) {
+    if (selectedDay || selectedTemplate) {
       setSelectedDay(null)
+      setSelectedTemplate(null)
       setSelectedExercises([])
     } else if (selectedFriend) {
       setSelectedFriend(null)
       setFriendSchedule(null)
+      setFriendTemplates(null)
     }
   }
 
   // Determine current view title
   const getTitle = () => {
+    if (selectedTemplate) {
+      if (selectedFriend) return `${selectedFriend.name}'s ${selectedTemplate.name}`
+      return selectedTemplate.name
+    }
     if (selectedDay) {
       const dayName = dayNames[selectedDay.dayOfWeek ?? selectedDay.day] || 'Workout'
       if (selectedFriend) return `${selectedFriend.name}'s ${dayName}`
       return dayName
     }
-    if (selectedFriend) return `${selectedFriend.name}'s Schedule`
+    if (selectedFriend) return `${selectedFriend.name}'s Workouts`
+    if (tab === 'templates') return 'My Templates'
     if (tab === 'schedule') return 'Copy from My Schedule'
     return 'Copy from Friend'
   }
 
-  const showBackButton = selectedDay || selectedFriend
+  const showBackButton = selectedDay || selectedTemplate || selectedFriend
 
   // Render schedule days list
   const renderDaysList = (schedule, isFriend = false) => {
@@ -183,10 +232,47 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
     )
   }
 
-  // Render exercise selection for a day
+  // Render template list
+  const renderTemplatesList = (templatesList) => {
+    if (!templatesList || templatesList.length === 0) {
+      return <p className="text-gray-500 text-center py-12">No templates found</p>
+    }
+    return (
+      <div className="space-y-2">
+        {templatesList.map(template => (
+          <button
+            key={template.id}
+            disabled={!template.exercises?.length}
+            onClick={() => selectTemplate(template)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${
+              !template.exercises?.length
+                ? 'opacity-40 cursor-not-allowed bg-dark-elevated'
+                : 'bg-dark-elevated hover:bg-dark-border cursor-pointer'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-white font-medium">{template.name}</p>
+              <p className="text-gray-400 text-sm">{template.exercises?.length || 0} exercises</p>
+            </div>
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  // Render exercise selection for a day or template
   const renderExerciseSelection = () => {
-    if (!selectedDay) return null
-    const exercises = selectedDay.exercises || []
+    const source = selectedDay || selectedTemplate
+    if (!source) return null
+    const exercises = source.exercises || []
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -260,7 +346,7 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
           </div>
 
           {/* Tabs - only show at top level */}
-          {!selectedFriend && !selectedDay && (
+          {!selectedFriend && !selectedDay && !selectedTemplate && (
             <div className="flex gap-2 mt-3">
               {showOwnSchedule && (
                 <button
@@ -269,7 +355,17 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
                     tab === 'schedule' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
                   }`}
                 >
-                  My Schedule
+                  Schedule
+                </button>
+              )}
+              {showOwnSchedule && (
+                <button
+                  onClick={() => setTab('templates')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    tab === 'templates' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Templates
                 </button>
               )}
               <button
@@ -290,10 +386,10 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
             </div>
-          ) : selectedDay ? (
+          ) : (selectedDay || selectedTemplate) ? (
             renderExerciseSelection()
           ) : selectedFriend ? (
-            // Friend's schedule days
+            // Friend's schedule and templates
             friendScheduleMessage ? (
               <div className="text-center py-12">
                 <svg className="w-12 h-12 text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,10 +397,48 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
                 </svg>
                 <p className="text-gray-400">{friendScheduleMessage}</p>
               </div>
-            ) : friendSchedule && friendSchedule.length > 0 ? (
-              renderDaysList(friendSchedule, true)
             ) : (
-              <p className="text-gray-500 text-center py-12">No schedule found</p>
+              <div className="space-y-4">
+                {/* Friend sub-tabs */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFriendView('schedule')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      friendView === 'schedule' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Schedule
+                  </button>
+                  <button
+                    onClick={() => setFriendView('templates')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      friendView === 'templates' ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Templates
+                  </button>
+                </div>
+                {friendView === 'schedule' ? (
+                  friendSchedule && friendSchedule.length > 0 ? (
+                    renderDaysList(friendSchedule, true)
+                  ) : (
+                    <p className="text-gray-500 text-center py-12">No schedule found</p>
+                  )
+                ) : (
+                  friendTemplates && friendTemplates.length > 0 ? (
+                    renderTemplatesList(friendTemplates)
+                  ) : (
+                    <p className="text-gray-500 text-center py-12">No templates found</p>
+                  )
+                )}
+              </div>
+            )
+          ) : tab === 'templates' ? (
+            // My templates
+            myTemplates.length > 0 ? (
+              renderTemplatesList(myTemplates)
+            ) : (
+              <p className="text-gray-500 text-center py-12">No templates yet. Create them in Schedule &rarr; Templates.</p>
             )
           ) : tab === 'schedule' ? (
             // My schedule days
@@ -357,7 +491,7 @@ function CopyWorkoutModal({ onClose, onCopyExercises, showOwnSchedule = false })
         </div>
 
         {/* Copy Button */}
-        {selectedDay && selectedExercises.length > 0 && (
+        {(selectedDay || selectedTemplate) && selectedExercises.length > 0 && (
           <div className="sticky bottom-0 bg-dark-card p-4 border-t border-dark-border">
             <button
               onClick={handleCopy}

@@ -46,6 +46,7 @@ model User {
   weeklySchedules   WeeklySchedule[]
   calendarWorkouts  CalendarWorkout[]
   recurringWorkouts RecurringWorkout[]
+  workoutTemplates  WorkoutTemplate[]
   friendships       Friendship[]  @relation("UserFriendships")
   friendOf          Friendship[]  @relation("FriendOf")
   following         FriendFollow[] @relation("UserFollowing")
@@ -344,6 +345,37 @@ model ScheduledExercise {
   calendarWorkout   CalendarWorkout? @relation(fields: [calendarWorkoutId], references: [id], onDelete: Cascade)
 
   @@map("scheduled_exercises")
+}
+
+// ===========================================
+// Workout Templates (saved workout packages)
+// ===========================================
+
+model WorkoutTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // e.g., "Pull Day", "Arm Day"
+  exercises   TemplateExercise[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workout_templates")
+}
+
+model TemplateExercise {
+  id              String   @id @default(cuid())
+  templateId      String
+  template        WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exerciseId      String
+  exerciseName    String
+  sets            Int      @default(3)
+  reps            String   @default("8-12")
+  restSeconds     Int?
+  notes           String?
+  order           Int      @default(0)
+
+  @@map("template_exercises")
 }
 
 // ===========================================

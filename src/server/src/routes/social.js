@@ -1427,6 +1427,59 @@ router.get('/friend/:friendId/schedule', async (req, res, next) => {
   }
 })
 
+// GET /api/social/friend/:friendId/templates - Get friend's workout templates (if they share)
+router.get('/friend/:friendId/templates', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user', canView: false })
+    }
+
+    const friendSettings = await prisma.userSettings.findUnique({
+      where: { userId: friendId }
+    })
+
+    if (!friendSettings?.shareWorkouts) {
+      return res.json({ templates: [], canView: false, message: 'This user keeps their workout templates private' })
+    }
+
+    const templates = await prisma.workoutTemplate.findMany({
+      where: { userId: friendId },
+      include: {
+        exercises: {
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    const formattedTemplates = templates.map(t => ({
+      id: t.id,
+      name: t.name,
+      exercises: t.exercises.map(ex => ({
+        exerciseId: ex.exerciseId,
+        name: ex.exerciseName,
+        sets: ex.sets,
+        reps: ex.reps
+      }))
+    }))
+
+    res.json({ templates: formattedTemplates, canView: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // GET /api/social/friend/:friendId/goals - Get friend's fitness goals (if they share progress)
 router.get('/friend/:friendId/goals', async (req, res, next) => {
   try {
