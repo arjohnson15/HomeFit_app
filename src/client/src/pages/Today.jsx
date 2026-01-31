@@ -35,6 +35,7 @@ function Today() {
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
+  const [todaySource, setTodaySource] = useState('none') // 'weekly', 'calendar', or 'none'
   const [showHistoryFor, setShowHistoryFor] = useState(null)
   const [userTrainingStyle, setUserTrainingStyle] = useState('GENERAL')
   const [socialSettings, setSocialSettings] = useState(null)
@@ -401,6 +402,7 @@ function Today() {
         const response = await api.get('/schedules/today')
         workout = response.data.workout
         recurringWkts = response.data.recurringWorkouts || []
+        setTodaySource(response.data.source || 'none')
 
         if (workout) {
           cacheWorkoutData(workout, workout.exercises?.map(e => ({ id: e.exerciseId, ...e })))
@@ -1360,6 +1362,63 @@ function Today() {
         } catch (error) {
           console.error('Error creating exercise log:', error)
         }
+      }
+    } else {
+      // Persist to server as calendar workout so exercises survive refresh
+      try {
+        const allExercises = [...(todayWorkout?.exercises || []), ...newExercises]
+        const exercisesPayload = allExercises.map((ex, i) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          sets: ex.sets || 3,
+          reps: ex.reps || '8-12',
+          order: i
+        }))
+        const workoutName = todayWorkout?.name || 'Today\'s Workout'
+
+        let savedWorkout = null
+        if (todaySource === 'calendar' && todayWorkout?.id) {
+          // Update existing calendar workout
+          const res = await api.put(`/schedules/calendar/${todayWorkout.id}`, {
+            name: workoutName,
+            exercises: exercisesPayload
+          })
+          savedWorkout = res.data.event
+        } else {
+          // Create new calendar override for today
+          const today = new Date()
+          today.setHours(12, 0, 0, 0)
+          const res = await api.post('/schedules/calendar', {
+            date: today.toISOString(),
+            name: workoutName,
+            exercises: exercisesPayload
+          })
+          savedWorkout = res.data.event
+        }
+        if (savedWorkout) {
+          setTodayWorkout(savedWorkout)
+          setTodaySource('calendar')
+          // Re-initialize exercise logs with server IDs
+          const newLogs = {}
+          savedWorkout.exercises?.forEach(ex => {
+            newLogs[ex.id] = {
+              completed: false,
+              logId: null,
+              targetSets: ex.sets,
+              sets: [{
+                setNumber: 1,
+                reps: '',
+                weight: '',
+                completed: false,
+                isPR: false,
+                difficulty: null
+              }]
+            }
+          })
+          setExerciseLogs(newLogs)
+        }
+      } catch (error) {
+        console.error('Error persisting exercises to calendar:', error)
       }
     }
 
