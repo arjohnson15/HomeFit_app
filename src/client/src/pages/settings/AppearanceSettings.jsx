@@ -11,6 +11,8 @@ function AppearanceSettings() {
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [customColorInput, setCustomColorInput] = useState('#0a84ff')
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
 
   const colorOptions = [
     { id: 'blue', color: '#0a84ff', label: 'Blue' },
@@ -21,10 +23,17 @@ function AppearanceSettings() {
     { id: 'pink', color: '#ff375f', label: 'Pink' }
   ]
 
+  const isCustomColor = settings.accentColor?.startsWith('#')
+
   useEffect(() => {
     const saved = localStorage.getItem('appearanceSettings')
     if (saved) {
-      setSettings(JSON.parse(saved))
+      const parsed = JSON.parse(saved)
+      setSettings(parsed)
+      if (parsed.accentColor?.startsWith('#')) {
+        setCustomColorInput(parsed.accentColor)
+        setShowCustomPicker(true)
+      }
     }
   }, [])
 
@@ -87,11 +96,11 @@ function AppearanceSettings() {
       {/* Accent Color */}
       <div className="card p-3">
         <h3 className="text-white font-medium text-sm mb-2">Accent Color</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {colorOptions.map((color) => (
             <button
               key={color.id}
-              onClick={() => updateSetting('accentColor', color.id)}
+              onClick={() => { updateSetting('accentColor', color.id); setShowCustomPicker(false) }}
               className={`w-8 h-8 rounded-lg transition-all ${
                 settings.accentColor === color.id ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
               }`}
@@ -99,7 +108,61 @@ function AppearanceSettings() {
               title={color.label}
             />
           ))}
+          {/* Custom color toggle */}
+          <button
+            onClick={() => {
+              setShowCustomPicker(true)
+              updateSetting('accentColor', customColorInput)
+            }}
+            className={`w-8 h-8 rounded-lg transition-all border-2 border-dashed ${
+              isCustomColor ? 'ring-2 ring-white scale-110 border-white' : 'border-gray-500 hover:scale-105 hover:border-gray-400'
+            }`}
+            style={isCustomColor ? { backgroundColor: settings.accentColor } : { background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}
+            title="Custom Color"
+          />
         </div>
+
+        {/* Custom Color Picker */}
+        {showCustomPicker && (
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={customColorInput}
+                onChange={(e) => {
+                  setCustomColorInput(e.target.value)
+                  updateSetting('accentColor', e.target.value)
+                }}
+                className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0"
+                style={{ WebkitAppearance: 'none' }}
+              />
+              <div className="flex-1 flex items-center gap-2">
+                <span className="text-gray-400 text-sm">#</span>
+                <input
+                  type="text"
+                  value={customColorInput.replace('#', '').toUpperCase()}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
+                    if (val.length <= 6) {
+                      setCustomColorInput('#' + val)
+                      if (val.length === 6) {
+                        updateSetting('accentColor', '#' + val)
+                      }
+                    }
+                  }}
+                  maxLength={6}
+                  className="input flex-1 font-mono text-sm uppercase"
+                  placeholder="0A84FF"
+                />
+              </div>
+            </div>
+            {/* Preview bar */}
+            <div
+              className="h-8 rounded-lg w-full"
+              style={{ backgroundColor: customColorInput }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Font Size */}

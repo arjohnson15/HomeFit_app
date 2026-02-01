@@ -9,12 +9,29 @@ const accentColors = {
   pink: { primary: '#ff375f', hover: '#ff6b8a', muted: 'rgba(255, 55, 95, 0.2)' }
 }
 
+// Generate hover (lighter) and muted variants from a hex color
+function generateColorVariants(hex) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  // Hover: lighten by blending toward white
+  const lighten = (v) => Math.min(255, Math.round(v + (255 - v) * 0.3))
+  const hover = `#${lighten(r).toString(16).padStart(2, '0')}${lighten(g).toString(16).padStart(2, '0')}${lighten(b).toString(16).padStart(2, '0')}`
+  const muted = `rgba(${r}, ${g}, ${b}, 0.2)`
+  return { primary: hex, hover, muted }
+}
+
 // Apply theme settings to DOM
 export function applyTheme(settings) {
   const root = document.documentElement
 
-  // Apply accent color
-  const accent = accentColors[settings.accentColor] || accentColors.blue
+  // Apply accent color - support both preset IDs and custom hex codes
+  let accent
+  if (settings.accentColor && settings.accentColor.startsWith('#')) {
+    accent = generateColorVariants(settings.accentColor)
+  } else {
+    accent = accentColors[settings.accentColor] || accentColors.blue
+  }
   root.style.setProperty('--color-accent', accent.primary)
   root.style.setProperty('--color-accent-hover', accent.hover)
   root.style.setProperty('--color-accent-muted', accent.muted)
