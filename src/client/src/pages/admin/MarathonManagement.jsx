@@ -666,14 +666,15 @@ function MarathonManagement() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Award image indicator/upload */}
+                  {/* Award image upload */}
                   <label
-                    className={`p-1 cursor-pointer ${m.awardImageUrl ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
+                    className={`px-2 py-1 rounded text-xs cursor-pointer flex items-center gap-1 ${
+                      m.awardImageUrl ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10'
+                    }`}
                     title={m.awardImageUrl ? 'Award image set (click to change)' : 'Upload award image'}
                   >
-                    <svg className="w-4 h-4" fill={m.awardImageUrl ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
-                    </svg>
+                    <span>{m.awardImageUrl ? '🏅' : '📷'}</span>
+                    <span>{uploadingAward === m.id ? '...' : m.awardImageUrl ? 'Award' : 'Medal'}</span>
                     <input
                       type="file"
                       accept="image/*"
