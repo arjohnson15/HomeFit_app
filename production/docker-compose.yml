@@ -97,6 +97,7 @@ services:
       # Mount source code for fast updates (no rebuild needed)
       - ../src/server/src:/app/src:ro
       - ../src/server/data:/app/server-data:ro
+      - ../src/server/prisma:/app/prisma:ro
       - ../src/client/dist:/app/public:ro
       - ../package.json:/app/root-package.json:ro
       - ../exercises-db/dist:/app/data:ro

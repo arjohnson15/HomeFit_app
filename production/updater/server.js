@@ -150,36 +150,21 @@ app.post('/update', async (req, res) => {
       await runCommand('git pull origin main')
     }
 
-    // Step 4: Install server dependencies (for new packages like marathon routes)
+    // Step 4: Install server dependencies
     updateStatus.logs.push('Installing server dependencies...')
     const serverDir = path.join(PROJECT_DIR, 'src', 'server')
     await runCommand('npm install', serverDir, 120000)
 
-    // Step 5: Run database migrations
-    updateStatus.logs.push('Running database migrations...')
-    try {
-      await runCommand('npx prisma generate', serverDir, 60000)
-      await runCommand('npx prisma migrate deploy', serverDir, 60000)
-      updateStatus.logs.push('Database migrations completed.')
-    } catch (migrationErr) {
-      updateStatus.logs.push(`Migration warning: ${migrationErr.message}`)
-      // Try db push as fallback
-      try {
-        await runCommand('npx prisma db push --accept-data-loss', serverDir, 60000)
-        updateStatus.logs.push('Database schema pushed successfully (fallback).')
-      } catch (pushErr) {
-        updateStatus.logs.push(`DB push fallback also failed: ${pushErr.message}`)
-      }
-    }
-
-    // Step 6: Build frontend (source is volume-mounted, so no Docker rebuild needed)
+    // Step 5: Build frontend
     updateStatus.logs.push('Building frontend...')
     const clientDir = path.join(PROJECT_DIR, 'src', 'client')
     await runCommand('npm install', clientDir, 120000)
     await runCommand('npm run build', clientDir, 120000)
 
-    // Step 7: Restart the app container to pick up changes
-    updateStatus.logs.push('Restarting application...')
+    // Step 6: Restart the app container
+    // The app's entrypoint handles prisma generate + migrations automatically on startup
+    // Source code and prisma schema are volume-mounted so the app picks up changes
+    updateStatus.logs.push('Restarting application (will run migrations on startup)...')
     const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
     await runCommand(`docker compose -f ${composeFile} restart app`)
 
