@@ -54,6 +54,8 @@ import FeedbackSettings from './pages/admin/FeedbackSettings'
 import BackupManagement from './pages/admin/BackupManagement'
 import ExerciseManagement from './pages/admin/ExerciseManagement'
 import Achievements from './pages/Achievements'
+import Marathons from './pages/Marathons'
+import MarathonManagement from './pages/admin/MarathonManagement'
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -175,6 +177,7 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/achievements" element={<Achievements />} />
         <Route path="/goals" element={<Goals />} />
+        <Route path="/marathons" element={<Marathons />} />
         <Route path="/feature-suggestion" element={<FeatureSuggestion />} />
         <Route path="/bug-report" element={<BugReport />} />
 
@@ -202,6 +205,7 @@ function App() {
         <Route path="/admin/feedback" element={<FeedbackSettings />} />
         <Route path="/admin/backup" element={<BackupManagement />} />
         <Route path="/admin/exercises" element={<ExerciseManagement />} />
+        <Route path="/admin/marathons" element={<MarathonManagement />} />
       </Route>
 
       {/* Public Legal Pages (accessible with or without auth) */}

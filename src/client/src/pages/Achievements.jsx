@@ -9,7 +9,8 @@ const CATEGORIES = [
   { id: 'PR', label: 'PRs', icon: '🏆' },
   { id: 'TIME', label: 'Time', icon: '⏱️' },
   { id: 'NUTRITION', label: 'Nutrition', icon: '🥗' },
-  { id: 'SOCIAL', label: 'Social', icon: '🤝' }
+  { id: 'SOCIAL', label: 'Social', icon: '🤝' },
+  { id: 'MARATHON', label: 'Marathon', icon: '🏅' }
 ]
 
 const RARITY_STYLES = {

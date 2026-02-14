@@ -59,6 +59,7 @@ function Settings() {
     { label: 'AI Integration', path: '/admin/ai', icon: 'chat' },
     { label: 'Nutrition API', path: '/admin/nutrition', icon: 'nutrition' },
     { label: 'Feedback', path: '/admin/feedback', icon: 'feedback' },
+    { label: 'Marathons', path: '/admin/marathons', icon: 'trophy' },
     { label: 'Email (SMTP)', path: '/admin/email', icon: 'mail' },
     { label: 'System Updates', path: '/admin/updates', icon: 'refresh' },
   ]

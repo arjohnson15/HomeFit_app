@@ -35,7 +35,13 @@ const DEFAULT_ACHIEVEMENTS = [
 
   // Social
   { name: 'First Friend', description: 'Add your first friend', icon: '🤝', category: 'SOCIAL', metricType: 'TOTAL_FRIENDS', threshold: 1, rarity: 'COMMON', points: 10, sortOrder: 1 },
-  { name: 'Social Butterfly', description: 'Have 10 friends', icon: '🦋', category: 'SOCIAL', metricType: 'TOTAL_FRIENDS', threshold: 10, rarity: 'UNCOMMON', points: 50, sortOrder: 2 }
+  { name: 'Social Butterfly', description: 'Have 10 friends', icon: '🦋', category: 'SOCIAL', metricType: 'TOTAL_FRIENDS', threshold: 10, rarity: 'UNCOMMON', points: 50, sortOrder: 2 },
+
+  // Marathon
+  { name: 'First Finish', description: 'Complete your first marathon', icon: '🏅', category: 'MARATHON', metricType: 'MARATHONS_COMPLETED', threshold: 1, rarity: 'UNCOMMON', points: 50, sortOrder: 1 },
+  { name: 'Marathon Major', description: 'Complete 3 marathons', icon: '🥇', category: 'MARATHON', metricType: 'MARATHONS_COMPLETED', threshold: 3, rarity: 'RARE', points: 100, sortOrder: 2 },
+  { name: 'World Marathoner', description: 'Complete all 6 World Marathon Majors', icon: '🌍', category: 'MARATHON', metricType: 'MARATHONS_COMPLETED', threshold: 6, rarity: 'LEGENDARY', points: 500, sortOrder: 3 },
+  { name: 'Distance Demon', description: 'Complete 10 marathons', icon: '👟', category: 'MARATHON', metricType: 'MARATHONS_COMPLETED', threshold: 10, rarity: 'EPIC', points: 250, sortOrder: 4 }
 ]
 
 class AchievementService {
@@ -278,6 +284,10 @@ class AchievementService {
       updates.totalFriends = { decrement: 1 }
     }
 
+    if (context.marathonCompleted) {
+      updates.totalMarathonsCompleted = { increment: 1 }
+    }
+
     // Goal completions
     if (context.goalCompleted) {
       updates.totalGoalsCompleted = { increment: 1 }
@@ -386,6 +396,8 @@ class AchievementService {
         return userStats.strengthGoalsCompleted || 0
       case 'CARDIO_GOALS_COMPLETED':
         return userStats.cardioGoalsCompleted || 0
+      case 'MARATHONS_COMPLETED':
+        return userStats.totalMarathonsCompleted || 0
       default:
         return 0
     }

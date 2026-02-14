@@ -1,6 +1,6 @@
 {
   "name": "homefit",
-  "version": "1.0.64",
+  "version": "1.0.65",
   "description": "HomeFit - Home Gym Workout Tracking App",
   "private": true,
   "scripts": {

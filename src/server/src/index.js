@@ -32,6 +32,7 @@ import achievementRoutes from './routes/achievements.js'
 import feedbackRoutes from './routes/feedback.js'
 import backupRoutes from './routes/backup.js'
 import goalRoutes from './routes/goals.js'
+import marathonRoutes from './routes/marathons.js'
 
 // Services
 import backupScheduler from './services/scheduler.js'
@@ -133,6 +134,7 @@ app.use('/api/achievements', authenticateToken, achievementRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/backup', authenticateToken, backupRoutes)
 app.use('/api/goals', authenticateToken, goalRoutes)
+app.use('/api/marathons', authenticateToken, marathonRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

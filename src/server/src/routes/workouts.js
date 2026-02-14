@@ -2,6 +2,7 @@ import express from 'express'
 import prisma from '../lib/prisma.js'
 import achievementService from '../services/achievements.js'
 import followNotificationService from '../services/followNotifications.js'
+import { autoLogCardioDistance, ensurePassiveMarathon } from './marathons.js'
 
 const router = express.Router()
 
@@ -437,6 +438,28 @@ router.patch('/:id', async (req, res, next) => {
         duration: workout.duration || 0,
         exerciseCount
       })
+
+      // Auto-log cardio distance to marathons (Across America + any active enrolled marathons)
+      try {
+        await ensurePassiveMarathon(currentWorkout.userId)
+        const exerciseLogs = await prisma.exerciseLog.findMany({
+          where: { sessionId: workout.id },
+          include: { sets: { where: { distance: { gt: 0 } } } }
+        })
+        let totalDistance = 0
+        let totalCardioDuration = 0
+        for (const log of exerciseLogs) {
+          for (const set of log.sets) {
+            totalDistance += set.distance || 0
+            totalCardioDuration += set.duration || 0
+          }
+        }
+        if (totalDistance > 0) {
+          await autoLogCardioDistance(currentWorkout.userId, totalDistance, totalCardioDuration, workout.id)
+        }
+      } catch (marathonErr) {
+        console.error('Marathon auto-log error (non-fatal):', marathonErr)
+      }
     }
 
     res.json({
