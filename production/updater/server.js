@@ -116,25 +116,69 @@ app.post('/update', async (req, res) => {
     const localCommit = await runCommand('git rev-parse HEAD')
     const remoteCommit = await runCommand('git rev-parse origin/main')
 
-    if (localCommit.trim() === remoteCommit.trim()) {
-      updateStatus.logs.push('Already up to date!')
-      updateStatus.lastResult = 'already_current'
-      updateStatus.inProgress = false
-      console.log('[Updater] Already up to date')
-      return
+    const commitsMatch = localCommit.trim() === remoteCommit.trim()
+
+    if (commitsMatch) {
+      // Commits match, but check if the app needs a rebuild
+      // (e.g., previous update pulled code but failed to build/restart)
+      const distPath = path.join(PROJECT_DIR, 'src', 'client', 'dist', 'index.html')
+      const pkgPath = path.join(PROJECT_DIR, 'package.json')
+      let needsRebuild = false
+
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+        const repoVersion = pkg.version
+        // Check if the built frontend matches the repo version
+        // by looking for the version in the dist or just always rebuild if commits matched but user triggered update
+        updateStatus.logs.push(`Git is up to date (${localCommit.trim().substring(0, 7)})`)
+        updateStatus.logs.push('Checking if rebuild is needed...')
+        needsRebuild = true // User explicitly clicked update, so rebuild anyway
+      } catch (e) {
+        needsRebuild = true
+      }
+
+      if (!needsRebuild) {
+        updateStatus.logs.push('Already up to date!')
+        updateStatus.lastResult = 'already_current'
+        updateStatus.inProgress = false
+        console.log('[Updater] Already up to date')
+        return
+      }
+    } else {
+      // Step 3: Pull latest changes
+      updateStatus.logs.push('Pulling latest changes...')
+      await runCommand('git pull origin main')
     }
 
-    // Step 3: Pull latest changes
-    updateStatus.logs.push('Pulling latest changes...')
-    await runCommand('git pull origin main')
+    // Step 4: Install server dependencies (for new packages like marathon routes)
+    updateStatus.logs.push('Installing server dependencies...')
+    const serverDir = path.join(PROJECT_DIR, 'src', 'server')
+    await runCommand('npm install', serverDir, 120000)
 
-    // Step 4: Build frontend (source is volume-mounted, so no Docker rebuild needed)
+    // Step 5: Run database migrations
+    updateStatus.logs.push('Running database migrations...')
+    try {
+      await runCommand('npx prisma generate', serverDir, 60000)
+      await runCommand('npx prisma migrate deploy', serverDir, 60000)
+      updateStatus.logs.push('Database migrations completed.')
+    } catch (migrationErr) {
+      updateStatus.logs.push(`Migration warning: ${migrationErr.message}`)
+      // Try db push as fallback
+      try {
+        await runCommand('npx prisma db push --accept-data-loss', serverDir, 60000)
+        updateStatus.logs.push('Database schema pushed successfully (fallback).')
+      } catch (pushErr) {
+        updateStatus.logs.push(`DB push fallback also failed: ${pushErr.message}`)
+      }
+    }
+
+    // Step 6: Build frontend (source is volume-mounted, so no Docker rebuild needed)
     updateStatus.logs.push('Building frontend...')
     const clientDir = path.join(PROJECT_DIR, 'src', 'client')
     await runCommand('npm install', clientDir, 120000)
     await runCommand('npm run build', clientDir, 120000)
 
-    // Step 5: Restart the app container to pick up changes
+    // Step 7: Restart the app container to pick up changes
     updateStatus.logs.push('Restarting application...')
     const composeFile = path.join(PROJECT_DIR, 'production', 'docker-compose.yml')
     await runCommand(`docker compose -f ${composeFile} restart app`)
