@@ -19,7 +19,9 @@
     "recharts": "^2.10.3",
     "date-fns": "^3.0.6",
     "clsx": "^2.0.0",
-    "framer-motion": "^10.16.16"
+    "framer-motion": "^10.16.16",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
