@@ -874,6 +874,20 @@ function Marathons() {
               </div>
             )}
 
+            {/* Award / Medal */}
+            {previewMarathon.awardImageUrl && (
+              <div className="card p-4">
+                <h3 className="text-white font-medium text-sm mb-3">Finisher Medal</h3>
+                <div className="flex justify-center">
+                  <img
+                    src={previewMarathon.awardImageUrl}
+                    alt="Finisher medal"
+                    className="max-h-48 object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Milestones */}
             {previewMarathon.milestones && previewMarathon.milestones.length > 0 && (
               <div className="card p-4">
