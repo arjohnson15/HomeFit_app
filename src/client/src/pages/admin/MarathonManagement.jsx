@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -112,13 +112,16 @@ function MapClickHandler({ onMapClick }) {
   return null
 }
 
-function FitBounds({ route }) {
+function FitBounds({ route, once = false }) {
   const map = useMap()
+  const hasFit = useRef(false)
   useEffect(() => {
+    if (once && hasFit.current) return
     if (route && route.length > 1) {
       map.fitBounds(route, { padding: [30, 30] })
+      hasFit.current = true
     }
-  }, [route, map])
+  }, [route, map, once])
   return null
 }
 
@@ -531,7 +534,7 @@ function MarathonManagement() {
             <MapClickHandler onMapClick={handleMapClick} />
             {form.routeData.length > 1 && (
               <>
-                <FitBounds route={form.routeData} />
+                <FitBounds route={form.routeData} once />
                 {/* Triathlon: show colored segments */}
                 {form.type === 'triathlon' && form.segments.length > 0 ? (
                   <>
