@@ -652,11 +652,13 @@ model Marathon {
   city          String                              // "Chicago, IL"
   country       String                              // "USA"
   distance      Float                               // Total distance in miles
-  type          String   @default("run")            // "run" or "bike"
+  type          String   @default("run")            // "run", "bike", "swim", or "triathlon"
   difficulty    String   @default("intermediate")   // beginner, intermediate, advanced
   routeData     Json                                // Array of [lat, lng] waypoints
+  segments      Json?                               // For triathlon: [{type, distance, routeData}]
   milestones    Json?                               // [{mile, label, lat, lng}]
   imageUrl      String?                             // Banner image URL
+  awardImageUrl String?                             // Award/medal PNG shown on completion
   isOfficial    Boolean  @default(true)             // Pre-built vs admin-created
   isPassive     Boolean  @default(false)            // Passive challenge (Across America)
   isActive      Boolean  @default(true)

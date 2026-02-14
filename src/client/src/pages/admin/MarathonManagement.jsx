@@ -129,9 +129,12 @@ function MarathonManagement() {
   const [editing, setEditing] = useState(null) // marathon object or 'new'
   const [form, setForm] = useState({
     name: '', description: '', city: '', country: '', distance: '',
-    type: 'run', difficulty: 'intermediate', routeData: [], milestones: []
+    type: 'run', difficulty: 'intermediate', routeData: [], milestones: [],
+    segments: [] // For triathlon: [{type: 'swim'|'bike'|'run', startIdx, endIdx}]
   })
   const [saving, setSaving] = useState(false)
+  const [uploadingAward, setUploadingAward] = useState(null) // marathon id being uploaded to
+  const [activeSegmentType, setActiveSegmentType] = useState('run') // Current segment type being drawn
 
   useEffect(() => {
     fetchMarathons()
@@ -166,8 +169,10 @@ function MarathonManagement() {
     if (marathon === 'new') {
       setForm({
         name: '', description: '', city: '', country: 'USA', distance: '',
-        type: 'run', difficulty: 'intermediate', routeData: [], milestones: []
+        type: 'run', difficulty: 'intermediate', routeData: [], milestones: [],
+        segments: []
       })
+      setActiveSegmentType('run')
       setEditing('new')
     } else {
       setForm({
@@ -179,8 +184,10 @@ function MarathonManagement() {
         type: marathon.type,
         difficulty: marathon.difficulty,
         routeData: marathon.routeData || [],
-        milestones: marathon.milestones || []
+        milestones: marathon.milestones || [],
+        segments: marathon.segments || []
       })
+      setActiveSegmentType(marathon.type === 'triathlon' ? 'swim' : marathon.type || 'run')
       setEditing(marathon)
     }
   }
@@ -261,6 +268,17 @@ function MarathonManagement() {
 
     setSaving(true)
     try {
+      // Build segments data for triathlon: calculate distance per segment from waypoints
+      let segmentsData = null
+      if (form.type === 'triathlon' && form.segments.length > 0) {
+        segmentsData = form.segments.map(seg => ({
+          type: seg.type,
+          startIdx: seg.startIdx,
+          endIdx: seg.endIdx,
+          distance: calculateRouteDistance(form.routeData.slice(seg.startIdx, seg.endIdx + 1))
+        }))
+      }
+
       if (editing === 'new') {
         await api.post('/marathons/admin/create', {
           name: form.name,
@@ -271,7 +289,8 @@ function MarathonManagement() {
           type: form.type,
           difficulty: form.difficulty,
           routeData: form.routeData,
-          milestones: form.milestones.length > 0 ? form.milestones : null
+          milestones: form.milestones.length > 0 ? form.milestones : null,
+          segments: segmentsData
         })
       } else {
         await api.put(`/marathons/admin/${editing.id}`, {
@@ -283,7 +302,8 @@ function MarathonManagement() {
           type: form.type,
           difficulty: form.difficulty,
           routeData: form.routeData,
-          milestones: form.milestones.length > 0 ? form.milestones : null
+          milestones: form.milestones.length > 0 ? form.milestones : null,
+          segments: segmentsData
         })
       }
       setEditing(null)
@@ -311,6 +331,24 @@ function MarathonManagement() {
       await fetchMarathons()
     } catch (err) {
       console.error('Error toggling:', err)
+    }
+  }
+
+  const handleAwardUpload = async (marathonId, file) => {
+    if (!file) return
+    setUploadingAward(marathonId)
+    try {
+      const formData = new FormData()
+      formData.append('awardImage', file)
+      await api.post(`/marathons/admin/${marathonId}/award`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      await fetchMarathons()
+    } catch (err) {
+      console.error('Error uploading award:', err)
+      alert('Failed to upload award image')
+    } finally {
+      setUploadingAward(null)
     }
   }
 
@@ -358,11 +396,18 @@ function MarathonManagement() {
             />
             <select
               value={form.type}
-              onChange={(e) => setForm(p => ({ ...p, type: e.target.value }))}
+              onChange={(e) => {
+                const newType = e.target.value
+                setForm(p => ({ ...p, type: newType, segments: newType === 'triathlon' ? p.segments : [] }))
+                if (newType === 'triathlon') setActiveSegmentType('swim')
+                else setActiveSegmentType(newType)
+              }}
               className="input text-sm"
             >
               <option value="run">Run</option>
               <option value="bike">Bike</option>
+              <option value="swim">Swim</option>
+              <option value="triathlon">Triathlon</option>
             </select>
             <select
               value={form.difficulty}
@@ -392,12 +437,87 @@ function MarathonManagement() {
               Clear
             </button>
           </div>
+          {/* Triathlon segment controls */}
+          {form.type === 'triathlon' && (
+            <div className="space-y-2 border-t border-dark-border pt-2">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-xs">Drawing segment:</span>
+                {['swim', 'bike', 'run'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveSegmentType(t)}
+                    className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                      activeSegmentType === t
+                        ? t === 'swim' ? 'bg-cyan-500/30 text-cyan-400 ring-1 ring-cyan-500'
+                          : t === 'bike' ? 'bg-yellow-500/30 text-yellow-400 ring-1 ring-yellow-500'
+                          : 'bg-green-500/30 text-green-400 ring-1 ring-green-500'
+                        : 'bg-dark-elevated text-gray-500'
+                    }`}
+                  >
+                    {t === 'swim' ? '🏊 Swim' : t === 'bike' ? '🚴 Bike' : '🏃 Run'}
+                  </button>
+                ))}
+              </div>
+              <p className="text-gray-500 text-[10px]">
+                Mark segment transitions: click "Set Transition" to mark where current segment ends and next begins.
+                {form.segments.length > 0 && ` (${form.segments.length} segments defined)`}
+              </p>
+              {form.routeData.length >= 2 && (
+                <button
+                  onClick={() => {
+                    const lastEnd = form.segments.length > 0 ? form.segments[form.segments.length - 1].endIdx : 0
+                    const currentIdx = form.routeData.length - 1
+                    if (currentIdx > lastEnd) {
+                      setForm(prev => ({
+                        ...prev,
+                        segments: [...prev.segments, { type: activeSegmentType, startIdx: lastEnd === 0 && prev.segments.length === 0 ? 0 : lastEnd, endIdx: currentIdx }]
+                      }))
+                      // Auto-advance to next segment type
+                      const order = ['swim', 'bike', 'run']
+                      const nextIdx = order.indexOf(activeSegmentType) + 1
+                      if (nextIdx < order.length) setActiveSegmentType(order[nextIdx])
+                    }
+                  }}
+                  className="text-accent text-xs px-3 py-1 bg-accent/20 rounded hover:bg-accent/30 transition-colors"
+                >
+                  Set Transition Here (wp #{form.routeData.length})
+                </button>
+              )}
+              {form.segments.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {form.segments.map((seg, i) => (
+                    <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                      seg.type === 'swim' ? 'bg-cyan-500/20 text-cyan-400'
+                        : seg.type === 'bike' ? 'bg-yellow-500/20 text-yellow-400'
+                        : 'bg-green-500/20 text-green-400'
+                    }`}>
+                      {seg.type}: wp {seg.startIdx + 1}-{seg.endIdx + 1}
+                      ({calculateRouteDistance(form.routeData.slice(seg.startIdx, seg.endIdx + 1)).toFixed(1)} mi)
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => setForm(prev => ({ ...prev, segments: prev.segments.slice(0, -1) }))}
+                    className="text-gray-500 hover:text-error text-[10px] px-1"
+                  >
+                    Undo
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Map - click to add waypoints */}
         <div className="flex-1 relative">
           <div className="absolute top-2 left-2 z-[1000] bg-dark-card/90 px-3 py-1.5 rounded-lg">
-            <p className="text-white text-xs font-medium">Click to add · Drag to move · Right-click route to insert</p>
+            <p className="text-white text-xs font-medium">
+              Click to add · Drag to move · Right-click route to insert
+              {form.type === 'triathlon' && (
+                <span className={`ml-2 ${activeSegmentType === 'swim' ? 'text-cyan-400' : activeSegmentType === 'bike' ? 'text-yellow-400' : 'text-green-400'}`}>
+                  · Drawing: {activeSegmentType}
+                </span>
+              )}
+            </p>
           </div>
           <MapContainer
             center={form.routeData.length > 0 ? form.routeData[0] : [39.8283, -98.5795]}
@@ -412,13 +532,37 @@ function MarathonManagement() {
             {form.routeData.length > 1 && (
               <>
                 <FitBounds route={form.routeData} />
-                <Polyline
-                  positions={form.routeData}
-                  pathOptions={{ color: '#0a84ff', weight: 5, opacity: 0.8 }}
-                  eventHandlers={{
-                    contextmenu: handlePolylineRightClick
-                  }}
-                />
+                {/* Triathlon: show colored segments */}
+                {form.type === 'triathlon' && form.segments.length > 0 ? (
+                  <>
+                    {form.segments.map((seg, i) => {
+                      const segColor = seg.type === 'swim' ? '#06b6d4' : seg.type === 'bike' ? '#eab308' : '#22c55e'
+                      const segPoints = form.routeData.slice(seg.startIdx, seg.endIdx + 1)
+                      return segPoints.length > 1 ? (
+                        <Polyline key={`seg-${i}`} positions={segPoints} pathOptions={{ color: segColor, weight: 6, opacity: 0.9 }}
+                          eventHandlers={{ contextmenu: handlePolylineRightClick }} />
+                      ) : null
+                    })}
+                    {/* Unsegmented portion (if waypoints added after last segment) */}
+                    {(() => {
+                      const lastEnd = form.segments[form.segments.length - 1]?.endIdx || 0
+                      if (lastEnd < form.routeData.length - 1) {
+                        const remaining = form.routeData.slice(lastEnd)
+                        return remaining.length > 1 ? (
+                          <Polyline positions={remaining} pathOptions={{ color: '#555', weight: 4, dashArray: '8 8', opacity: 0.6 }}
+                            eventHandlers={{ contextmenu: handlePolylineRightClick }} />
+                        ) : null
+                      }
+                      return null
+                    })()}
+                  </>
+                ) : (
+                  <Polyline
+                    positions={form.routeData}
+                    pathOptions={{ color: form.type === 'swim' ? '#06b6d4' : form.type === 'bike' ? '#eab308' : '#0a84ff', weight: 5, opacity: 0.8 }}
+                    eventHandlers={{ contextmenu: handlePolylineRightClick }}
+                  />
+                )}
                 {/* Invisible wider polyline for easier right-click targeting */}
                 <Polyline
                   positions={form.routeData}
@@ -482,7 +626,7 @@ function MarathonManagement() {
             <div key={m.id} className={`card p-3 ${!m.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg">{m.isPassive ? '🇺🇸' : m.type === 'bike' ? '🚴' : '🏃'}</span>
+                  <span className="text-lg">{m.isPassive ? '🇺🇸' : m.type === 'triathlon' ? '🏊' : m.type === 'swim' ? '🏊' : m.type === 'bike' ? '🚴' : '🏃'}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -492,9 +636,26 @@ function MarathonManagement() {
                   </div>
                   <p className="text-gray-400 text-xs">
                     {m.city} · {m.distance} mi · {m._count?.userMarathons || 0} enrolled
+                    {m.awardImageUrl && <span className="text-yellow-400 ml-1">· Award set</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Award image indicator/upload */}
+                  <label
+                    className={`p-1 cursor-pointer ${m.awardImageUrl ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
+                    title={m.awardImageUrl ? 'Award image set (click to change)' : 'Upload award image'}
+                  >
+                    <svg className="w-4 h-4" fill={m.awardImageUrl ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+                    </svg>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleAwardUpload(m.id, e.target.files[0])}
+                      disabled={uploadingAward === m.id}
+                    />
+                  </label>
                   <button
                     onClick={() => handleToggleActive(m)}
                     className={`px-2 py-1 rounded text-xs ${m.isActive ? 'text-success' : 'text-gray-500'}`}

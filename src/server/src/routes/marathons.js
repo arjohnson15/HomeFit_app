@@ -1,10 +1,39 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 import MARATHON_ROUTES from '../data/marathonRoutes.js'
 import achievementService from '../services/achievements.js'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 const router = Router()
 const prisma = new PrismaClient()
+
+// Configure multer for award image uploads
+const awardDir = path.join(__dirname, '../../uploads/awards')
+if (!fs.existsSync(awardDir)) {
+  fs.mkdirSync(awardDir, { recursive: true })
+}
+const awardStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, awardDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png'
+    cb(null, `award-${req.params.id}-${Date.now()}${ext}`)
+  }
+})
+const awardUpload = multer({
+  storage: awardStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(png|jpg|jpeg|webp|gif)$/i
+    if (allowed.test(path.extname(file.originalname))) cb(null, true)
+    else cb(new Error('Only image files are allowed'))
+  }
+})
 
 // =============================================
 // PUBLIC: Browse marathons
@@ -27,6 +56,7 @@ router.get('/', async (req, res, next) => {
         isOfficial: true,
         isPassive: true,
         imageUrl: true,
+        awardImageUrl: true,
         milestones: true,
         _count: { select: { userMarathons: true } }
       },
@@ -82,7 +112,8 @@ router.get('/my/active', async (req, res, next) => {
             isPassive: true,
             milestones: true,
             routeData: true,
-            imageUrl: true
+            imageUrl: true,
+            awardImageUrl: true
           }
         },
         entries: {
@@ -110,6 +141,23 @@ router.post('/:id/enroll', async (req, res, next) => {
       return res.status(404).json({ message: 'Marathon not found' })
     }
 
+    // Enforce 1 active race at a time (passive/Across America doesn't count)
+    if (!marathon.isPassive) {
+      const activeRace = await prisma.userMarathon.findFirst({
+        where: {
+          userId: req.user.id,
+          status: 'active',
+          isPassive: false
+        },
+        include: { marathon: true }
+      })
+      if (activeRace && activeRace.marathonId !== req.params.id) {
+        return res.status(400).json({
+          message: `You can only be enrolled in one race at a time. You're currently in "${activeRace.marathon.name}". Abandon it first to enroll in a new one.`
+        })
+      }
+    }
+
     // Check if already enrolled
     const existing = await prisma.userMarathon.findUnique({
       where: {
@@ -122,6 +170,23 @@ router.post('/:id/enroll', async (req, res, next) => {
 
     if (existing) {
       if (existing.status === 'abandoned') {
+        // Check 1-race limit before re-activating
+        if (!marathon.isPassive) {
+          const otherActive = await prisma.userMarathon.findFirst({
+            where: {
+              userId: req.user.id,
+              status: 'active',
+              isPassive: false,
+              id: { not: existing.id }
+            },
+            include: { marathon: true }
+          })
+          if (otherActive) {
+            return res.status(400).json({
+              message: `You can only be enrolled in one race at a time. You're currently in "${otherActive.marathon.name}". Abandon it first.`
+            })
+          }
+        }
         // Re-activate abandoned marathon (keep progress)
         const updated = await prisma.userMarathon.update({
           where: { id: existing.id },
@@ -351,7 +416,7 @@ router.post('/admin/create', async (req, res, next) => {
       return res.status(403).json({ message: 'Admin access required' })
     }
 
-    const { name, description, city, country, distance, type, difficulty, routeData, milestones } = req.body
+    const { name, description, city, country, distance, type, difficulty, routeData, milestones, segments } = req.body
 
     if (!name || !city || !country || !distance || !routeData) {
       return res.status(400).json({ message: 'Name, city, country, distance, and routeData are required' })
@@ -368,6 +433,7 @@ router.post('/admin/create', async (req, res, next) => {
         difficulty: difficulty || 'intermediate',
         routeData,
         milestones: milestones || null,
+        segments: segments || null,
         isOfficial: false,
         createdBy: req.user.id
       }
@@ -386,7 +452,7 @@ router.put('/admin/:id', async (req, res, next) => {
       return res.status(403).json({ message: 'Admin access required' })
     }
 
-    const { name, description, city, country, distance, type, difficulty, routeData, milestones, isActive } = req.body
+    const { name, description, city, country, distance, type, difficulty, routeData, milestones, segments, isActive } = req.body
 
     const marathon = await prisma.marathon.update({
       where: { id: req.params.id },
@@ -400,10 +466,39 @@ router.put('/admin/:id', async (req, res, next) => {
         ...(difficulty !== undefined && { difficulty }),
         ...(routeData !== undefined && { routeData }),
         ...(milestones !== undefined && { milestones }),
+        ...(segments !== undefined && { segments }),
         ...(isActive !== undefined && { isActive })
       }
     })
 
+    res.json({ marathon })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /marathons/admin/:id/award - Upload award image for a marathon
+router.post('/admin/:id/award', awardUpload.single('awardImage'), async (req, res, next) => {
+  try {
+    if (req.user.role?.toLowerCase() !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' })
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file uploaded' })
+    }
+
+    // Delete old award image if exists
+    const existing = await prisma.marathon.findUnique({ where: { id: req.params.id } })
+    if (existing?.awardImageUrl) {
+      const oldPath = path.join(__dirname, '../..', existing.awardImageUrl.replace('/uploads', 'uploads'))
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
+    }
+
+    const awardImageUrl = `/uploads/awards/${req.file.filename}`
+    const marathon = await prisma.marathon.update({
+      where: { id: req.params.id },
+      data: { awardImageUrl }
+    })
     res.json({ marathon })
   } catch (error) {
     next(error)

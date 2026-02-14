@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import ChatWidget from '../components/ChatWidget'
 import { useWorkoutSocket } from '../hooks/useWorkoutSocket'
@@ -9,6 +9,61 @@ import { SyncStatus } from '../components/SyncStatus'
 import { useOfflineWorkout } from '../hooks/useOfflineWorkout'
 import ExerciseCatalogModal from '../components/ExerciseCatalogModal'
 import CopyWorkoutModal from '../components/CopyWorkoutModal'
+import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Marathon map helpers
+function getPositionAlongRoute(routeData, fraction) {
+  if (!routeData || routeData.length < 2) return routeData?.[0] || [0, 0]
+  if (fraction <= 0) return routeData[0]
+  if (fraction >= 1) return routeData[routeData.length - 1]
+  let totalLen = 0
+  const segLengths = []
+  for (let i = 1; i < routeData.length; i++) {
+    const d = Math.sqrt(Math.pow(routeData[i][0] - routeData[i - 1][0], 2) + Math.pow(routeData[i][1] - routeData[i - 1][1], 2))
+    segLengths.push(d)
+    totalLen += d
+  }
+  const targetLen = totalLen * fraction
+  let accum = 0
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accum + segLengths[i] >= targetLen) {
+      const segFraction = (targetLen - accum) / segLengths[i]
+      return [routeData[i][0] + (routeData[i + 1][0] - routeData[i][0]) * segFraction, routeData[i][1] + (routeData[i + 1][1] - routeData[i][1]) * segFraction]
+    }
+    accum += segLengths[i]
+  }
+  return routeData[routeData.length - 1]
+}
+
+function splitRoute(routeData, fraction) {
+  if (!routeData || routeData.length < 2) return { completed: routeData || [], remaining: [] }
+  if (fraction >= 1) return { completed: routeData, remaining: [] }
+  if (fraction <= 0) return { completed: [], remaining: routeData }
+  const midPoint = getPositionAlongRoute(routeData, fraction)
+  let totalLen = 0
+  const segLengths = []
+  for (let i = 1; i < routeData.length; i++) {
+    const d = Math.sqrt(Math.pow(routeData[i][0] - routeData[i - 1][0], 2) + Math.pow(routeData[i][1] - routeData[i - 1][1], 2))
+    segLengths.push(d)
+    totalLen += d
+  }
+  const targetLen = totalLen * fraction
+  let accum = 0, splitIdx = 0
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accum + segLengths[i] >= targetLen) { splitIdx = i + 1; break }
+    accum += segLengths[i]
+  }
+  return { completed: [...routeData.slice(0, splitIdx), midPoint], remaining: [midPoint, ...routeData.slice(splitIdx)] }
+}
+
+function FitBounds({ route }) {
+  const map = useMap()
+  useEffect(() => {
+    if (route && route.length > 1) map.fitBounds(route, { padding: [30, 30] })
+  }, [route, map])
+  return null
+}
 
 function Today() {
   const [todayWorkout, setTodayWorkout] = useState(null)
@@ -71,6 +126,12 @@ function Today() {
   })
   const [lastSessionCollapsed, setLastSessionCollapsed] = useState(false) // Last session collapsed state
   const [showOlderSessions, setShowOlderSessions] = useState(false) // Show older sessions beyond the last one
+  // Digital Race tracking
+  const [activeRace, setActiveRace] = useState(null) // Active non-passive race
+  const [passiveRace, setPassiveRace] = useState(null) // Across America passive race
+  const [raceExpanded, setRaceExpanded] = useState(false)
+  const [showAcrossAmerica, setShowAcrossAmerica] = useState(false)
+  const navigate = useNavigate()
   const timerRef = useRef(null)
   const restTimerRef = useRef(null)
   const audioContextRef = useRef(null) // For rest timer sound
@@ -527,6 +588,7 @@ function Today() {
     fetchUserProfile()
     fetchWarmupSuggestions()
     fetchCooldownSuggestions()
+    fetchRaceData()
   }, [])
 
   // Fetch completed workouts for today
@@ -578,6 +640,20 @@ function Today() {
       setStats({ thisWeek, streak, prs: prCount })
     } catch (error) {
       console.error('Error fetching stats:', error)
+    }
+  }
+
+  // Fetch race data for Digital Races section
+  const fetchRaceData = async () => {
+    try {
+      const res = await api.get('/marathons/my/active')
+      const userMarathons = res.data.userMarathons || []
+      const active = userMarathons.find(um => um.status === 'active' && !um.isPassive)
+      const passive = userMarathons.find(um => um.isPassive && um.status === 'active')
+      setActiveRace(active || null)
+      setPassiveRace(passive || null)
+    } catch (err) {
+      // Silently fail - race data is supplementary
     }
   }
 
@@ -1569,6 +1645,30 @@ function Today() {
               )}
             </div>
           )}
+          {/* Digital Races pill - always visible */}
+          <button
+            onClick={() => navigate('/marathons')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/20 rounded-full text-accent hover:bg-accent/30 transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>Races</span>
+          </button>
+          {/* My Race pill - only when enrolled in an active non-passive race */}
+          {activeRace && (
+            <button
+              onClick={() => { setRaceExpanded(prev => !prev); setShowAcrossAmerica(false) }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors text-sm ${
+                raceExpanded ? 'bg-accent text-white' : 'bg-dark-elevated text-gray-400 hover:text-white hover:bg-dark-card'
+              }`}
+            >
+              <span>{raceExpanded ? '🏃' : '🏃'} My Race</span>
+              <svg className={`w-3.5 h-3.5 transition-transform ${raceExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
           {socialSettings?.showSocialSection !== false && (
             <button
               onClick={() => document.getElementById('social-section')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1582,6 +1682,118 @@ function Today() {
           )}
         </div>
       </div>
+
+      {/* My Race Expandable Section */}
+      {raceExpanded && (activeRace || passiveRace) && (() => {
+        const race = showAcrossAmerica ? passiveRace : activeRace
+        if (!race) return null
+        const routeData = race.marathon.routeData
+        const fraction = Math.min(1, race.currentDistance / race.marathon.distance)
+        const { completed, remaining } = splitRoute(routeData, fraction)
+        const currentPos = getPositionAlongRoute(routeData, fraction)
+        const milestones = race.marathon.milestones || []
+        const pct = (fraction * 100).toFixed(1)
+        const remaining_mi = Math.max(0, race.marathon.distance - race.currentDistance).toFixed(1)
+        const avgPace = race.totalSeconds > 0 && race.currentDistance > 0
+          ? `${Math.floor((race.totalSeconds / race.currentDistance) / 60)}:${String(Math.floor((race.totalSeconds / race.currentDistance) % 60)).padStart(2, '0')} /mi`
+          : '--'
+
+        return (
+          <div className="card overflow-hidden">
+            {/* Map */}
+            {routeData && routeData.length > 1 && (
+              <div className="h-[250px] w-full relative">
+                <MapContainer
+                  center={routeData[0]}
+                  zoom={10}
+                  style={{ height: '100%', width: '100%' }}
+                  className="z-0"
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <FitBounds route={routeData} />
+                  {remaining.length > 1 && (
+                    <Polyline positions={remaining} pathOptions={{ color: '#555', weight: 3, dashArray: '8 8', opacity: 0.6 }} />
+                  )}
+                  {completed.length > 1 && (
+                    <Polyline positions={completed} pathOptions={{ color: '#0a84ff', weight: 5, opacity: 0.9 }} />
+                  )}
+                  {fraction > 0 && fraction < 1 && (
+                    <CircleMarker center={currentPos} radius={8} pathOptions={{ color: '#fff', fillColor: '#0a84ff', fillOpacity: 1, weight: 3 }}>
+                      <Tooltip permanent direction="top" offset={[0, -10]}>{race.currentDistance.toFixed(1)} mi</Tooltip>
+                    </CircleMarker>
+                  )}
+                  {milestones.map((ms, i) => (
+                    <CircleMarker
+                      key={i}
+                      center={[ms.lat, ms.lng]}
+                      radius={5}
+                      pathOptions={{ color: '#fff', fillColor: ms.mile <= race.currentDistance ? '#0a84ff' : '#666', fillOpacity: 1, weight: 2 }}
+                    >
+                      <Tooltip direction="top" offset={[0, -8]}>
+                        <span className="font-semibold">Mile {ms.mile}</span>
+                        {ms.label && <><br />{ms.label}</>}
+                      </Tooltip>
+                    </CircleMarker>
+                  ))}
+                </MapContainer>
+              </div>
+            )}
+
+            {/* Race info & stats */}
+            <div className="p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-semibold text-sm">{race.marathon.name}</p>
+                  <p className="text-gray-500 text-xs">{race.marathon.city}</p>
+                </div>
+                <span className="text-accent text-sm font-medium">{pct}%</span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-dark-elevated rounded-full h-2">
+                <div className="bg-accent h-2 rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-dark-elevated rounded-lg p-2">
+                  <p className="text-white font-semibold text-sm">{race.currentDistance.toFixed(1)}</p>
+                  <p className="text-gray-500 text-[10px]">Miles Done</p>
+                </div>
+                <div className="bg-dark-elevated rounded-lg p-2">
+                  <p className="text-white font-semibold text-sm">{remaining_mi}</p>
+                  <p className="text-gray-500 text-[10px]">Miles Left</p>
+                </div>
+                <div className="bg-dark-elevated rounded-lg p-2">
+                  <p className="text-white font-semibold text-sm">{avgPace}</p>
+                  <p className="text-gray-500 text-[10px]">Avg Pace</p>
+                </div>
+              </div>
+
+              {/* Across America toggle */}
+              {passiveRace && activeRace && (
+                <label className="flex items-center justify-between cursor-pointer pt-1 border-t border-dark-border">
+                  <span className="text-gray-400 text-xs">Show Across America</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={showAcrossAmerica}
+                      onChange={(e) => setShowAcrossAmerica(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div className={`w-9 h-5 rounded-full transition-colors ${showAcrossAmerica ? 'bg-purple-500' : 'bg-dark-elevated'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${showAcrossAmerica ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* PR Celebration */}
       {newPRs.length > 0 && (

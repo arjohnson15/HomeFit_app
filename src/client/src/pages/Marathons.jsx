@@ -97,6 +97,7 @@ function Marathons() {
   const [celebration, setCelebration] = useState(null)
   const [enrolling, setEnrolling] = useState(null)
   const [filter, setFilter] = useState('all') // all, run, bike
+  const [previewMarathon, setPreviewMarathon] = useState(null) // Browse preview modal
 
   useEffect(() => {
     fetchData()
@@ -124,7 +125,11 @@ function Marathons() {
       await api.post(`/marathons/${marathonId}/enroll`)
       await fetchData()
     } catch (err) {
-      console.error('Error enrolling:', err)
+      if (err.response?.status === 400 && err.response?.data?.message) {
+        alert(err.response.data.message)
+      } else {
+        console.error('Error enrolling:', err)
+      }
     } finally {
       setEnrolling(null)
     }
@@ -137,6 +142,15 @@ function Marathons() {
       await fetchData()
     } catch (err) {
       console.error('Error abandoning:', err)
+    }
+  }
+
+  const handlePreview = async (marathonId) => {
+    try {
+      const res = await api.get(`/marathons/${marathonId}`)
+      setPreviewMarathon(res.data.marathon)
+    } catch (err) {
+      console.error('Error fetching marathon details:', err)
     }
   }
 
@@ -163,7 +177,8 @@ function Marathons() {
         setCelebration({
           name: logModal.marathonName,
           distance: logModal.marathonDistance,
-          totalSeconds: res.data.userMarathon?.totalSeconds || 0
+          totalSeconds: res.data.userMarathon?.totalSeconds || 0,
+          awardImageUrl: res.data.userMarathon?.marathon?.awardImageUrl || null
         })
       }
 
@@ -186,8 +201,7 @@ function Marathons() {
 
   const filteredBrowse = marathons.filter(m => {
     if (m.isPassive) return false // Don't show passive in browse
-    if (filter === 'run') return m.type === 'run'
-    if (filter === 'bike') return m.type === 'bike'
+    if (filter !== 'all') return m.type === filter
     return true
   })
 
@@ -273,7 +287,7 @@ function Marathons() {
                             className="flex-1 text-left flex items-center gap-3"
                           >
                             <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-                              <span className="text-lg">{um.marathon.type === 'bike' ? '🚴' : '🏃'}</span>
+                              <span className="text-lg">{um.marathon.type === 'triathlon' ? '🏊🚴🏃' : um.marathon.type === 'swim' ? '🏊' : um.marathon.type === 'bike' ? '🚴' : '🏃'}</span>
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-white font-medium truncate">{um.marathon.name}</p>
@@ -361,8 +375,8 @@ function Marathons() {
           {tab === 'browse' && (
             <div className="space-y-4">
               {/* Filter */}
-              <div className="flex gap-2">
-                {[{ id: 'all', label: 'All' }, { id: 'run', label: 'Running' }, { id: 'bike', label: 'Cycling' }].map((f) => (
+              <div className="flex gap-2 flex-wrap">
+                {[{ id: 'all', label: 'All' }, { id: 'run', label: 'Running' }, { id: 'bike', label: 'Cycling' }, { id: 'swim', label: 'Swimming' }, { id: 'triathlon', label: 'Triathlon' }].map((f) => (
                   <button
                     key={f.id}
                     onClick={() => setFilter(f.id)}
@@ -376,10 +390,10 @@ function Marathons() {
               </div>
 
               {filteredBrowse.map((m) => (
-                <div key={m.id} className="card p-4">
+                <div key={m.id} className="card p-4 cursor-pointer hover:bg-dark-elevated/50 transition-colors" onClick={() => handlePreview(m.id)}>
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-2xl">{m.type === 'bike' ? '🚴' : '🏃'}</span>
+                      <span className="text-2xl">{m.type === 'triathlon' ? '🏊🚴🏃' : m.type === 'swim' ? '🏊' : m.type === 'bike' ? '🚴' : '🏃'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -399,22 +413,24 @@ function Marathons() {
                         <p className="text-gray-500 text-xs mt-1 line-clamp-2">{m.description}</p>
                       )}
                     </div>
-                    {!enrolledIds.has(m.id) ? (
-                      <button
-                        onClick={() => handleEnroll(m.id)}
-                        disabled={enrolling === m.id}
-                        className="btn-primary px-4 py-2 text-sm flex-shrink-0"
-                      >
-                        {enrolling === m.id ? '...' : 'Enroll'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleAbandon(m.id)}
-                        className="text-gray-500 hover:text-error text-xs px-2 py-1 flex-shrink-0"
-                      >
-                        Leave
-                      </button>
-                    )}
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {!enrolledIds.has(m.id) ? (
+                        <button
+                          onClick={() => handleEnroll(m.id)}
+                          disabled={enrolling === m.id}
+                          className="btn-primary px-4 py-2 text-sm"
+                        >
+                          {enrolling === m.id ? '...' : 'Enroll'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleAbandon(m.id)}
+                          className="text-gray-500 hover:text-error text-xs px-2 py-1"
+                        >
+                          Leave
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -432,9 +448,17 @@ function Marathons() {
                 <div className="grid grid-cols-2 gap-3">
                   {completedMarathons.filter(um => !um.isPassive).map((um) => (
                     <div key={um.id} className="card p-4 text-center border border-yellow-500/30">
-                      <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                        <span className="text-3xl">🏅</span>
-                      </div>
+                      {um.marathon.awardImageUrl ? (
+                        <img
+                          src={um.marathon.awardImageUrl}
+                          alt={`${um.marathon.name} Award`}
+                          className="w-20 h-20 mx-auto mb-2 object-contain"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                          <span className="text-3xl">🏅</span>
+                        </div>
+                      )}
                       <p className="text-white font-semibold text-sm">{um.marathon.name}</p>
                       <p className="text-gray-400 text-xs">{um.marathon.distance} mi</p>
                       <p className="text-yellow-400 text-xs mt-1">
@@ -458,9 +482,20 @@ function Marathons() {
                   <div className="grid grid-cols-2 gap-3">
                     {activeMarathons.filter(um => !um.isPassive).map((um) => (
                       <div key={um.id} className="card p-4 text-center opacity-40">
-                        <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gray-500/20 flex items-center justify-center">
-                          <span className="text-3xl">🔒</span>
-                        </div>
+                        {um.marathon.awardImageUrl ? (
+                          <div className="relative w-20 h-20 mx-auto mb-2">
+                            <img
+                              src={um.marathon.awardImageUrl}
+                              alt="Locked"
+                              className="w-20 h-20 object-contain grayscale blur-[2px]"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center text-2xl">🔒</span>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gray-500/20 flex items-center justify-center">
+                            <span className="text-3xl">🔒</span>
+                          </div>
+                        )}
                         <p className="text-gray-400 font-medium text-sm">{um.marathon.name}</p>
                         <p className="text-gray-500 text-xs">
                           {((um.currentDistance / um.marathon.distance) * 100).toFixed(0)}% complete
@@ -671,7 +706,11 @@ function Marathons() {
       {celebration && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-dark-card w-full max-w-sm rounded-2xl p-6 text-center">
-            <div className="text-6xl mb-4">🏅</div>
+            {celebration.awardImageUrl ? (
+              <img src={celebration.awardImageUrl} alt="Award" className="w-24 h-24 mx-auto mb-4 object-contain" />
+            ) : (
+              <div className="text-6xl mb-4">🏅</div>
+            )}
             <h2 className="text-2xl font-bold text-white mb-2">FINISHER!</h2>
             <p className="text-accent text-lg font-semibold mb-1">{celebration.name}</p>
             <p className="text-gray-400 mb-4">{celebration.distance} miles completed</p>
@@ -686,6 +725,183 @@ function Marathons() {
             >
               Awesome!
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* RACE PREVIEW MODAL */}
+      {previewMarathon && (
+        <div className="fixed inset-0 z-50 bg-dark-bg flex flex-col">
+          {/* Header */}
+          <div className="bg-dark-card p-4 border-b border-dark-border flex items-center gap-3">
+            <button onClick={() => setPreviewMarathon(null)} className="text-gray-400 hover:text-white">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex-1">
+              <h2 className="text-white font-semibold">{previewMarathon.name}</h2>
+              <p className="text-gray-400 text-xs">{previewMarathon.city}, {previewMarathon.country}</p>
+            </div>
+            {!enrolledIds.has(previewMarathon.id) ? (
+              <button
+                onClick={() => { handleEnroll(previewMarathon.id); setPreviewMarathon(null) }}
+                className="btn-primary px-4 py-2 text-sm"
+              >
+                Enroll
+              </button>
+            ) : (
+              <span className="text-success text-sm font-medium">Enrolled</span>
+            )}
+          </div>
+
+          {/* Map Preview */}
+          {previewMarathon.routeData && previewMarathon.routeData.length > 1 && (
+            <div className="h-[300px] relative">
+              <MapContainer
+                center={previewMarathon.routeData[0]}
+                zoom={10}
+                style={{ height: '100%', width: '100%' }}
+                className="z-0"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <FitBounds route={previewMarathon.routeData} />
+                {/* Route lines - colored segments for triathlon */}
+                {previewMarathon.type === 'triathlon' && previewMarathon.segments?.length > 0 ? (
+                  previewMarathon.segments.map((seg, i) => {
+                    const segColor = seg.type === 'swim' ? '#06b6d4' : seg.type === 'bike' ? '#eab308' : '#22c55e'
+                    const segPoints = previewMarathon.routeData.slice(seg.startIdx, seg.endIdx + 1)
+                    return segPoints.length > 1 ? (
+                      <Polyline key={`seg-${i}`} positions={segPoints} pathOptions={{ color: segColor, weight: 5, opacity: 0.9 }} />
+                    ) : null
+                  })
+                ) : (
+                  <Polyline
+                    positions={previewMarathon.routeData}
+                    pathOptions={{ color: previewMarathon.type === 'swim' ? '#06b6d4' : previewMarathon.type === 'bike' ? '#eab308' : '#0a84ff', weight: 4, opacity: 0.8 }}
+                  />
+                )}
+                {/* Start marker */}
+                <CircleMarker
+                  center={previewMarathon.routeData[0]}
+                  radius={7}
+                  pathOptions={{ color: '#fff', fillColor: '#30D158', fillOpacity: 1, weight: 3 }}
+                >
+                  <Tooltip permanent direction="top" offset={[0, -10]}>Start</Tooltip>
+                </CircleMarker>
+                {/* Finish marker */}
+                <CircleMarker
+                  center={previewMarathon.routeData[previewMarathon.routeData.length - 1]}
+                  radius={7}
+                  pathOptions={{ color: '#fff', fillColor: '#FF453A', fillOpacity: 1, weight: 3 }}
+                >
+                  <Tooltip permanent direction="top" offset={[0, -10]}>Finish</Tooltip>
+                </CircleMarker>
+                {/* Milestone markers */}
+                {(previewMarathon.milestones || []).map((ms, i) => (
+                  <CircleMarker
+                    key={i}
+                    center={[ms.lat, ms.lng]}
+                    radius={4}
+                    pathOptions={{ color: '#fff', fillColor: '#0a84ff', fillOpacity: 1, weight: 2 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -8]}>
+                      <span className="font-semibold">Mile {ms.mile}</span>
+                      {ms.label && <><br />{ms.label}</>}
+                    </Tooltip>
+                  </CircleMarker>
+                ))}
+              </MapContainer>
+            </div>
+          )}
+
+          {/* Race Details */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card p-3 text-center">
+                <p className="text-2xl font-bold text-accent">{previewMarathon.distance}</p>
+                <p className="text-gray-500 text-xs">Miles</p>
+              </div>
+              <div className="card p-3 text-center">
+                <p className="text-2xl font-bold text-white capitalize">{previewMarathon.type}</p>
+                <p className="text-gray-500 text-xs">Type</p>
+              </div>
+              <div className="card p-3 text-center">
+                <p className={`text-lg font-semibold capitalize ${difficultyColors[previewMarathon.difficulty]?.split(' ')[1] || 'text-gray-400'}`}>
+                  {previewMarathon.difficulty}
+                </p>
+                <p className="text-gray-500 text-xs">Difficulty</p>
+              </div>
+              <div className="card p-3 text-center">
+                <p className="text-2xl font-bold text-white">{previewMarathon._count?.userMarathons || 0}</p>
+                <p className="text-gray-500 text-xs">Participants</p>
+              </div>
+            </div>
+
+            {/* Triathlon segments breakdown */}
+            {previewMarathon.type === 'triathlon' && previewMarathon.segments?.length > 0 && (
+              <div className="card p-4">
+                <h3 className="text-white font-medium text-sm mb-3">Race Segments</h3>
+                <div className="space-y-2">
+                  {previewMarathon.segments.map((seg, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        seg.type === 'swim' ? 'bg-cyan-500/20' : seg.type === 'bike' ? 'bg-yellow-500/20' : 'bg-green-500/20'
+                      }`}>
+                        <span className="text-sm">{seg.type === 'swim' ? '🏊' : seg.type === 'bike' ? '🚴' : '🏃'}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className={`font-medium text-sm capitalize ${
+                          seg.type === 'swim' ? 'text-cyan-400' : seg.type === 'bike' ? 'text-yellow-400' : 'text-green-400'
+                        }`}>{seg.type}</p>
+                      </div>
+                      <span className="text-gray-400 text-sm">{seg.distance?.toFixed(1) || '?'} mi</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Description */}
+            {previewMarathon.description && (
+              <div className="card p-4">
+                <h3 className="text-white font-medium text-sm mb-2">About This Race</h3>
+                <p className="text-gray-400 text-sm">{previewMarathon.description}</p>
+              </div>
+            )}
+
+            {/* Milestones */}
+            {previewMarathon.milestones && previewMarathon.milestones.length > 0 && (
+              <div className="card p-4">
+                <h3 className="text-white font-medium text-sm mb-3">Milestones</h3>
+                <div className="space-y-2">
+                  {previewMarathon.milestones.map((ms, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-accent text-xs font-bold">{ms.mile}</span>
+                      </div>
+                      <div>
+                        <p className="text-white text-sm">{ms.label || `Mile ${ms.mile}`}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Enroll CTA at bottom */}
+            {!enrolledIds.has(previewMarathon.id) && (
+              <button
+                onClick={() => { handleEnroll(previewMarathon.id); setPreviewMarathon(null) }}
+                className="btn-primary w-full py-3 text-lg font-semibold"
+              >
+                Enroll in This Race
+              </button>
+            )}
           </div>
         </div>
       )}
