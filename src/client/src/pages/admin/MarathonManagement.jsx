@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import api from '../../services/api'
 import 'leaflet/dist/leaflet.css'
 
@@ -22,6 +23,83 @@ function calculateRouteDistance(waypoints) {
     total += R * c
   }
   return total
+}
+
+// Create custom div icons for waypoints
+function makeWaypointIcon(color, size) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  })
+}
+
+const startIcon = makeWaypointIcon('#30d158', 16)
+const endIcon = makeWaypointIcon('#ff453a', 16)
+const midIcon = makeWaypointIcon('#0a84ff', 12)
+
+// Find which segment of the polyline a point is closest to, returns the index to insert after
+function findNearestSegment(point, waypoints) {
+  if (waypoints.length < 2) return waypoints.length
+  let minDist = Infinity
+  let insertIdx = 1
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i]
+    const b = waypoints[i + 1]
+    const dist = pointToSegmentDist(point, a, b)
+    if (dist < minDist) {
+      minDist = dist
+      insertIdx = i + 1
+    }
+  }
+  return insertIdx
+}
+
+// Distance from point p to line segment a-b
+function pointToSegmentDist(p, a, b) {
+  const dx = b[1] - a[1]
+  const dy = b[0] - a[0]
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt((p[0] - a[0]) ** 2 + (p[1] - a[1]) ** 2)
+  }
+  let t = ((p[1] - a[1]) * dx + (p[0] - a[0]) * dy) / (dx * dx + dy * dy)
+  t = Math.max(0, Math.min(1, t))
+  const closestLat = a[0] + t * dy
+  const closestLng = a[1] + t * dx
+  return Math.sqrt((p[0] - closestLat) ** 2 + (p[1] - closestLng) ** 2)
+}
+
+// Draggable waypoint marker
+function DraggableWaypoint({ position, index, total, onDrag, onRemove }) {
+  const icon = index === 0 ? startIcon : index === total - 1 ? endIcon : midIcon
+  const label = index === 0 ? 'Start' : index === total - 1 ? 'End' : `Point ${index + 1}`
+
+  const eventHandlers = useMemo(() => ({
+    dragend(e) {
+      const { lat, lng } = e.target.getLatLng()
+      onDrag(index, [lat, lng])
+    },
+    contextmenu(e) {
+      L.DomEvent.preventDefault(e)
+      onRemove(index)
+    }
+  }), [index, onDrag, onRemove])
+
+  return (
+    <Marker
+      position={position}
+      icon={icon}
+      draggable={true}
+      eventHandlers={eventHandlers}
+    >
+      <Tooltip direction="top" offset={[0, -10]}>
+        {label}<br />
+        {position[0].toFixed(4)}, {position[1].toFixed(4)}<br />
+        <span style={{ fontSize: '10px', color: '#999' }}>Drag to move · Right-click to remove</span>
+      </Tooltip>
+    </Marker>
+  )
 }
 
 // Click handler component for map
@@ -118,7 +196,34 @@ function MarathonManagement() {
     })
   }, [])
 
-  const removeWaypoint = (idx) => {
+  const handleWaypointDrag = useCallback((index, newPos) => {
+    setForm(prev => {
+      const newRoute = [...prev.routeData]
+      newRoute[index] = newPos
+      return {
+        ...prev,
+        routeData: newRoute,
+        distance: String(calculateRouteDistance(newRoute).toFixed(1))
+      }
+    })
+  }, [])
+
+  const handlePolylineRightClick = useCallback((e) => {
+    L.DomEvent.preventDefault(e)
+    const point = [e.latlng.lat, e.latlng.lng]
+    setForm(prev => {
+      const insertIdx = findNearestSegment(point, prev.routeData)
+      const newRoute = [...prev.routeData]
+      newRoute.splice(insertIdx, 0, point)
+      return {
+        ...prev,
+        routeData: newRoute,
+        distance: String(calculateRouteDistance(newRoute).toFixed(1))
+      }
+    })
+  }, [])
+
+  const removeWaypoint = useCallback((idx) => {
     setForm(prev => {
       const newRoute = prev.routeData.filter((_, i) => i !== idx)
       return {
@@ -127,7 +232,7 @@ function MarathonManagement() {
         distance: String(calculateRouteDistance(newRoute).toFixed(1))
       }
     })
-  }
+  }, [])
 
   const undoLastWaypoint = () => {
     setForm(prev => {
@@ -292,7 +397,7 @@ function MarathonManagement() {
         {/* Map - click to add waypoints */}
         <div className="flex-1 relative">
           <div className="absolute top-2 left-2 z-[1000] bg-dark-card/90 px-3 py-1.5 rounded-lg">
-            <p className="text-white text-xs font-medium">Click on the map to add waypoints</p>
+            <p className="text-white text-xs font-medium">Click to add · Drag to move · Right-click route to insert</p>
           </div>
           <MapContainer
             center={form.routeData.length > 0 ? form.routeData[0] : [39.8283, -98.5795]}
@@ -309,31 +414,30 @@ function MarathonManagement() {
                 <FitBounds route={form.routeData} />
                 <Polyline
                   positions={form.routeData}
-                  pathOptions={{ color: 'var(--color-accent, #0a84ff)', weight: 4 }}
+                  pathOptions={{ color: '#0a84ff', weight: 5, opacity: 0.8 }}
+                  eventHandlers={{
+                    contextmenu: handlePolylineRightClick
+                  }}
+                />
+                {/* Invisible wider polyline for easier right-click targeting */}
+                <Polyline
+                  positions={form.routeData}
+                  pathOptions={{ color: 'transparent', weight: 20, opacity: 0 }}
+                  eventHandlers={{
+                    contextmenu: handlePolylineRightClick
+                  }}
                 />
               </>
             )}
             {form.routeData.map((point, i) => (
-              <CircleMarker
-                key={i}
-                center={point}
-                radius={i === 0 ? 7 : i === form.routeData.length - 1 ? 7 : 4}
-                pathOptions={{
-                  color: '#fff',
-                  fillColor: i === 0 ? '#30d158' : i === form.routeData.length - 1 ? '#ff453a' : 'var(--color-accent, #0a84ff)',
-                  fillOpacity: 1,
-                  weight: 2
-                }}
-                eventHandlers={{
-                  contextmenu: () => removeWaypoint(i)
-                }}
-              >
-                <Tooltip direction="top" offset={[0, -8]}>
-                  {i === 0 ? 'Start' : i === form.routeData.length - 1 ? 'End' : `Point ${i + 1}`}
-                  <br />
-                  {point[0].toFixed(4)}, {point[1].toFixed(4)}
-                </Tooltip>
-              </CircleMarker>
+              <DraggableWaypoint
+                key={`${i}-${point[0]}-${point[1]}`}
+                position={point}
+                index={i}
+                total={form.routeData.length}
+                onDrag={handleWaypointDrag}
+                onRemove={removeWaypoint}
+              />
             ))}
           </MapContainer>
         </div>
