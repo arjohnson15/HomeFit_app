@@ -515,6 +515,9 @@ function MarathonManagement() {
           <div className="absolute top-2 left-2 z-[1000] bg-dark-card/90 px-3 py-1.5 rounded-lg">
             <p className="text-white text-xs font-medium">
               Click to add · Drag to move · Right-click route to insert
+              {form.routeData.length > 80 && (
+                <span className="text-yellow-400 ml-2">· Showing sampled markers ({form.routeData.length} pts)</span>
+              )}
               {form.type === 'triathlon' && (
                 <span className={`ml-2 ${activeSegmentType === 'swim' ? 'text-cyan-400' : activeSegmentType === 'bike' ? 'text-yellow-400' : 'text-green-400'}`}>
                   · Drawing: {activeSegmentType}
@@ -576,16 +579,36 @@ function MarathonManagement() {
                 />
               </>
             )}
-            {form.routeData.map((point, i) => (
-              <DraggableWaypoint
-                key={`${i}-${point[0]}-${point[1]}`}
-                position={point}
-                index={i}
-                total={form.routeData.length}
-                onDrag={handleWaypointDrag}
-                onRemove={removeWaypoint}
-              />
-            ))}
+            {(() => {
+              const MAX_MARKERS = 80
+              const points = form.routeData
+              if (points.length <= MAX_MARKERS) {
+                return points.map((point, i) => (
+                  <DraggableWaypoint
+                    key={`${i}-${point[0]}-${point[1]}`}
+                    position={point}
+                    index={i}
+                    total={points.length}
+                    onDrag={handleWaypointDrag}
+                    onRemove={removeWaypoint}
+                  />
+                ))
+              }
+              // For large routes, only show start, end, and sampled points
+              const step = Math.ceil(points.length / MAX_MARKERS)
+              const indices = new Set([0, points.length - 1])
+              for (let i = 0; i < points.length; i += step) indices.add(i)
+              return Array.from(indices).sort((a, b) => a - b).map(i => (
+                <DraggableWaypoint
+                  key={`${i}-${points[i][0]}-${points[i][1]}`}
+                  position={points[i]}
+                  index={i}
+                  total={points.length}
+                  onDrag={handleWaypointDrag}
+                  onRemove={removeWaypoint}
+                />
+              ))
+            })()}
           </MapContainer>
         </div>
       </div>
