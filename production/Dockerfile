@@ -15,7 +15,7 @@ WORKDIR /app/client
 COPY src/client/package*.json ./
 
 # Install dependencies
-RUN npm ci --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Copy frontend source
 COPY src/client/ ./
