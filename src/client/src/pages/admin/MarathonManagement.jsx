@@ -182,6 +182,21 @@ function FitBounds({ route, once = false }) {
   return null
 }
 
+// Fetch road-snapped route from OSRM between control points
+async function fetchOSRMRoute(controlPoints, type = 'run') {
+  if (controlPoints.length < 2) return controlPoints
+  const profile = type === 'bike' ? 'bike' : type === 'swim' ? 'foot' : 'foot'
+  // OSRM expects lng,lat format
+  const coords = controlPoints.map(p => `${p[1]},${p[0]}`).join(';')
+  const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`OSRM error: ${res.status}`)
+  const data = await res.json()
+  if (data.code !== 'Ok' || !data.routes?.[0]) throw new Error('No route found')
+  // GeoJSON [lng, lat] → Leaflet [lat, lng]
+  return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
+}
+
 function MarathonManagement() {
   const [marathons, setMarathons] = useState([])
   const [loading, setLoading] = useState(true)
@@ -195,10 +210,42 @@ function MarathonManagement() {
   const [saving, setSaving] = useState(false)
   const [uploadingAward, setUploadingAward] = useState(null) // marathon id being uploaded to
   const [activeSegmentType, setActiveSegmentType] = useState('run') // Current segment type being drawn
+  const [snapToRoads, setSnapToRoads] = useState(false)
+  const [controlPoints, setControlPoints] = useState([]) // User-placed waypoints
+  const [snapping, setSnapping] = useState(false) // Loading state for OSRM
+  const snapTimerRef = useRef(null)
+  const formTypeRef = useRef(form.type)
+  formTypeRef.current = form.type
 
   useEffect(() => {
     fetchMarathons()
   }, [])
+
+  // Snap control points to roads via OSRM when snap mode is on
+  useEffect(() => {
+    if (!snapToRoads || controlPoints.length < 2) return
+    if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+
+    snapTimerRef.current = setTimeout(async () => {
+      setSnapping(true)
+      try {
+        const snappedRoute = await fetchOSRMRoute(controlPoints, formTypeRef.current)
+        setForm(prev => ({
+          ...prev,
+          routeData: snappedRoute,
+          distance: String(calculateRouteDistance(snappedRoute).toFixed(1))
+        }))
+      } catch (err) {
+        console.error('OSRM snap failed:', err)
+      } finally {
+        setSnapping(false)
+      }
+    }, 500)
+
+    return () => {
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    }
+  }, [controlPoints, snapToRoads])
 
   const fetchMarathons = async () => {
     setLoading(true)
@@ -233,6 +280,8 @@ function MarathonManagement() {
         segments: []
       })
       setActiveSegmentType('run')
+      setControlPoints([])
+      setSnapToRoads(false)
       setEditing('new')
     } else {
       // Validate routeData - ensure it's a proper array of [lat, lng] pairs
@@ -258,71 +307,103 @@ function MarathonManagement() {
         segments: Array.isArray(marathon.segments) ? marathon.segments : []
       })
       setActiveSegmentType(marathon.type === 'triathlon' ? 'swim' : marathon.type || 'run')
+      setControlPoints(routeData)
+      setSnapToRoads(false)
       setEditing(marathon)
     }
   }
 
   const handleMapClick = useCallback((latlng) => {
-    setForm(prev => {
-      const newRoute = [...prev.routeData, latlng]
-      return {
-        ...prev,
-        routeData: newRoute,
-        distance: String(calculateRouteDistance(newRoute).toFixed(1))
-      }
-    })
-  }, [])
+    if (snapToRoads) {
+      setControlPoints(prev => [...prev, latlng])
+    } else {
+      setForm(prev => {
+        const newRoute = [...prev.routeData, latlng]
+        return {
+          ...prev,
+          routeData: newRoute,
+          distance: String(calculateRouteDistance(newRoute).toFixed(1))
+        }
+      })
+    }
+  }, [snapToRoads])
 
   const handleWaypointDrag = useCallback((index, newPos) => {
-    setForm(prev => {
-      const newRoute = [...prev.routeData]
-      newRoute[index] = newPos
-      return {
-        ...prev,
-        routeData: newRoute,
-        distance: String(calculateRouteDistance(newRoute).toFixed(1))
-      }
-    })
-  }, [])
+    if (snapToRoads) {
+      setControlPoints(prev => {
+        const newPts = [...prev]
+        newPts[index] = newPos
+        return newPts
+      })
+    } else {
+      setForm(prev => {
+        const newRoute = [...prev.routeData]
+        newRoute[index] = newPos
+        return {
+          ...prev,
+          routeData: newRoute,
+          distance: String(calculateRouteDistance(newRoute).toFixed(1))
+        }
+      })
+    }
+  }, [snapToRoads])
 
   const handlePolylineRightClick = useCallback((e) => {
     L.DomEvent.preventDefault(e)
     const point = [e.latlng.lat, e.latlng.lng]
-    setForm(prev => {
-      const insertIdx = findNearestSegment(point, prev.routeData)
-      const newRoute = [...prev.routeData]
-      newRoute.splice(insertIdx, 0, point)
-      return {
-        ...prev,
-        routeData: newRoute,
-        distance: String(calculateRouteDistance(newRoute).toFixed(1))
-      }
-    })
-  }, [])
+    if (snapToRoads) {
+      setControlPoints(prev => {
+        const insertIdx = findNearestSegment(point, prev)
+        const newPts = [...prev]
+        newPts.splice(insertIdx, 0, point)
+        return newPts
+      })
+    } else {
+      setForm(prev => {
+        const insertIdx = findNearestSegment(point, prev.routeData)
+        const newRoute = [...prev.routeData]
+        newRoute.splice(insertIdx, 0, point)
+        return {
+          ...prev,
+          routeData: newRoute,
+          distance: String(calculateRouteDistance(newRoute).toFixed(1))
+        }
+      })
+    }
+  }, [snapToRoads])
 
   const removeWaypoint = useCallback((idx) => {
-    setForm(prev => {
-      const newRoute = prev.routeData.filter((_, i) => i !== idx)
-      return {
-        ...prev,
-        routeData: newRoute,
-        distance: String(calculateRouteDistance(newRoute).toFixed(1))
-      }
-    })
-  }, [])
+    if (snapToRoads) {
+      setControlPoints(prev => prev.filter((_, i) => i !== idx))
+    } else {
+      setForm(prev => {
+        const newRoute = prev.routeData.filter((_, i) => i !== idx)
+        return {
+          ...prev,
+          routeData: newRoute,
+          distance: String(calculateRouteDistance(newRoute).toFixed(1))
+        }
+      })
+    }
+  }, [snapToRoads])
 
   const undoLastWaypoint = () => {
-    setForm(prev => {
-      const newRoute = prev.routeData.slice(0, -1)
-      return {
-        ...prev,
-        routeData: newRoute,
-        distance: String(calculateRouteDistance(newRoute).toFixed(1))
-      }
-    })
+    if (snapToRoads) {
+      setControlPoints(prev => prev.slice(0, -1))
+    } else {
+      setForm(prev => {
+        const newRoute = prev.routeData.slice(0, -1)
+        return {
+          ...prev,
+          routeData: newRoute,
+          distance: String(calculateRouteDistance(newRoute).toFixed(1))
+        }
+      })
+    }
   }
 
   const clearAllWaypoints = () => {
+    setControlPoints([])
     setForm(prev => ({ ...prev, routeData: [], distance: '0', milestones: [] }))
   }
 
@@ -495,15 +576,50 @@ function MarathonManagement() {
             className="input text-sm w-full"
             placeholder="Description (optional)"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-gray-400 text-xs">Distance:</span>
             <span className="text-accent font-semibold text-sm">{form.distance || '0'} mi</span>
-            <span className="text-gray-500 text-xs ml-2">({form.routeData.length} waypoints)</span>
+            <span className="text-gray-500 text-xs ml-2">
+              ({snapToRoads ? `${controlPoints.length} ctrl pts · ${form.routeData.length} route pts` : `${form.routeData.length} waypoints`})
+            </span>
             <div className="flex-1" />
-            <button onClick={undoLastWaypoint} disabled={form.routeData.length === 0} className="text-gray-400 hover:text-white text-xs px-2 py-1 bg-dark-elevated rounded">
+            <button
+              onClick={() => {
+                if (!snapToRoads) {
+                  // Turning snap ON: use current routeData as control points
+                  let pts = form.routeData
+                  // Downsample if too many points for OSRM (limit ~100)
+                  if (pts.length > 50) {
+                    const step = Math.ceil(pts.length / 50)
+                    const sampled = [pts[0]]
+                    for (let i = step; i < pts.length - 1; i += step) sampled.push(pts[i])
+                    sampled.push(pts[pts.length - 1])
+                    pts = sampled
+                  }
+                  setControlPoints(pts)
+                  setSnapToRoads(true)
+                } else {
+                  // Turning snap OFF: keep control points as direct route
+                  setForm(prev => ({
+                    ...prev,
+                    routeData: controlPoints,
+                    distance: String(calculateRouteDistance(controlPoints).toFixed(1))
+                  }))
+                  setSnapToRoads(false)
+                }
+              }}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                snapToRoads
+                  ? 'bg-accent/20 text-accent ring-1 ring-accent'
+                  : 'bg-dark-elevated text-gray-400 hover:text-white'
+              }`}
+            >
+              {snapping ? 'Snapping...' : snapToRoads ? 'Road Snap ON' : 'Road Snap'}
+            </button>
+            <button onClick={undoLastWaypoint} disabled={snapToRoads ? controlPoints.length === 0 : form.routeData.length === 0} className="text-gray-400 hover:text-white text-xs px-2 py-1 bg-dark-elevated rounded">
               Undo
             </button>
-            <button onClick={clearAllWaypoints} disabled={form.routeData.length === 0} className="text-gray-400 hover:text-error text-xs px-2 py-1 bg-dark-elevated rounded">
+            <button onClick={clearAllWaypoints} disabled={snapToRoads ? controlPoints.length === 0 : form.routeData.length === 0} className="text-gray-400 hover:text-error text-xs px-2 py-1 bg-dark-elevated rounded">
               Clear
             </button>
           </div>
@@ -583,7 +699,10 @@ function MarathonManagement() {
           <div className="absolute top-2 left-2 z-[1000] bg-dark-card/90 px-3 py-1.5 rounded-lg">
             <p className="text-white text-xs font-medium">
               Click to add · Drag to move · Right-click route to insert
-              {form.routeData.length > 80 && (
+              {snapToRoads && (
+                <span className="text-accent ml-2">· Road snap ON ({controlPoints.length} ctrl pts)</span>
+              )}
+              {!snapToRoads && form.routeData.length > 80 && (
                 <span className="text-yellow-400 ml-2">· Showing sampled markers ({form.routeData.length} pts)</span>
               )}
               {form.type === 'triathlon' && (
@@ -593,10 +712,16 @@ function MarathonManagement() {
               )}
             </p>
           </div>
+          {snapping && (
+            <div className="absolute top-12 left-2 z-[1000] bg-accent/90 px-3 py-1.5 rounded-lg flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="text-white text-xs font-medium">Snapping to roads...</span>
+            </div>
+          )}
           <MapContainer
             key={editing === 'new' ? 'new' : editing?.id || 'editor'}
-            center={form.routeData.length > 0 ? form.routeData[0] : [39.8283, -98.5795]}
-            zoom={form.routeData.length > 0 ? 10 : 4}
+            center={form.routeData.length > 0 ? form.routeData[0] : controlPoints.length > 0 ? controlPoints[0] : [39.8283, -98.5795]}
+            zoom={form.routeData.length > 0 || controlPoints.length > 0 ? 10 : 4}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
@@ -604,9 +729,19 @@ function MarathonManagement() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapClickHandler onMapClick={handleMapClick} />
+            {/* Snap mode: show control point connections as dashed line */}
+            {snapToRoads && controlPoints.length > 1 && (
+              <>
+                <FitBounds route={controlPoints} once />
+                <Polyline
+                  positions={controlPoints}
+                  pathOptions={{ color: '#666', weight: 2, dashArray: '6 6', opacity: 0.5 }}
+                />
+              </>
+            )}
             {form.routeData.length > 1 && (
               <>
-                <FitBounds route={form.routeData} once />
+                {!snapToRoads && <FitBounds route={form.routeData} once />}
                 {/* Triathlon: show colored segments */}
                 {form.type === 'triathlon' && form.segments.length > 0 ? (
                   <>
@@ -634,7 +769,7 @@ function MarathonManagement() {
                 ) : (
                   <Polyline
                     positions={form.routeData}
-                    pathOptions={{ color: form.type === 'swim' ? '#06b6d4' : form.type === 'bike' ? '#eab308' : '#0a84ff', weight: 5, opacity: 0.8 }}
+                    pathOptions={{ color: form.type === 'swim' ? '#06b6d4' : form.type === 'bike' ? '#eab308' : '#0a84ff', weight: snapToRoads ? 6 : 5, opacity: 0.8 }}
                     eventHandlers={{ contextmenu: handlePolylineRightClick }}
                   />
                 )}
@@ -648,7 +783,7 @@ function MarathonManagement() {
                 />
               </>
             )}
-            <ImperativeWaypoints points={form.routeData} onDrag={handleWaypointDrag} onRemove={removeWaypoint} />
+            <ImperativeWaypoints points={snapToRoads ? controlPoints : form.routeData} onDrag={handleWaypointDrag} onRemove={removeWaypoint} />
           </MapContainer>
         </div>
         </MapErrorBoundary>
