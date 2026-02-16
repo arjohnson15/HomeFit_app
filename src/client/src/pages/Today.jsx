@@ -1539,7 +1539,7 @@ function Today() {
   const getExerciseImage = (exerciseId) => {
     const details = exerciseDetails[exerciseId]
     if (details?.images?.[0]) {
-      return `/api/exercise-images/${details.images[0]}`
+      return details.images[0].startsWith('/uploads/') ? details.images[0] : `/api/exercise-images/${details.images[0]}`
     }
     return null
   }
@@ -3128,7 +3128,7 @@ function ExerciseDetailModal({ exercise, details, onClose }) {
             {details.images?.length > 0 ? (
               <>
                 <img
-                  src={`/api/exercise-images/${details.images[currentImageIndex]}`}
+                  src={details.images[currentImageIndex].startsWith('/uploads/') ? details.images[currentImageIndex] : `/api/exercise-images/${details.images[currentImageIndex]}`}
                   alt={details.name}
                   className="w-full h-full object-contain bg-dark-elevated"
                 />

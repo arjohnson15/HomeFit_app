@@ -57,7 +57,7 @@ function ExerciseQuickView({ exercise, onClose, isSelected, onToggleSelect, nick
             {exercise.images?.length > 0 ? (
               <>
                 <img
-                  src={`/api/exercise-images/${exercise.images[currentImageIndex]}`}
+                  src={exercise.images[currentImageIndex].startsWith('/uploads/') ? exercise.images[currentImageIndex] : `/api/exercise-images/${exercise.images[currentImageIndex]}`}
                   alt={exercise.name}
                   className="w-full h-full object-contain bg-dark-elevated"
                 />
@@ -497,7 +497,7 @@ function ExerciseCatalogModal({ onClose, onAddExercises }) {
                       <div className="w-14 h-14 rounded-xl bg-dark-elevated flex-shrink-0 overflow-hidden flex items-center justify-center">
                         {exercise.images?.[0] ? (
                           <img
-                            src={`/api/exercise-images/${exercise.images[0]}`}
+                            src={exercise.images[0].startsWith('/uploads/') ? exercise.images[0] : `/api/exercise-images/${exercise.images[0]}`}
                             alt={exerciseNicknames[exercise.id] || exercise.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
