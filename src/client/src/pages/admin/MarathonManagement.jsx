@@ -1,9 +1,42 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Component } from 'react'
 import { Link } from 'react-router-dom'
 import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import api from '../../services/api'
 import 'leaflet/dist/leaflet.css'
+
+// Error boundary to catch Leaflet/React crashes and show fallback instead of black screen
+class MapErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, info) {
+    console.error('[MapErrorBoundary]', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-dark-elevated">
+          <div className="text-center p-6">
+            <p className="text-error text-lg font-semibold mb-2">Map failed to load</p>
+            <p className="text-gray-400 text-sm mb-4">{this.state.error?.message || 'Unknown error'}</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="btn-secondary px-4 py-2 text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Calculate approximate distance in miles from array of [lat,lng] waypoints
 function calculateRouteDistance(waypoints) {
@@ -178,6 +211,16 @@ function MarathonManagement() {
       setActiveSegmentType('run')
       setEditing('new')
     } else {
+      // Validate routeData - ensure it's a proper array of [lat, lng] pairs
+      let routeData = []
+      try {
+        const raw = marathon.routeData
+        if (Array.isArray(raw)) {
+          routeData = raw.filter(p => Array.isArray(p) && p.length >= 2 && typeof p[0] === 'number' && typeof p[1] === 'number')
+        }
+      } catch (e) {
+        console.error('Invalid routeData:', e)
+      }
       setForm({
         name: marathon.name,
         description: marathon.description || '',
@@ -186,9 +229,9 @@ function MarathonManagement() {
         distance: String(marathon.distance),
         type: marathon.type,
         difficulty: marathon.difficulty,
-        routeData: marathon.routeData || [],
-        milestones: marathon.milestones || [],
-        segments: marathon.segments || []
+        routeData,
+        milestones: Array.isArray(marathon.milestones) ? marathon.milestones : [],
+        segments: Array.isArray(marathon.segments) ? marathon.segments : []
       })
       setActiveSegmentType(marathon.type === 'triathlon' ? 'swim' : marathon.type || 'run')
       setEditing(marathon)
@@ -511,6 +554,7 @@ function MarathonManagement() {
         </div>
 
         {/* Map - click to add waypoints */}
+        <MapErrorBoundary>
         <div className="flex-1 relative">
           <div className="absolute top-2 left-2 z-[1000] bg-dark-card/90 px-3 py-1.5 rounded-lg">
             <p className="text-white text-xs font-medium">
@@ -526,6 +570,7 @@ function MarathonManagement() {
             </p>
           </div>
           <MapContainer
+            key={editing === 'new' ? 'new' : editing?.id || 'editor'}
             center={form.routeData.length > 0 ? form.routeData[0] : [39.8283, -98.5795]}
             zoom={form.routeData.length > 0 ? 10 : 4}
             style={{ height: '100%', width: '100%' }}
@@ -611,6 +656,7 @@ function MarathonManagement() {
             })()}
           </MapContainer>
         </div>
+        </MapErrorBoundary>
       </div>
     )
   }
