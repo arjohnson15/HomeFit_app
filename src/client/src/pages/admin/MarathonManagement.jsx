@@ -183,18 +183,49 @@ function FitBounds({ route, once = false }) {
 }
 
 // Fetch road-snapped route from OSRM between control points
+// Routes each consecutive pair separately to avoid offshoots/detours
 async function fetchOSRMRoute(controlPoints, type = 'run') {
   if (controlPoints.length < 2) return controlPoints
-  const profile = type === 'bike' ? 'bike' : type === 'swim' ? 'foot' : 'foot'
-  // OSRM expects lng,lat format
-  const coords = controlPoints.map(p => `${p[1]},${p[0]}`).join(';')
-  const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`OSRM error: ${res.status}`)
-  const data = await res.json()
-  if (data.code !== 'Ok' || !data.routes?.[0]) throw new Error('No route found')
-  // GeoJSON [lng, lat] → Leaflet [lat, lng]
-  return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
+  const profile = type === 'bike' ? 'bike' : 'foot'
+
+  // Build pairs of consecutive points
+  const pairs = []
+  for (let i = 0; i < controlPoints.length - 1; i++) {
+    pairs.push([controlPoints[i], controlPoints[i + 1]])
+  }
+
+  // Process in concurrent batches of 5
+  const BATCH = 5
+  const segments = []
+  for (let b = 0; b < pairs.length; b += BATCH) {
+    const batch = pairs.slice(b, b + BATCH)
+    const results = await Promise.all(batch.map(async ([from, to]) => {
+      try {
+        const coords = `${from[1]},${from[0]};${to[1]},${to[0]}`
+        const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`
+        const res = await fetch(url)
+        if (!res.ok) return [from, to]
+        const data = await res.json()
+        if (data.code !== 'Ok' || !data.routes?.[0]) return [from, to]
+        return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
+      } catch {
+        return [from, to] // fallback to straight line
+      }
+    }))
+    segments.push(...results)
+  }
+
+  // Stitch segments, skip duplicate junction points
+  const allPoints = []
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
+    if (i > 0 && allPoints.length > 0) {
+      allPoints.push(...seg.slice(1))
+    } else {
+      allPoints.push(...seg)
+    }
+  }
+  return allPoints
 }
 
 function MarathonManagement() {
