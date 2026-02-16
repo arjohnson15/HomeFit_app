@@ -175,7 +175,8 @@ const loadExerciseOverrides = async () => {
         level: override.level,
         mechanic: override.mechanic,
         instructions: override.instructions,
-        images: override.images
+        images: override.images,
+        _overrideDbId: override.id
       }
     }
     return overrideMap
@@ -642,7 +643,8 @@ router.put('/:id', async (req, res, next) => {
         mechanic: override.mechanic,
         instructions: override.instructions,
         images: override.images,
-        _isOverridden: true
+        _isOverridden: true,
+        _overrideDbId: override.id
       }
     })
   } catch (error) {

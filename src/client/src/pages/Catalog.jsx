@@ -948,6 +948,11 @@ function ExerciseDetailModal({ exercise, onClose, isAdmin, onExerciseUpdated, on
 
 // Admin Exercise Edit Modal
 function ExerciseEditModal({ exercise, onClose, onSave }) {
+  // Determine if this is a custom exercise and get its DB ID
+  const isCustomExercise = exercise.isCustom || exercise.id?.startsWith('custom-')
+  const dbIdRef = useRef(isCustomExercise ? exercise.id.replace('custom-', '') : exercise._overrideDbId || null)
+  const fileInputRef = useRef(null)
+
   const [formData, setFormData] = useState({
     name: exercise.name || '',
     level: exercise.level || 'beginner',
@@ -965,6 +970,8 @@ function ExerciseEditModal({ exercise, onClose, onSave }) {
   const [newMuscle, setNewMuscle] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [newEquipment, setNewEquipment] = useState('')
+  const [images, setImages] = useState(exercise.images || [])
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   // Fetch filter options
   useEffect(() => {
@@ -986,14 +993,61 @@ function ExerciseEditModal({ exercise, onClose, onSave }) {
     'neck', 'quadriceps', 'shoulders', 'traps', 'triceps'
   ]
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !dbIdRef.current) return
+
+    setUploadingImage(true)
+    const fd = new FormData()
+    fd.append('image', file)
+
+    try {
+      const response = await api.post(`/admin/exercises/${dbIdRef.current}/image`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setImages(response.data.exercise?.images || [...images, response.data.imageUrl])
+    } catch (error) {
+      console.error('Error uploading image:', error)
+      alert('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveImage = async (imageUrl) => {
+    if (!dbIdRef.current) return
+    try {
+      const response = await api.delete(`/admin/exercises/${dbIdRef.current}/image`, {
+        data: { imageUrl }
+      })
+      setImages(response.data.exercise?.images || images.filter(img => img !== imageUrl))
+    } catch (error) {
+      console.error('Error removing image:', error)
+      alert('Failed to remove image')
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.put(`/exercises/${exercise.id}`, {
+      const payload = {
         ...formData,
         instructions: formData.instructions.filter(Boolean)
-      })
+      }
+
+      if (isCustomExercise && dbIdRef.current) {
+        // Custom exercise: use admin endpoint with the DB ID
+        await api.put(`/admin/exercises/${dbIdRef.current}`, payload)
+      } else {
+        // System exercise: use the override endpoint
+        const response = await api.put(`/exercises/${exercise.id}`, payload)
+        // Store the override DB ID for future image uploads
+        if (response.data.exercise?._overrideDbId) {
+          dbIdRef.current = response.data.exercise._overrideDbId
+        }
+      }
       onSave()
     } catch (error) {
       console.error('Error saving exercise:', error)
@@ -1382,6 +1436,62 @@ function ExerciseEditModal({ exercise, onClose, onSave }) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Images */}
+          <div>
+            <label className="block text-gray-400 text-sm mb-2">Images</label>
+            <div className="flex flex-wrap gap-3 mb-3">
+              {images.map((img, idx) => (
+                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden bg-dark-elevated group">
+                  <img
+                    src={img.startsWith('/uploads/') ? img : `/api/exercise-images/${img}`}
+                    alt={`Exercise ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={e => { e.target.style.display = 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(img)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-error/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              {/* Add Image Button */}
+              {images.length < 4 && dbIdRef.current && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="w-24 h-24 rounded-lg border-2 border-dashed border-dark-border hover:border-accent flex flex-col items-center justify-center text-gray-400 hover:text-accent transition-colors"
+                >
+                  {uploadingImage ? (
+                    <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="text-xs mt-1">Add</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            {!dbIdRef.current && (
+              <p className="text-gray-500 text-xs">Save this exercise first to enable image uploads</p>
+            )}
           </div>
 
           {/* Action Buttons */}
