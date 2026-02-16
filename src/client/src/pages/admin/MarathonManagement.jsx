@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Component } from 'react'
+import { useState, useEffect, useCallback, useRef, Component } from 'react'
 import { Link } from 'react-router-dom'
-import { MapContainer, TileLayer, Polyline, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import api from '../../services/api'
 import 'leaflet/dist/leaflet.css'
@@ -103,36 +103,60 @@ function pointToSegmentDist(p, a, b) {
   return Math.sqrt((p[0] - closestLat) ** 2 + (p[1] - closestLng) ** 2)
 }
 
-// Draggable waypoint marker
-function DraggableWaypoint({ position, index, total, onDrag, onRemove }) {
-  const icon = index === 0 ? startIcon : index === total - 1 ? endIcon : midIcon
-  const label = index === 0 ? 'Start' : index === total - 1 ? 'End' : `Point ${index + 1}`
+// Imperative waypoint markers - manages Leaflet markers directly to avoid React DOM conflicts
+function ImperativeWaypoints({ points, onDrag, onRemove }) {
+  const map = useMap()
+  const markersRef = useRef([])
 
-  const eventHandlers = useMemo(() => ({
-    dragend(e) {
-      const { lat, lng } = e.target.getLatLng()
-      onDrag(index, [lat, lng])
-    },
-    contextmenu(e) {
-      L.DomEvent.preventDefault(e)
-      onRemove(index)
+  useEffect(() => {
+    // Remove old markers
+    markersRef.current.forEach(m => m.remove())
+    markersRef.current = []
+
+    if (!points || points.length === 0) return
+
+    // Sample points if too many
+    const MAX_MARKERS = 80
+    let indices
+    if (points.length <= MAX_MARKERS) {
+      indices = points.map((_, i) => i)
+    } else {
+      const step = Math.ceil(points.length / MAX_MARKERS)
+      const set = new Set([0, points.length - 1])
+      for (let i = 0; i < points.length; i += step) set.add(i)
+      indices = Array.from(set).sort((a, b) => a - b)
     }
-  }), [index, onDrag, onRemove])
 
-  return (
-    <Marker
-      position={position}
-      icon={icon}
-      draggable={true}
-      eventHandlers={eventHandlers}
-    >
-      <Tooltip direction="top" offset={[0, -10]}>
-        {label}<br />
-        {position[0].toFixed(4)}, {position[1].toFixed(4)}<br />
-        <span style={{ fontSize: '10px', color: '#999' }}>Drag to move · Right-click to remove</span>
-      </Tooltip>
-    </Marker>
-  )
+    indices.forEach(idx => {
+      const point = points[idx]
+      if (!point || !Array.isArray(point) || point.length < 2) return
+
+      const icon = idx === 0 ? startIcon : idx === points.length - 1 ? endIcon : midIcon
+      const label = idx === 0 ? 'Start' : idx === points.length - 1 ? 'End' : `Point ${idx + 1}`
+
+      const marker = L.marker(point, { icon, draggable: true }).addTo(map)
+      marker.bindTooltip(
+        `${label}<br/>${point[0].toFixed(4)}, ${point[1].toFixed(4)}<br/><span style="font-size:10px;color:#999">Drag to move · Right-click to remove</span>`,
+        { direction: 'top', offset: [0, -10] }
+      )
+      marker.on('dragend', () => {
+        const { lat, lng } = marker.getLatLng()
+        onDrag(idx, [lat, lng])
+      })
+      marker.on('contextmenu', (e) => {
+        L.DomEvent.preventDefault(e)
+        onRemove(idx)
+      })
+      markersRef.current.push(marker)
+    })
+
+    return () => {
+      markersRef.current.forEach(m => m.remove())
+      markersRef.current = []
+    }
+  }, [points, map, onDrag, onRemove])
+
+  return null
 }
 
 // Click handler component for map
@@ -624,36 +648,7 @@ function MarathonManagement() {
                 />
               </>
             )}
-            {(() => {
-              const MAX_MARKERS = 80
-              const points = form.routeData
-              if (points.length <= MAX_MARKERS) {
-                return points.map((point, i) => (
-                  <DraggableWaypoint
-                    key={`${i}-${point[0]}-${point[1]}`}
-                    position={point}
-                    index={i}
-                    total={points.length}
-                    onDrag={handleWaypointDrag}
-                    onRemove={removeWaypoint}
-                  />
-                ))
-              }
-              // For large routes, only show start, end, and sampled points
-              const step = Math.ceil(points.length / MAX_MARKERS)
-              const indices = new Set([0, points.length - 1])
-              for (let i = 0; i < points.length; i += step) indices.add(i)
-              return Array.from(indices).sort((a, b) => a - b).map(i => (
-                <DraggableWaypoint
-                  key={`${i}-${points[i][0]}-${points[i][1]}`}
-                  position={points[i]}
-                  index={i}
-                  total={points.length}
-                  onDrag={handleWaypointDrag}
-                  onRemove={removeWaypoint}
-                />
-              ))
-            })()}
+            <ImperativeWaypoints points={form.routeData} onDrag={handleWaypointDrag} onRemove={removeWaypoint} />
           </MapContainer>
         </div>
         </MapErrorBoundary>
