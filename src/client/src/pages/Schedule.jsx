@@ -241,6 +241,31 @@ function Schedule() {
     setShowCopyModal(false)
   }
 
+  const loadFromTemplate = (template) => {
+    const newExercises = template.exercises.map(ex => ({
+      id: `temp-${Date.now()}-${Math.random()}`,
+      exerciseId: ex.exerciseId,
+      exerciseName: ex.exerciseName,
+      sets: ex.sets || 3,
+      reps: ex.reps || '8-12'
+    }))
+
+    const applyTemplate = (prev) => ({
+      ...prev,
+      name: prev.name || template.name,
+      exercises: [...prev.exercises, ...newExercises]
+    })
+
+    if (editingDay) {
+      setEditingDay(applyTemplate)
+    } else if (editingCalendarDate) {
+      setEditingCalendarDate(applyTemplate)
+    } else if (editingRecurring) {
+      setEditingRecurring(applyTemplate)
+    }
+    setShowTemplatePicker(false)
+  }
+
   const removeExercise = (index) => {
     if (editingDay) {
       setEditingDay(prev => ({
@@ -871,6 +896,17 @@ function Schedule() {
                         Copy Friend's
                       </button>
                     </div>
+                    {!editingTemplate && templates.length > 0 && (
+                      <button
+                        onClick={() => setShowTemplatePicker(true)}
+                        className="btn-secondary w-full flex items-center justify-center gap-2 mt-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                        </svg>
+                        From Template
+                      </button>
+                    )}
                   </div>
 
                   {/* Exercise List */}
@@ -1065,15 +1101,37 @@ function Schedule() {
               {/* Exercises */}
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">Exercises</label>
-                <button
-                  onClick={() => setShowCatalogModal(true)}
-                  className="btn-secondary w-full flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Exercises
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowCatalogModal(true)}
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Exercises
+                  </button>
+                  <button
+                    onClick={() => setShowCopyModal(true)}
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy Friend's
+                  </button>
+                </div>
+                {templates.length > 0 && (
+                  <button
+                    onClick={() => setShowTemplatePicker(true)}
+                    className="btn-secondary w-full flex items-center justify-center gap-2 mt-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                    </svg>
+                    From Template
+                  </button>
+                )}
               </div>
 
               {/* Exercise List */}
@@ -1154,6 +1212,56 @@ function Schedule() {
           onCopyExercises={copyExercisesToDay}
           showOwnSchedule={false}
         />
+      )}
+
+      {/* Template Picker Modal */}
+      {showTemplatePicker && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowTemplatePicker(false)}>
+          <div
+            className="bg-dark-card w-full max-w-lg max-h-[70vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-dark-card p-4 border-b border-dark-border flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold text-white">Choose Template</h2>
+              <button onClick={() => setShowTemplatePicker(false)} className="btn-ghost p-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {templates.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No templates yet. Create one from the Templates tab.</p>
+              ) : (
+                templates.map(template => (
+                  <button
+                    key={template.id}
+                    onClick={() => loadFromTemplate(template)}
+                    className="w-full card p-4 text-left hover:bg-dark-elevated transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-white font-semibold">{template.name}</h3>
+                        <p className="text-gray-400 text-sm">{template.exercises.length} exercise{template.exercises.length !== 1 ? 's' : ''}</p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {template.exercises.slice(0, 5).map((ex, i) => (
+                        <span key={i} className="text-xs bg-dark-elevated text-gray-300 px-2 py-0.5 rounded-full">{ex.exerciseName}</span>
+                      ))}
+                      {template.exercises.length > 5 && (
+                        <span className="text-xs text-gray-500">+{template.exercises.length - 5} more</span>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* AI Chat Widget */}
