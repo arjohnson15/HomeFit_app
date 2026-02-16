@@ -1597,4 +1597,90 @@ router.get('/leaderboard', async (req, res, next) => {
   }
 })
 
+// GET /api/social/friend/:friendId/marathons - Get friend's active race and completed race medals
+router.get('/friend/:friendId/marathons', async (req, res, next) => {
+  try {
+    const { friendId } = req.params
+
+    // Check friendship status
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: req.user.id, friendId, status: 'ACCEPTED' },
+          { userId: friendId, friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      }
+    })
+
+    if (!friendship) {
+      return res.status(403).json({ message: 'Not friends with this user', canView: false })
+    }
+
+    // Check if friend shares progress
+    const friendSettings = await prisma.userSettings.findUnique({
+      where: { userId: friendId }
+    })
+
+    if (!friendSettings?.shareProgress) {
+      return res.json({ activeRace: null, completedRaces: [], canView: false })
+    }
+
+    // Get active non-passive race
+    const activeUserMarathon = await prisma.userMarathon.findFirst({
+      where: { userId: friendId, status: 'active', isPassive: false },
+      include: {
+        marathon: {
+          select: { id: true, name: true, city: true, country: true, distance: true, type: true, awardImageUrl: true, imageUrl: true }
+        }
+      }
+    })
+
+    let activeRace = null
+    if (activeUserMarathon) {
+      const progress = activeUserMarathon.marathon.distance > 0
+        ? Math.min(100, (activeUserMarathon.currentDistance / activeUserMarathon.marathon.distance) * 100)
+        : 0
+      activeRace = {
+        id: activeUserMarathon.id,
+        marathonId: activeUserMarathon.marathon.id,
+        marathonName: activeUserMarathon.marathon.name,
+        city: `${activeUserMarathon.marathon.city}, ${activeUserMarathon.marathon.country}`,
+        type: activeUserMarathon.marathon.type,
+        distance: activeUserMarathon.marathon.distance,
+        currentDistance: activeUserMarathon.currentDistance,
+        progress: Math.round(progress * 10) / 10,
+        startedAt: activeUserMarathon.startedAt
+      }
+    }
+
+    // Get completed non-passive races
+    const completedMarathons = await prisma.userMarathon.findMany({
+      where: { userId: friendId, status: 'completed', isPassive: false },
+      include: {
+        marathon: {
+          select: { id: true, name: true, distance: true, awardImageUrl: true, city: true, type: true }
+        }
+      },
+      orderBy: { completedAt: 'desc' },
+      take: 20
+    })
+
+    const completedRaces = completedMarathons.map(um => ({
+      id: um.id,
+      marathonId: um.marathon.id,
+      marathonName: um.marathon.name,
+      distance: um.marathon.distance,
+      awardImageUrl: um.marathon.awardImageUrl,
+      city: um.marathon.city,
+      type: um.marathon.type,
+      completedAt: um.completedAt,
+      totalSeconds: um.totalSeconds
+    }))
+
+    res.json({ activeRace, completedRaces, canView: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 export default router

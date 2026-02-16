@@ -19,6 +19,7 @@ function FriendProfile() {
   const [removingFriend, setRemovingFriend] = useState(false)
   const [expandedWorkout, setExpandedWorkout] = useState(null)
   const [expandedDay, setExpandedDay] = useState(null)
+  const [marathonData, setMarathonData] = useState({ activeRace: null, completedRaces: [], canView: false })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,17 +28,19 @@ function FriendProfile() {
         setError(null)
 
         // Fetch all data in parallel
-        const [profileRes, workoutsRes, scheduleRes, goalsRes] = await Promise.all([
+        const [profileRes, workoutsRes, scheduleRes, goalsRes, marathonRes] = await Promise.all([
           api.get(`/users/${friendId}/profile`),
           api.get(`/social/friend/${friendId}/workouts?limit=10`).catch(() => ({ data: { workouts: [], canView: false } })),
           api.get(`/social/friend/${friendId}/schedule`).catch(() => ({ data: { schedule: [], canView: false } })),
-          api.get(`/social/friend/${friendId}/goals`).catch(() => ({ data: { goals: [], canView: false } }))
+          api.get(`/social/friend/${friendId}/goals`).catch(() => ({ data: { goals: [], canView: false } })),
+          api.get(`/social/friend/${friendId}/marathons`).catch(() => ({ data: { activeRace: null, completedRaces: [], canView: false } }))
         ])
 
         setProfile(profileRes.data)
         setWorkouts(workoutsRes.data)
         setSchedule(scheduleRes.data)
         setGoals(goalsRes.data)
+        setMarathonData(marathonRes.data)
       } catch (err) {
         console.error('Error fetching friend profile:', err)
         setError(err.response?.data?.message || 'Unable to load profile')
@@ -335,6 +338,57 @@ function FriendProfile() {
                     <span>{goal.currentValue} / {goal.targetValue} {goal.unit}</span>
                     {goal.deadline && <span>Due {new Date(goal.deadline).toLocaleDateString()}</span>}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Current Race */}
+        {marathonData.canView && marathonData.activeRace && (
+          <div className="card">
+            <h3 className="text-white font-semibold flex items-center gap-2 mb-4">
+              <span>{marathonData.activeRace.type === 'bike' ? '🚴' : marathonData.activeRace.type === 'swim' ? '🏊' : '🏃'}</span> Current Race
+            </h3>
+            <div className="bg-dark-elevated rounded-xl p-3">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
+                  <span className="text-xl">{marathonData.activeRace.type === 'bike' ? '🚴' : marathonData.activeRace.type === 'swim' ? '🏊' : '🏃'}</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{marathonData.activeRace.marathonName}</p>
+                  <p className="text-gray-400 text-xs">{marathonData.activeRace.city}</p>
+                </div>
+                <span className="text-accent text-sm font-semibold">{marathonData.activeRace.progress}%</span>
+              </div>
+              <div className="w-full bg-dark-border rounded-full h-2 mb-1">
+                <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${marathonData.activeRace.progress}%` }} />
+              </div>
+              <p className="text-gray-500 text-xs">
+                {marathonData.activeRace.currentDistance.toFixed(1)} / {marathonData.activeRace.distance} mi
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Race Medals */}
+        {marathonData.canView && marathonData.completedRaces.length > 0 && (
+          <div className="card">
+            <h3 className="text-white font-semibold flex items-center gap-2 mb-4">
+              <span>🏅</span> Race Medals
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {marathonData.completedRaces.map(race => (
+                <div key={race.id} className="text-center p-2 bg-dark-elevated rounded-xl">
+                  {race.awardImageUrl ? (
+                    <img src={race.awardImageUrl} alt={race.marathonName} className="w-12 h-12 mx-auto mb-1 object-contain" />
+                  ) : (
+                    <div className="w-12 h-12 mx-auto mb-1 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                      <span className="text-xl">🏅</span>
+                    </div>
+                  )}
+                  <p className="text-white text-[10px] font-medium line-clamp-1">{race.marathonName}</p>
+                  <p className="text-gray-500 text-[10px]">{race.distance} mi</p>
                 </div>
               ))}
             </div>

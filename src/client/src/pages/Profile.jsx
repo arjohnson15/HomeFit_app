@@ -16,6 +16,7 @@ function Profile() {
   })
   const [achievements, setAchievements] = useState([])
   const [goals, setGoals] = useState([])
+  const [raceAwards, setRaceAwards] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
@@ -91,10 +92,11 @@ function Profile() {
   const fetchStats = async () => {
     setLoading(true)
     try {
-      const [statsRes, achievementsRes, goalsRes] = await Promise.all([
+      const [statsRes, achievementsRes, goalsRes, marathonRes] = await Promise.all([
         api.get('/users/stats').catch(() => ({ data: {} })),
         api.get('/achievements/recent?limit=10').catch(() => ({ data: { recent: [] } })),
-        api.get('/goals').catch(() => ({ data: { goals: [] } }))
+        api.get('/goals').catch(() => ({ data: { goals: [] } })),
+        api.get('/marathons/my/active').catch(() => ({ data: { userMarathons: [] } }))
       ])
 
       setStats({
@@ -116,6 +118,10 @@ function Profile() {
       // Filter to show only public active goals
       const publicGoals = (goalsRes.data.goals || []).filter(g => g.isPublic && !g.isCompleted)
       setGoals(publicGoals.slice(0, 3)) // Show up to 3 goals
+
+      // Extract completed non-passive race awards
+      const completed = (marathonRes.data.userMarathons || []).filter(um => um.status === 'completed' && !um.isPassive)
+      setRaceAwards(completed)
     } catch (error) {
       console.error('Error fetching stats:', error)
     } finally {
@@ -553,6 +559,32 @@ function Profile() {
               View All Achievements
             </Link>
           </div>
+
+          {/* Race Medals */}
+          {raceAwards.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-medium flex items-center gap-2">
+                  <span>🏅</span> Race Medals
+                </h3>
+                <Link to="/marathons" className="text-accent text-sm">View All</Link>
+              </div>
+              <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
+                {raceAwards.slice(0, 8).map(um => (
+                  <div key={um.id} className="w-16 flex-shrink-0 text-center">
+                    {um.marathon?.awardImageUrl ? (
+                      <img src={um.marathon.awardImageUrl} alt={um.marathon.name} className="w-14 h-14 mx-auto object-contain" />
+                    ) : (
+                      <div className="w-14 h-14 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center">
+                        <span className="text-2xl">🏅</span>
+                      </div>
+                    )}
+                    <p className="text-gray-400 text-[10px] mt-1 line-clamp-1">{um.marathon?.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Goals */}
           {goals.length > 0 && (

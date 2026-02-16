@@ -63,7 +63,102 @@ router.get('/', async (req, res, next) => {
       orderBy: [{ isPassive: 'desc' }, { distance: 'asc' }]
     })
 
-    res.json({ marathons })
+    // Get friend participant data
+    let friendsMap = {}
+    try {
+      const friendships = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            { userId: req.user.id, status: 'ACCEPTED' },
+            { friendId: req.user.id, status: 'ACCEPTED' }
+          ]
+        },
+        select: { userId: true, friendId: true }
+      })
+
+      const friendIds = friendships.map(f =>
+        f.userId === req.user.id ? f.friendId : f.userId
+      )
+
+      if (friendIds.length > 0) {
+        const friendMarathons = await prisma.userMarathon.findMany({
+          where: {
+            userId: { in: friendIds },
+            status: 'active'
+          },
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } }
+          }
+        })
+
+        for (const um of friendMarathons) {
+          if (!friendsMap[um.marathonId]) friendsMap[um.marathonId] = []
+          friendsMap[um.marathonId].push({
+            id: um.user.id,
+            name: um.user.name,
+            avatarUrl: um.user.avatarUrl
+          })
+        }
+      }
+    } catch (e) {
+      // Non-critical, proceed without friend data
+    }
+
+    const marathonsWithFriends = marathons.map(m => ({
+      ...m,
+      friendsInRace: friendsMap[m.id] || []
+    }))
+
+    res.json({ marathons: marathonsWithFriends })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /marathons/:id/friends - Get friends' progress on a specific race
+router.get('/:id/friends', async (req, res, next) => {
+  try {
+    // Get current user's friend IDs
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { userId: req.user.id, status: 'ACCEPTED' },
+          { friendId: req.user.id, status: 'ACCEPTED' }
+        ]
+      },
+      select: { userId: true, friendId: true }
+    })
+
+    const friendIds = friendships.map(f =>
+      f.userId === req.user.id ? f.friendId : f.userId
+    )
+
+    if (friendIds.length === 0) {
+      return res.json({ friends: [] })
+    }
+
+    const friendMarathons = await prisma.userMarathon.findMany({
+      where: {
+        marathonId: req.params.id,
+        userId: { in: friendIds },
+        status: { in: ['active', 'completed'] }
+      },
+      include: {
+        user: { select: { id: true, name: true, avatarUrl: true } }
+      },
+      orderBy: { currentDistance: 'desc' }
+    })
+
+    const friends = friendMarathons.map(um => ({
+      userId: um.user.id,
+      name: um.user.name,
+      avatarUrl: um.user.avatarUrl,
+      currentDistance: um.currentDistance,
+      status: um.status,
+      completedAt: um.completedAt
+    }))
+
+    res.json({ friends })
   } catch (error) {
     next(error)
   }

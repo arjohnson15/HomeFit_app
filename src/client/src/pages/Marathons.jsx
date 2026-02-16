@@ -98,6 +98,7 @@ function Marathons() {
   const [enrolling, setEnrolling] = useState(null)
   const [filter, setFilter] = useState('all') // all, run, bike
   const [previewMarathon, setPreviewMarathon] = useState(null) // Browse preview modal
+  const [previewFriends, setPreviewFriends] = useState([])
 
   useEffect(() => {
     fetchData()
@@ -147,8 +148,12 @@ function Marathons() {
 
   const handlePreview = async (marathonId) => {
     try {
-      const res = await api.get(`/marathons/${marathonId}`)
+      const [res, friendsRes] = await Promise.all([
+        api.get(`/marathons/${marathonId}`),
+        api.get(`/marathons/${marathonId}/friends`).catch(() => ({ data: { friends: [] } }))
+      ])
       setPreviewMarathon(res.data.marathon)
+      setPreviewFriends(friendsRes.data.friends || [])
     } catch (err) {
       console.error('Error fetching marathon details:', err)
     }
@@ -408,6 +413,26 @@ function Marathons() {
                         <span className={`px-2 py-0.5 rounded-full text-xs ${difficultyColors[m.difficulty] || 'bg-gray-500/20 text-gray-400'}`}>
                           {m.difficulty}
                         </span>
+                      </div>
+                      {/* Participants & Friends */}
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-gray-500 text-xs">{m._count?.userMarathons || 0} participants</span>
+                        {m.friendsInRace?.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <div className="flex -space-x-1.5">
+                              {m.friendsInRace.slice(0, 3).map(f => (
+                                <div key={f.id} className="w-5 h-5 rounded-full bg-accent/30 border border-dark-card flex items-center justify-center overflow-hidden">
+                                  {f.avatarUrl ? (
+                                    <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-[8px] text-accent font-medium">{f.name?.charAt(0)}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <span className="text-accent text-xs">{m.friendsInRace.length} friend{m.friendsInRace.length !== 1 ? 's' : ''}</span>
+                          </div>
+                        )}
                       </div>
                       {m.description && (
                         <p className="text-gray-500 text-xs mt-1 line-clamp-2">{m.description}</p>
@@ -900,6 +925,44 @@ function Marathons() {
                       </div>
                       <div>
                         <p className="text-white text-sm">{ms.label || `Mile ${ms.mile}`}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Friends Racing */}
+            {previewFriends.length > 0 && (
+              <div className="card p-4">
+                <h3 className="text-white font-medium text-sm mb-3">Friends Racing</h3>
+                <div className="space-y-3">
+                  {previewFriends.map(f => (
+                    <div key={f.userId} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {f.avatarUrl ? (
+                          <img src={f.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-accent text-xs font-medium">{f.name?.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-white text-sm truncate">{f.name}</p>
+                          <span className="text-gray-400 text-xs flex-shrink-0 ml-2">
+                            {f.status === 'completed' ? (
+                              <span className="text-success">Finished!</span>
+                            ) : (
+                              `${f.currentDistance.toFixed(1)} mi`
+                            )}
+                          </span>
+                        </div>
+                        <div className="w-full bg-dark-elevated rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${f.status === 'completed' ? 'bg-success' : 'bg-accent'}`}
+                            style={{ width: `${Math.min(100, (f.currentDistance / previewMarathon.distance) * 100)}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
