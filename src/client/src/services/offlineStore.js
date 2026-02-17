@@ -171,7 +171,13 @@ export const useOfflineStore = create(
 
         // Update local exercise log
         set((state) => {
-          const currentLog = state.offlineExerciseLogs[exerciseId] || { sets: [] }
+          const currentLog = state.offlineExerciseLogs[exerciseId] || {
+            id: exerciseLogId || get().generateTempId(),
+            exerciseId,
+            sessionId: get().getRealId(sessionId),
+            isOffline: true,
+            sets: []
+          }
           const updatedSets = [...(currentLog.sets || []), set_entry]
           return {
             offlineExerciseLogs: {
@@ -189,6 +195,7 @@ export const useOfflineStore = create(
         await saveExerciseLog(updatedLog)
 
         // Add to sync queue
+        const logIdStr = exerciseLogId?.toString() || ''
         await addPendingSync({
           type: SYNC_TYPES.LOG_SET,
           data: {
@@ -198,7 +205,7 @@ export const useOfflineStore = create(
             setData
           },
           tempId,
-          exerciseLogTempId: exerciseLogId.startsWith('temp_') ? exerciseLogId : null
+          exerciseLogTempId: logIdStr.startsWith('temp_') ? exerciseLogId : null
         })
 
         await get().updatePendingSyncCount()
