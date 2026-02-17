@@ -333,6 +333,14 @@ function EmailSettings() {
             )}
             {pushDebugResult.subscriptions?.map((sub, i) => (
               <div key={i} className="text-xs opacity-70 border-t border-white/10 pt-1 mt-1">
+                <p className="flex items-center gap-1">
+                  Status: <span className={`font-bold ${
+                    sub.deliveryStatus === 'delivered' ? 'text-green-400' :
+                    sub.deliveryStatus === 'expired_removed' ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>{sub.deliveryStatus}</span>
+                  {sub.error && <span className="text-red-300">({sub.error})</span>}
+                </p>
                 <p>Endpoint: {sub.endpoint}</p>
                 <p>Agent: {sub.userAgent?.substring(0, 60) || 'Unknown'}</p>
                 <p>Created: {new Date(sub.created).toLocaleString()}</p>

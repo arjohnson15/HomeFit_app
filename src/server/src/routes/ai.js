@@ -650,7 +650,7 @@ function roundToNearest(value, increment) {
 }
 
 // Rule-based set suggestion calculator
-function calculateRuleBasedSuggestion({ lastSets, trainingStyle, pr, setNumber, difficultyFeedback }) {
+function calculateRuleBasedSuggestion({ lastSets, trainingStyle, pr, setNumber, difficultyFeedback, lastSessionSets }) {
   const repRanges = {
     STRENGTH: { min: 3, max: 5, idealReps: 5 },
     POWERLIFTING: { min: 1, max: 5, idealReps: 3 },
@@ -662,8 +662,23 @@ function calculateRuleBasedSuggestion({ lastSets, trainingStyle, pr, setNumber, 
 
   const range = repRanges[trainingStyle] || repRanges.GENERAL
 
-  // No previous sets in this session - use PR or return target reps
+  // Calculate historical working weight (max weight from last session's working sets)
+  const historyWorkingWeight = lastSessionSets?.length > 0
+    ? Math.max(...lastSessionSets.map(s => s.weight || 0))
+    : 0
+  const historyWorkingReps = lastSessionSets?.length > 0
+    ? lastSessionSets.find(s => s.weight === historyWorkingWeight)?.reps || range.idealReps
+    : range.idealReps
+
+  // No previous sets in this session - use last session or PR
   if (!lastSets || lastSets.length === 0) {
+    if (historyWorkingWeight > 0) {
+      return {
+        weight: roundToNearest(historyWorkingWeight, 5),
+        reps: historyWorkingReps,
+        reason: `Based on your last session (${historyWorkingWeight}lbs × ${historyWorkingReps}).`
+      }
+    }
     if (pr && pr.weight > 0) {
       const workingWeightPct = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 0.85 : 0.75
       const suggestedWeight = roundToNearest(pr.weight * workingWeightPct, 5)
@@ -699,22 +714,43 @@ function calculateRuleBasedSuggestion({ lastSets, trainingStyle, pr, setNumber, 
   let suggestedReps = lastReps
   let reason = ''
 
+  // Check if current weight is significantly below historical working weight
+  const significantlyBelow = historyWorkingWeight > 0 && lastWeight < historyWorkingWeight * 0.85
+
   if (difficulty <= 2) {
-    // Easy: increase weight or reps
+    // Easy: increase weight toward historical working weight or beyond
     if (lastWeight > 0) {
-      const increment = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 10 : 5
-      suggestedWeight = lastWeight + increment
-      suggestedReps = lastReps
-      reason = `Last set felt easy (${difficulty}/5). Increased weight by ${increment}lbs.`
+      if (significantlyBelow) {
+        // Big jump toward historical working weight (warmup-style progression)
+        // Jump halfway between current and historical working weight
+        const targetWeight = Math.round((lastWeight + historyWorkingWeight) / 2)
+        suggestedWeight = roundToNearest(targetWeight, 5)
+        suggestedReps = historyWorkingReps
+        reason = `Easy warmup set. Jumping to ${suggestedWeight}lbs toward your working weight of ${historyWorkingWeight}lbs.`
+      } else {
+        // Near working weight - small progressive increase
+        const increment = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 10 : 5
+        suggestedWeight = lastWeight + increment
+        suggestedReps = lastReps
+        reason = `Last set felt easy (${difficulty}/5). Increased weight by ${increment}lbs.`
+      }
     } else {
       const repBump = difficulty === 1 ? 3 : 2
       suggestedReps = lastReps + repBump
       reason = `Last set felt easy (${difficulty}/5). Added ${repBump} reps.`
     }
   } else if (difficulty === 3) {
-    suggestedWeight = lastWeight
-    suggestedReps = lastReps
-    reason = 'Good difficulty. Maintaining same weight and reps.'
+    if (significantlyBelow) {
+      // Good but still below working weight - moderate jump
+      const targetWeight = Math.round((lastWeight + historyWorkingWeight) / 2)
+      suggestedWeight = roundToNearest(targetWeight, 5)
+      suggestedReps = lastReps
+      reason = `Good difficulty but below your usual working weight. Stepping up to ${suggestedWeight}lbs.`
+    } else {
+      suggestedWeight = lastWeight
+      suggestedReps = lastReps
+      reason = 'Good difficulty. Maintaining same weight and reps.'
+    }
   } else if (difficulty === 4) {
     suggestedWeight = lastWeight
     if (lastReps > range.min) {
@@ -762,6 +798,7 @@ router.post('/suggest-set', async (req, res) => {
       lastSets = [],
       trainingStyle = 'GENERAL',
       pr,
+      lastSessionSets,
       setNumber = 1,
       difficultyFeedback,
       useAi = false
@@ -805,7 +842,7 @@ Return ONLY valid JSON: {"weight": <number or null>, "reps": <number>, "reason":
 
     // Rule-based suggestion
     const suggestion = calculateRuleBasedSuggestion({
-      exerciseName, lastSets, trainingStyle, pr, setNumber, difficultyFeedback
+      exerciseName, lastSets, trainingStyle, pr, setNumber, difficultyFeedback, lastSessionSets
     })
 
     res.json({ suggestion, source: 'rules' })

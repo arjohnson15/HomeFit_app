@@ -518,27 +518,60 @@ router.post('/notifications/test-push-user', async (req, res, next) => {
       })
     }
 
-    const result = await notificationService.sendPush(
-      userId,
-      title || 'HomeFit Debug Test',
-      body || `Test push notification for ${user.name}`,
-      { url: '/today' }
+    // Send individually to track per-subscription results
+    await notificationService.loadSettings()
+    const webpush = (await import('web-push')).default
+
+    const payload = JSON.stringify({
+      title: title || 'HomeFit Debug Test',
+      body: body || `Test push notification for ${user.name}`,
+      icon: '/logo.png',
+      badge: '/logo.png',
+      data: { url: '/today' }
+    })
+
+    const perSubResults = await Promise.allSettled(
+      subscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload
+          )
+          return { id: sub.id, status: 'delivered', endpoint: sub.endpoint }
+        } catch (error) {
+          // Clean up expired subscriptions
+          if (error.statusCode === 410 || error.statusCode === 404) {
+            await prisma.pushSubscription.delete({ where: { id: sub.id } })
+            return { id: sub.id, status: 'expired_removed', endpoint: sub.endpoint, error: `${error.statusCode}` }
+          }
+          return { id: sub.id, status: 'failed', endpoint: sub.endpoint, error: `${error.statusCode || error.message}` }
+        }
+      })
     )
 
+    const subDetails = perSubResults.map((r, i) => {
+      const result = r.value || r.reason
+      return {
+        id: subscriptions[i].id,
+        endpoint: subscriptions[i].endpoint.substring(0, 80) + '...',
+        userAgent: subscriptions[i].userAgent,
+        created: subscriptions[i].createdAt,
+        updated: subscriptions[i].updatedAt,
+        deliveryStatus: result?.status || 'unknown',
+        error: result?.error || null
+      }
+    })
+
+    const delivered = subDetails.filter(s => s.deliveryStatus === 'delivered').length
+    const expired = subDetails.filter(s => s.deliveryStatus === 'expired_removed').length
+    const failed = subDetails.filter(s => s.deliveryStatus === 'failed').length
+
     res.json({
-      success: result,
-      message: result
-        ? `Push notification sent to ${user.name} (${subscriptions.length} subscription${subscriptions.length > 1 ? 's' : ''})`
-        : `Failed to send push to ${user.name}. Subscriptions may be expired.`,
+      success: delivered > 0,
+      message: `${delivered} delivered, ${expired} expired (cleaned up), ${failed} failed out of ${subscriptions.length} subscriptions`,
       user: { name: user.name, email: user.email },
       subscriptionCount: subscriptions.length,
-      subscriptions: subscriptions.map(s => ({
-        id: s.id,
-        endpoint: s.endpoint.substring(0, 80) + '...',
-        userAgent: s.userAgent,
-        created: s.createdAt,
-        updated: s.updatedAt
-      }))
+      subscriptions: subDetails
     })
   } catch (error) {
     next(error)

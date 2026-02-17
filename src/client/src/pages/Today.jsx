@@ -299,45 +299,67 @@ function Today() {
   const playRestTimerSound = useCallback(() => {
     if (!restTimerSoundEnabled) return
 
+    let audioPlayed = false
+
+    // Try Web Audio API first (works on desktop and Android)
     try {
-      // Create audio context if not exists
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
       }
       const ctx = audioContextRef.current
 
-      // Resume context if suspended (required for mobile)
       if (ctx.state === 'suspended') {
         ctx.resume()
       }
 
-      // Create a pleasant two-tone notification sound
-      const playTone = (frequency, startTime, duration) => {
-        const oscillator = ctx.createOscillator()
-        const gainNode = ctx.createGain()
+      // Only try oscillators if context is running (iOS may keep it suspended)
+      if (ctx.state === 'running') {
+        const playTone = (frequency, startTime, duration) => {
+          const oscillator = ctx.createOscillator()
+          const gainNode = ctx.createGain()
+          oscillator.connect(gainNode)
+          gainNode.connect(ctx.destination)
+          oscillator.frequency.value = frequency
+          oscillator.type = 'sine'
+          gainNode.gain.setValueAtTime(0, startTime)
+          gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
+          oscillator.start(startTime)
+          oscillator.stop(startTime + duration)
+        }
 
-        oscillator.connect(gainNode)
-        gainNode.connect(ctx.destination)
-
-        oscillator.frequency.value = frequency
-        oscillator.type = 'sine'
-
-        // Envelope for smooth sound
-        gainNode.gain.setValueAtTime(0, startTime)
-        gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
-
-        oscillator.start(startTime)
-        oscillator.stop(startTime + duration)
+        const now = ctx.currentTime
+        playTone(880, now, 0.15)
+        playTone(1100, now + 0.15, 0.2)
+        playTone(1320, now + 0.35, 0.3)
+        audioPlayed = true
       }
-
-      const now = ctx.currentTime
-      // Play a pleasant "ding ding" notification
-      playTone(880, now, 0.15)        // A5
-      playTone(1100, now + 0.15, 0.2) // C#6
-      playTone(1320, now + 0.35, 0.3) // E6
     } catch (error) {
-      console.error('Error playing rest timer sound:', error)
+      console.error('AudioContext sound failed:', error)
+    }
+
+    // Fallback: show a notification (works on iOS even when AudioContext is suspended)
+    if (!audioPlayed && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        navigator.serviceWorker?.ready?.then(registration => {
+          registration.showNotification('Rest Timer Complete', {
+            body: 'Time to start your next set!',
+            icon: '/logo.png',
+            badge: '/logo.png',
+            vibrate: [200, 100, 200, 100, 200],
+            tag: 'rest-timer',
+            renotify: true,
+            requireInteraction: false
+          })
+        })
+      } catch (e) {
+        console.error('Notification fallback failed:', e)
+      }
+    }
+
+    // Always try vibration
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200])
     }
   }, [restTimerSoundEnabled])
 
@@ -881,6 +903,7 @@ function Today() {
         lastSets: completedSets,
         trainingStyle: userTrainingStyle,
         pr: history?.pr,
+        lastSessionSets: history?.lastSession?.sets?.map(s => ({ weight: s.weight, reps: s.reps })),
         setNumber: targetSetIndex + 1,
         difficultyFeedback: lastDifficulty
       })
@@ -1029,11 +1052,8 @@ function Today() {
             if (activeSession) {
               api.post(`/workouts/${activeSession.id}/rest`, { duration: 0 }).catch(() => {})
             }
-            // Play sound and vibrate to notify user
+            // Play sound, vibrate, and show notification fallback
             playRestTimerSound()
-            if ('vibrate' in navigator) {
-              navigator.vibrate([200, 100, 200])
-            }
             return 0
           }
           return prev - 1
