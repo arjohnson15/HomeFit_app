@@ -644,4 +644,175 @@ Return JSON only:
   }
 })
 
+// Helper: round to nearest increment (for clean weight values)
+function roundToNearest(value, increment) {
+  return Math.round(value / increment) * increment
+}
+
+// Rule-based set suggestion calculator
+function calculateRuleBasedSuggestion({ lastSets, trainingStyle, pr, setNumber, difficultyFeedback }) {
+  const repRanges = {
+    STRENGTH: { min: 3, max: 5, idealReps: 5 },
+    POWERLIFTING: { min: 1, max: 5, idealReps: 3 },
+    BODYBUILDING: { min: 8, max: 12, idealReps: 10 },
+    ATHLETIC: { min: 6, max: 10, idealReps: 8 },
+    ENDURANCE: { min: 15, max: 25, idealReps: 20 },
+    GENERAL: { min: 8, max: 12, idealReps: 10 }
+  }
+
+  const range = repRanges[trainingStyle] || repRanges.GENERAL
+
+  // No previous sets in this session - use PR or return target reps
+  if (!lastSets || lastSets.length === 0) {
+    if (pr && pr.weight > 0) {
+      const workingWeightPct = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 0.85 : 0.75
+      const suggestedWeight = roundToNearest(pr.weight * workingWeightPct, 5)
+      return {
+        weight: suggestedWeight,
+        reps: range.idealReps,
+        reason: `Starting weight based on your PR of ${pr.weight}lbs × ${pr.reps}. Adjust as needed.`
+      }
+    }
+    return {
+      weight: null,
+      reps: range.idealReps,
+      reason: `Target ${range.min}-${range.max} reps for ${trainingStyle.toLowerCase()} training.`
+    }
+  }
+
+  // Get the most recent completed set
+  const lastSet = lastSets[lastSets.length - 1]
+  const lastWeight = lastSet.weight || 0
+  const lastReps = lastSet.reps || 0
+  const difficulty = difficultyFeedback || lastSet.difficulty
+
+  // No difficulty feedback: suggest same weight/reps
+  if (!difficulty) {
+    return {
+      weight: lastWeight > 0 ? lastWeight : null,
+      reps: lastReps || range.idealReps,
+      reason: 'Same as your last set. Rate difficulty to get personalized suggestions.'
+    }
+  }
+
+  let suggestedWeight = lastWeight
+  let suggestedReps = lastReps
+  let reason = ''
+
+  if (difficulty <= 2) {
+    // Easy: increase weight or reps
+    if (lastWeight > 0) {
+      const increment = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 10 : 5
+      suggestedWeight = lastWeight + increment
+      suggestedReps = lastReps
+      reason = `Last set felt easy (${difficulty}/5). Increased weight by ${increment}lbs.`
+    } else {
+      const repBump = difficulty === 1 ? 3 : 2
+      suggestedReps = lastReps + repBump
+      reason = `Last set felt easy (${difficulty}/5). Added ${repBump} reps.`
+    }
+  } else if (difficulty === 3) {
+    suggestedWeight = lastWeight
+    suggestedReps = lastReps
+    reason = 'Good difficulty. Maintaining same weight and reps.'
+  } else if (difficulty === 4) {
+    suggestedWeight = lastWeight
+    if (lastReps > range.min) {
+      suggestedReps = Math.max(lastReps - 1, range.min)
+      reason = `Last set was tough (${difficulty}/5). Same weight, reduced to ${suggestedReps} reps.`
+    } else {
+      suggestedReps = lastReps
+      reason = `Last set was tough (${difficulty}/5). Maintaining current load.`
+    }
+  } else if (difficulty >= 5) {
+    if (lastWeight > 0) {
+      const decrement = (trainingStyle === 'STRENGTH' || trainingStyle === 'POWERLIFTING') ? 10 : 5
+      suggestedWeight = Math.max(lastWeight - decrement, 0)
+      suggestedReps = lastReps
+      reason = `Last set was very hard (${difficulty}/5). Reduced weight by ${decrement}lbs to maintain form.`
+    } else {
+      suggestedReps = Math.max(lastReps - 2, 1)
+      reason = `Last set was very hard (${difficulty}/5). Reduced to ${suggestedReps} reps.`
+    }
+  }
+
+  // Safety cap: don't suggest going above PR weight
+  if (pr && pr.weight > 0 && suggestedWeight > pr.weight * 1.05) {
+    suggestedWeight = pr.weight
+    reason += ' (Capped near your PR - be careful with heavy weight.)'
+  }
+
+  // Round weight to nearest 5
+  if (suggestedWeight > 0) {
+    suggestedWeight = roundToNearest(suggestedWeight, 5)
+  }
+
+  return {
+    weight: suggestedWeight > 0 ? suggestedWeight : null,
+    reps: suggestedReps,
+    reason
+  }
+}
+
+// POST /api/ai/suggest-set - Rule-based (or AI-powered) set suggestion
+router.post('/suggest-set', async (req, res) => {
+  try {
+    const {
+      exerciseName,
+      lastSets = [],
+      trainingStyle = 'GENERAL',
+      pr,
+      setNumber = 1,
+      difficultyFeedback,
+      useAi = false
+    } = req.body
+
+    // If useAi is requested, try AI first then fall back to rules
+    if (useAi) {
+      try {
+        const config = await getUserAIConfig(req.user.id)
+        if (config.provider) {
+          const prompt = `You are a fitness coach. Suggest the next set for ${exerciseName}.
+
+Training style: ${trainingStyle}
+Set number: ${setNumber}
+${pr ? `PR: ${pr.weight}lbs x ${pr.reps} reps` : 'No PR recorded yet'}
+${lastSets.length > 0 ? `Previous sets this session: ${lastSets.map((s, i) => `Set ${i+1}: ${s.weight}lbs x ${s.reps} reps${s.difficulty ? ` (difficulty ${s.difficulty}/5)` : ''}`).join(', ')}` : 'First set of the session'}
+${difficultyFeedback ? `Last set difficulty: ${difficultyFeedback}/5 (1=very easy, 5=very hard)` : ''}
+
+Return ONLY valid JSON: {"weight": <number or null>, "reps": <number>, "reason": "<brief explanation>"}`
+
+          const response = await callAI(config, [
+            { role: 'system', content: 'You are a concise fitness coach. Return only valid JSON.' },
+            { role: 'user', content: prompt }
+          ], { max_tokens: 200, temperature: 0.3 })
+
+          if (response.ok) {
+            const data = await response.json()
+            const content = data.choices?.[0]?.message?.content || ''
+            try {
+              const aiSuggestion = JSON.parse(content.replace(/```json\n?|```\n?/g, '').trim())
+              return res.json({ suggestion: aiSuggestion, source: 'ai' })
+            } catch (e) {
+              // AI response wasn't valid JSON, fall through to rules
+            }
+          }
+        }
+      } catch (aiError) {
+        console.error('AI suggestion failed, falling back to rules:', aiError.message)
+      }
+    }
+
+    // Rule-based suggestion
+    const suggestion = calculateRuleBasedSuggestion({
+      exerciseName, lastSets, trainingStyle, pr, setNumber, difficultyFeedback
+    })
+
+    res.json({ suggestion, source: 'rules' })
+  } catch (error) {
+    console.error('Error in suggest-set:', error)
+    res.status(500).json({ message: 'Failed to generate suggestion' })
+  }
+})
+
 export default router

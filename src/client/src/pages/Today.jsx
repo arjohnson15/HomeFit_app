@@ -126,6 +126,15 @@ function Today() {
   })
   const [lastSessionCollapsed, setLastSessionCollapsed] = useState(false) // Last session collapsed state
   const [showOlderSessions, setShowOlderSessions] = useState(false) // Show older sessions beyond the last one
+  const [hiddenExercises, setHiddenExercises] = useState(() => {
+    const dateKey = new Date().toISOString().split('T')[0]
+    try {
+      const saved = localStorage.getItem(`hiddenExercises-${dateKey}`)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   // Digital Race tracking
   const [activeRace, setActiveRace] = useState(null) // Active non-passive race
   const [passiveRace, setPassiveRace] = useState(null) // Across America passive race
@@ -325,6 +334,22 @@ function Today() {
       const timerSettings = JSON.parse(savedTimer)
       if (timerSettings.defaultRestTime) {
         setDefaultRestTime(timerSettings.defaultRestTime)
+      }
+    }
+  }, [])
+
+  // Clean up old hidden exercises from localStorage (keep only last 7 days)
+  useEffect(() => {
+    const today = new Date()
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('hiddenExercises-')) {
+        const dateStr = key.replace('hiddenExercises-', '')
+        const entryDate = new Date(dateStr)
+        const daysDiff = (today - entryDate) / (1000 * 60 * 60 * 24)
+        if (daysDiff > 7) {
+          localStorage.removeItem(key)
+        }
       }
     }
   }, [])
@@ -789,6 +814,31 @@ function Today() {
         [scheduleExId]: {
           ...log,
           sets: updatedSets
+        }
+      }
+    })
+  }
+
+  // Load a single historical set's values into the current (first uncompleted) set
+  const loadHistoricalSet = (exerciseScheduleId, historicalSet) => {
+    setExerciseLogs(prev => {
+      const log = prev[exerciseScheduleId]
+      if (!log) return prev
+
+      const targetIndex = log.sets.findIndex(s => !s.completed)
+      if (targetIndex === -1) return prev
+
+      return {
+        ...prev,
+        [exerciseScheduleId]: {
+          ...log,
+          sets: log.sets.map((set, i) =>
+            i === targetIndex ? {
+              ...set,
+              weight: historicalSet.weight > 0 ? historicalSet.weight.toString() : '',
+              reps: historicalSet.reps ? historicalSet.reps.toString() : ''
+            } : set
+          )
         }
       }
     })
@@ -1536,6 +1586,33 @@ function Today() {
     }
   }
 
+  // Hide a scheduled/recurring exercise for today only (does NOT delete from schedule)
+  const hideExerciseForToday = (exerciseUniqueId) => {
+    setHiddenExercises(prev => {
+      const updated = [...prev, exerciseUniqueId]
+      const dateKey = new Date().toISOString().split('T')[0]
+      localStorage.setItem(`hiddenExercises-${dateKey}`, JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  // Restore a hidden exercise
+  const restoreExercise = (exerciseUniqueId) => {
+    setHiddenExercises(prev => {
+      const updated = prev.filter(id => id !== exerciseUniqueId)
+      const dateKey = new Date().toISOString().split('T')[0]
+      localStorage.setItem(`hiddenExercises-${dateKey}`, JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  // Restore all hidden exercises
+  const restoreAllExercises = () => {
+    setHiddenExercises([])
+    const dateKey = new Date().toISOString().split('T')[0]
+    localStorage.removeItem(`hiddenExercises-${dateKey}`)
+  }
+
   const getExerciseImage = (exerciseId) => {
     const details = exerciseDetails[exerciseId]
     if (details?.images?.[0]) {
@@ -1545,7 +1622,7 @@ function Today() {
   }
 
   const completedCount = Object.values(exerciseLogs).filter(l => l.completed).length
-  const totalExercises = todayWorkout?.exercises?.length || 0
+  const totalExercises = todayWorkout?.exercises?.filter(e => !hiddenExercises.includes(e.id))?.length || 0
 
   return (
     <div className="p-4 space-y-6 pb-24">
@@ -2311,9 +2388,12 @@ function Today() {
           </div>
           {recurringWorkouts.map((recurring) => {
             const isExpanded = expandedRecurringWorkout === recurring.id
+            const visibleExercises = recurring.exercises?.filter((_, idx) =>
+              !hiddenExercises.includes(`recurring-${recurring.id}-${idx}`)
+            ) || []
             const completedCount = recurring.exercises?.filter((_, idx) => {
               const uniqueId = `recurring-${recurring.id}-${idx}`
-              return exerciseLogs[uniqueId]?.completed
+              return !hiddenExercises.includes(uniqueId) && exerciseLogs[uniqueId]?.completed
             }).length || 0
 
             return (
@@ -2328,9 +2408,9 @@ function Today() {
                     <h3 className="text-white font-medium">{recurring.name}</h3>
                     <p className="text-purple-400/80 text-sm">
                       {completedCount > 0 ? (
-                        <span className="text-success">{completedCount}/{recurring.exercises?.length || 0} done</span>
+                        <span className="text-success">{completedCount}/{visibleExercises.length} done</span>
                       ) : (
-                        `${recurring.exercises?.length || 0} exercise${recurring.exercises?.length !== 1 ? 's' : ''}`
+                        `${visibleExercises.length} exercise${visibleExercises.length !== 1 ? 's' : ''}`
                       )}
                     </p>
                   </div>
@@ -2349,6 +2429,7 @@ function Today() {
                   <div className="mt-4 pt-4 border-t border-purple-500/20 space-y-3">
                     {recurring.exercises.map((ex, idx) => {
                       const uniqueId = `recurring-${recurring.id}-${idx}`
+                      if (hiddenExercises.includes(uniqueId)) return null
                       const log = exerciseLogs[uniqueId] || { completed: false, sets: [], targetSets: ex.sets || 3 }
                       const isExerciseExpanded = expandedExercise === uniqueId
                       const exerciseImage = getExerciseImage(ex.exerciseId)
@@ -2422,6 +2503,20 @@ function Today() {
                                 )}
                               </p>
                             </div>
+
+                            {/* Skip for today */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                hideExerciseForToday(uniqueId)
+                              }}
+                              className="p-1 text-gray-500 hover:text-red-500 transition-colors flex-shrink-0"
+                              title="Skip for today"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
 
                             {/* Expand Arrow */}
                             <svg
@@ -2630,7 +2725,7 @@ function Today() {
             </div>
           ) : (
             <div className="space-y-3">
-              {todayWorkout.exercises?.map((exercise) => {
+              {todayWorkout.exercises?.filter(exercise => !hiddenExercises.includes(exercise.id)).map((exercise) => {
                 const isExpanded = expandedExercise === exercise.id
                 const log = exerciseLogs[exercise.id] || { completed: false, sets: [], targetSets: exercise.sets }
                 const history = exerciseHistory[exercise.exerciseId]
@@ -2718,23 +2813,31 @@ function Today() {
                         </svg>
                       </button>
 
-                      {/* Delete Ad-hoc Exercise Button */}
-                      {exercise.isAdhoc && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (window.confirm(`Remove ${exercise.exerciseName} from this workout?`)) {
+                      {/* Skip/Remove Exercise Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (exercise.isAdhoc) {
+                            if (window.confirm(`Remove ${getDisplayName(exercise)} from this workout?`)) {
                               removeAdhocExercise(exercise.id, log.id)
                             }
-                          }}
-                          className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
-                          title="Remove this exercise"
-                        >
+                          } else {
+                            hideExerciseForToday(exercise.id)
+                          }
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
+                        title={exercise.isAdhoc ? "Remove this exercise" : "Skip for today"}
+                      >
+                        {exercise.isAdhoc ? (
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                        </button>
-                      )}
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </button>
 
                       {/* Expand Arrow */}
                       <svg
@@ -2824,9 +2927,14 @@ function Today() {
                               <div className="p-3 bg-dark-elevated rounded-lg">
                                 <div className="flex flex-wrap gap-2 mb-3">
                                   {history.lastSession.sets.map((set, i) => (
-                                    <span key={i} className="px-2 py-1 bg-dark-card rounded text-sm text-gray-300">
+                                    <button
+                                      key={i}
+                                      onClick={() => loadHistoricalSet(exercise.id, set)}
+                                      className="px-2 py-1 bg-dark-card rounded text-sm text-gray-300 hover:bg-accent/20 hover:text-accent cursor-pointer transition-colors active:scale-95"
+                                      title="Tap to load into current set"
+                                    >
                                       {set.weight > 0 ? `${set.weight}lbs × ` : ''}{set.reps} reps
-                                    </span>
+                                    </button>
                                   ))}
                                 </div>
 
@@ -2853,9 +2961,18 @@ function Today() {
                                             </p>
                                             <div className="flex flex-wrap gap-1">
                                               {session.sets.map((set, i) => (
-                                                <span key={i} className={`px-2 py-0.5 rounded text-xs ${set.isPR ? 'bg-success/20 text-success' : 'bg-dark-elevated text-gray-400'}`}>
+                                                <button
+                                                  key={i}
+                                                  onClick={() => loadHistoricalSet(exercise.id, set)}
+                                                  className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-colors active:scale-95 ${
+                                                    set.isPR
+                                                      ? 'bg-success/20 text-success hover:bg-success/30'
+                                                      : 'bg-dark-elevated text-gray-400 hover:bg-accent/20 hover:text-accent'
+                                                  }`}
+                                                  title="Tap to load into current set"
+                                                >
                                                   {set.isPR && '🏆 '}{set.weight > 0 ? `${set.weight}× ` : ''}{set.reps}
-                                                </span>
+                                                </button>
                                               ))}
                                             </div>
                                           </div>
@@ -2990,6 +3107,48 @@ function Today() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Skipped Exercises Restore Indicator */}
+      {hiddenExercises.length > 0 && (
+        <div className="card p-3 bg-dark-elevated border border-dark-border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-400">
+              {hiddenExercises.length} exercise{hiddenExercises.length > 1 ? 's' : ''} skipped for today
+            </span>
+            <button
+              onClick={restoreAllExercises}
+              className="text-xs text-accent hover:text-accent-hover"
+            >
+              Restore all
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {hiddenExercises.map(id => {
+              const exercise = todayWorkout?.exercises?.find(e => e.id === id)
+              const recurringMatch = !exercise && recurringWorkouts.flatMap(rw =>
+                (rw.exercises || []).map((ex, idx) => ({
+                  ...ex,
+                  uniqueId: `recurring-${rw.id}-${idx}`
+                }))
+              ).find(e => e.uniqueId === id)
+              const name = exercise?.exerciseName || recurringMatch?.exerciseName || 'Exercise'
+
+              return (
+                <button
+                  key={id}
+                  onClick={() => restoreExercise(id)}
+                  className="flex items-center gap-1 px-2 py-1 bg-dark-card rounded text-xs text-gray-400 hover:text-white hover:bg-dark-border transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {name}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
