@@ -275,6 +275,27 @@ function Today() {
   })
 
   // Play notification sound when rest timer ends
+  // Ensure AudioContext is created and unlocked - call this during user gestures
+  const ensureAudioContext = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+      }
+      const ctx = audioContextRef.current
+      if (ctx.state === 'suspended') {
+        ctx.resume()
+      }
+      // Play a silent buffer to fully unlock on iOS
+      const silentBuffer = ctx.createBuffer(1, 1, 22050)
+      const source = ctx.createBufferSource()
+      source.buffer = silentBuffer
+      source.connect(ctx.destination)
+      source.start(0)
+    } catch (e) {
+      // Ignore - will try again on next gesture
+    }
+  }, [])
+
   const playRestTimerSound = useCallback(() => {
     if (!restTimerSoundEnabled) return
 
@@ -325,6 +346,8 @@ function Today() {
     const newValue = !restTimerSoundEnabled
     setRestTimerSoundEnabled(newValue)
     localStorage.setItem('restTimerSoundEnabled', newValue.toString())
+    // Unlock AudioContext when user enables sound (user gesture)
+    if (newValue) ensureAudioContext()
   }
 
   // Load timer settings from localStorage
@@ -1053,6 +1076,8 @@ function Today() {
   }
 
   const startWorkout = async () => {
+    // Unlock AudioContext early during this user gesture for iOS rest timer sound
+    ensureAudioContext()
     // Reset local timer state before starting fresh
     setRestTimer(0)
     setRestTimerRunning(false)
@@ -1199,6 +1224,9 @@ function Today() {
   }
 
   const startRestTimer = async (duration = defaultRestTime) => {
+    // Unlock AudioContext during this user gesture so iOS allows sound when timer ends
+    ensureAudioContext()
+
     // Ensure duration is a valid number
     const validDuration = typeof duration === 'number' && !isNaN(duration) ? duration : defaultRestTime
 

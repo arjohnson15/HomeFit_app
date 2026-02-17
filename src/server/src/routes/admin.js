@@ -482,6 +482,69 @@ router.post('/notifications/test', async (req, res, next) => {
   }
 })
 
+// POST /api/admin/notifications/test-push-user
+// Send a test push notification to a specific user
+router.post('/notifications/test-push-user', async (req, res, next) => {
+  try {
+    const { userId, title, body } = req.body
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'userId is required' })
+    }
+
+    await notificationService.loadSettings()
+
+    // Get user info
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true }
+    })
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' })
+    }
+
+    // Check subscriptions
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId },
+      select: { id: true, endpoint: true, userAgent: true, createdAt: true, updatedAt: true }
+    })
+
+    if (subscriptions.length === 0) {
+      return res.json({
+        success: false,
+        message: `${user.name} (${user.email}) has no push subscriptions registered`,
+        user: { name: user.name, email: user.email },
+        subscriptionCount: 0
+      })
+    }
+
+    const result = await notificationService.sendPush(
+      userId,
+      title || 'HomeFit Debug Test',
+      body || `Test push notification for ${user.name}`,
+      { url: '/today' }
+    )
+
+    res.json({
+      success: result,
+      message: result
+        ? `Push notification sent to ${user.name} (${subscriptions.length} subscription${subscriptions.length > 1 ? 's' : ''})`
+        : `Failed to send push to ${user.name}. Subscriptions may be expired.`,
+      user: { name: user.name, email: user.email },
+      subscriptionCount: subscriptions.length,
+      subscriptions: subscriptions.map(s => ({
+        id: s.id,
+        endpoint: s.endpoint.substring(0, 80) + '...',
+        userAgent: s.userAgent,
+        created: s.createdAt,
+        updated: s.updatedAt
+      }))
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // POST /api/admin/notifications/test-sms
 // Send a test SMS to a specific phone number
 router.post('/notifications/test-sms', async (req, res, next) => {

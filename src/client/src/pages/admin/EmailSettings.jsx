@@ -16,9 +16,16 @@ function EmailSettings() {
   const [testResult, setTestResult] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(null)
+  // Push debug state
+  const [users, setUsers] = useState([])
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [pushDebugResult, setPushDebugResult] = useState(null)
+  const [pushTesting, setPushTesting] = useState(false)
+  const [dingTesting, setDingTesting] = useState(false)
 
   useEffect(() => {
     fetchSettings()
+    fetchUsers()
   }, [])
 
   const fetchSettings = async () => {
@@ -65,6 +72,66 @@ function EmailSettings() {
       setTestResult({ success: false, message: 'Failed to send test email. Check your settings.' })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get('/admin/users')
+      setUsers(response.data.users || [])
+    } catch (err) {
+      console.error('Error fetching users:', err)
+    }
+  }
+
+  const testPushForUser = async () => {
+    if (!selectedUserId) return
+    setPushTesting(true)
+    setPushDebugResult(null)
+    try {
+      const response = await api.post('/admin/notifications/test-push-user', {
+        userId: selectedUserId
+      })
+      setPushDebugResult(response.data)
+    } catch (err) {
+      setPushDebugResult({ success: false, message: err.response?.data?.message || 'Request failed' })
+    } finally {
+      setPushTesting(false)
+    }
+  }
+
+  const playTestDing = () => {
+    setDingTesting(true)
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      if (ctx.state === 'suspended') ctx.resume()
+
+      const playTone = (frequency, startTime, duration) => {
+        const oscillator = ctx.createOscillator()
+        const gainNode = ctx.createGain()
+        oscillator.connect(gainNode)
+        gainNode.connect(ctx.destination)
+        oscillator.frequency.value = frequency
+        oscillator.type = 'sine'
+        gainNode.gain.setValueAtTime(0, startTime)
+        gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
+        oscillator.start(startTime)
+        oscillator.stop(startTime + duration)
+      }
+
+      const now = ctx.currentTime
+      playTone(880, now, 0.15)
+      playTone(1100, now + 0.15, 0.2)
+      playTone(1320, now + 0.35, 0.3)
+
+      setTimeout(() => {
+        ctx.close()
+        setDingTesting(false)
+      }, 1000)
+    } catch (err) {
+      console.error('Error playing ding:', err)
+      setDingTesting(false)
     }
   }
 
@@ -208,6 +275,69 @@ function EmailSettings() {
             testResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
           }`}>
             {testResult.message}
+          </div>
+        )}
+      </div>
+
+      {/* Push Notification Debug */}
+      <div className="card space-y-4">
+        <h3 className="text-white font-medium">Push Notification Debug</h3>
+        <p className="text-gray-400 text-sm">Test push notifications for a specific user or test the rest timer ding sound</p>
+
+        {/* User Selector */}
+        <div>
+          <label className="text-gray-400 text-sm mb-1 block">Select User</label>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="input w-full"
+          >
+            <option value="">-- Select a user --</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={testPushForUser}
+            disabled={pushTesting || !selectedUserId}
+            className="btn-secondary flex-1"
+          >
+            {pushTesting ? 'Sending...' : 'Send Test Push'}
+          </button>
+
+          <button
+            onClick={playTestDing}
+            disabled={dingTesting}
+            className="btn-secondary flex-1"
+          >
+            {dingTesting ? 'Playing...' : 'Test Ding Sound'}
+          </button>
+        </div>
+
+        {/* Push Debug Result */}
+        {pushDebugResult && (
+          <div className={`p-3 rounded-xl text-sm space-y-2 ${
+            pushDebugResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+          }`}>
+            <p className="font-medium">{pushDebugResult.message}</p>
+            {pushDebugResult.user && (
+              <p className="text-xs opacity-80">User: {pushDebugResult.user.name} ({pushDebugResult.user.email})</p>
+            )}
+            {pushDebugResult.subscriptionCount !== undefined && (
+              <p className="text-xs opacity-80">Subscriptions: {pushDebugResult.subscriptionCount}</p>
+            )}
+            {pushDebugResult.subscriptions?.map((sub, i) => (
+              <div key={i} className="text-xs opacity-70 border-t border-white/10 pt-1 mt-1">
+                <p>Endpoint: {sub.endpoint}</p>
+                <p>Agent: {sub.userAgent?.substring(0, 60) || 'Unknown'}</p>
+                <p>Created: {new Date(sub.created).toLocaleString()}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>

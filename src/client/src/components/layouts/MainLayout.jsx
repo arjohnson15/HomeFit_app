@@ -77,6 +77,49 @@ function MainLayout() {
     checkOnboarding()
   }, [onboardingChecked])
 
+  // Restore push subscription on boot if permission is still granted
+  useEffect(() => {
+    const restorePushSubscription = async () => {
+      try {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) return
+        if (Notification.permission !== 'granted') return
+
+        const registration = await navigator.serviceWorker.ready
+        const existingSub = await registration.pushManager.getSubscription()
+
+        if (existingSub) return // Subscription still exists, nothing to do
+
+        // Permission granted but subscription lost - try to re-subscribe
+        const vapidResponse = await api.get('/notifications/vapid-public-key')
+        if (!vapidResponse.data.available) return
+
+        const padding = '='.repeat((4 - vapidResponse.data.publicKey.length % 4) % 4)
+        const base64 = (vapidResponse.data.publicKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+        const rawData = window.atob(base64)
+        const applicationServerKey = new Uint8Array(rawData.length)
+        for (let i = 0; i < rawData.length; ++i) {
+          applicationServerKey[i] = rawData.charCodeAt(i)
+        }
+
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        })
+
+        const subJson = subscription.toJSON()
+        await api.post('/notifications/subscribe', {
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+          userAgent: navigator.userAgent
+        })
+        console.log('[Push] Re-subscribed after lost subscription')
+      } catch (error) {
+        console.error('[Push] Failed to restore subscription:', error)
+      }
+    }
+    restorePushSubscription()
+  }, [])
+
   // Close profile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
