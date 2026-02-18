@@ -9,7 +9,8 @@ const router = express.Router()
 // GET /api/workouts/today/completed - Get today's completed workouts
 router.get('/today/completed', async (req, res, next) => {
   try {
-    const today = new Date()
+    // Use client's local date if provided to avoid UTC timezone mismatch
+    const today = req.query.date ? new Date(req.query.date + 'T00:00:00.000Z') : new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)

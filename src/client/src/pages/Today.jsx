@@ -12,6 +12,12 @@ import CopyWorkoutModal from '../components/CopyWorkoutModal'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
+// Get today's date as YYYY-MM-DD in local timezone (not UTC)
+const getLocalDateKey = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // Marathon map helpers
 function getPositionAlongRoute(routeData, fraction) {
   if (!routeData || routeData.length < 2) return routeData?.[0] || [0, 0]
@@ -127,7 +133,7 @@ function Today() {
   const [lastSessionCollapsed, setLastSessionCollapsed] = useState(false) // Last session collapsed state
   const [showOlderSessions, setShowOlderSessions] = useState(false) // Show older sessions beyond the last one
   const [hiddenExercises, setHiddenExercises] = useState(() => {
-    const dateKey = new Date().toISOString().split('T')[0]
+    const dateKey = getLocalDateKey()
     try {
       const saved = localStorage.getItem(`hiddenExercises-${dateKey}`)
       return saved ? JSON.parse(saved) : []
@@ -664,7 +670,8 @@ function Today() {
   // Fetch completed workouts for today
   const fetchCompletedWorkouts = async () => {
     try {
-      const response = await api.get('/workouts/today/completed')
+      const localDate = getLocalDateKey()
+      const response = await api.get(`/workouts/today/completed?date=${localDate}`)
       setCompletedWorkouts(response.data.workouts || [])
       setTodaySummary(response.data.summary)
     } catch (error) {
@@ -1658,7 +1665,7 @@ function Today() {
   const hideExerciseForToday = (exerciseUniqueId) => {
     setHiddenExercises(prev => {
       const updated = [...prev, exerciseUniqueId]
-      const dateKey = new Date().toISOString().split('T')[0]
+      const dateKey = getLocalDateKey()
       localStorage.setItem(`hiddenExercises-${dateKey}`, JSON.stringify(updated))
       return updated
     })
@@ -1668,7 +1675,7 @@ function Today() {
   const restoreExercise = (exerciseUniqueId) => {
     setHiddenExercises(prev => {
       const updated = prev.filter(id => id !== exerciseUniqueId)
-      const dateKey = new Date().toISOString().split('T')[0]
+      const dateKey = getLocalDateKey()
       localStorage.setItem(`hiddenExercises-${dateKey}`, JSON.stringify(updated))
       return updated
     })
@@ -1677,7 +1684,7 @@ function Today() {
   // Restore all hidden exercises
   const restoreAllExercises = () => {
     setHiddenExercises([])
-    const dateKey = new Date().toISOString().split('T')[0]
+    const dateKey = getLocalDateKey()
     localStorage.removeItem(`hiddenExercises-${dateKey}`)
   }
 
