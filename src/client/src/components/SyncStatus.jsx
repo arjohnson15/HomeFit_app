@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useOfflineStore } from '../services/offlineStore'
 import { useNetworkStatus } from '../hooks/useNetworkStatus'
+import { clearAllPendingSync } from '../services/indexedDB'
 import syncManager from '../services/syncManager'
 
 export const SyncStatus = ({ className = '' }) => {
@@ -35,6 +36,13 @@ export const SyncStatus = ({ className = '' }) => {
     } finally {
       setManualSyncLoading(false)
     }
+  }
+
+  // Clear stuck/failed pending items
+  const handleClearPending = async () => {
+    await clearAllPendingSync()
+    useOfflineStore.getState().updatePendingSyncCount()
+    setShowDetails(false)
   }
 
   // Don't show anything if online and no pending changes
@@ -165,16 +173,26 @@ export const SyncStatus = ({ className = '' }) => {
                 </div>
               )}
 
-              {/* Manual sync button */}
+              {/* Manual sync / clear buttons */}
               {isOnline && pendingSyncCount > 0 && (
-                <button
-                  onClick={handleManualSync}
-                  disabled={isSyncing || manualSyncLoading}
-                  className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50
-                           text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  {isSyncing || manualSyncLoading ? 'Syncing...' : 'Sync Now'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleManualSync}
+                    disabled={isSyncing || manualSyncLoading}
+                    className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50
+                             text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {isSyncing || manualSyncLoading ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                  <button
+                    onClick={handleClearPending}
+                    className="py-2 px-3 bg-zinc-700 hover:bg-zinc-600
+                             text-zinc-300 text-sm font-medium rounded-lg transition-colors"
+                    title="Clear stuck items"
+                  >
+                    Clear
+                  </button>
+                </div>
               )}
             </div>
           </motion.div>

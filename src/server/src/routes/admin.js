@@ -520,7 +520,6 @@ router.post('/notifications/test-push-user', async (req, res, next) => {
 
     // Send individually to track per-subscription results
     await notificationService.loadSettings()
-    const webpush = (await import('web-push')).default
 
     const payload = JSON.stringify({
       title: title || 'HomeFit Debug Test',
@@ -572,6 +571,29 @@ router.post('/notifications/test-push-user', async (req, res, next) => {
       user: { name: user.name, email: user.email },
       subscriptionCount: subscriptions.length,
       subscriptions: subDetails
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/admin/notifications/purge-push
+// Delete all push subscriptions for a user (forces re-subscribe)
+router.delete('/notifications/purge-push', async (req, res, next) => {
+  try {
+    const { userId } = req.body
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'userId is required' })
+    }
+
+    const result = await prisma.pushSubscription.deleteMany({
+      where: { userId }
+    })
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.count} subscription(s). User will need to re-enable push notifications.`,
+      deletedCount: result.count
     })
   } catch (error) {
     next(error)

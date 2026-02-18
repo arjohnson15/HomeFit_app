@@ -1,5 +1,5 @@
 // HomeFit Service Worker with Offline Support
-const CACHE_NAME = 'homefit-v19'
+const CACHE_NAME = 'homefit-v20'
 const API_CACHE_NAME = 'homefit-api-v1'
 const IMAGE_CACHE_NAME = 'homefit-images-v1'
 
@@ -287,37 +287,50 @@ self.addEventListener('periodicsync', (event) => {
 
 // Push notifications
 self.addEventListener('push', (event) => {
-  if (!event.data) {
-    console.log('Push event with no data')
-    return
-  }
+  console.log('[SW] Push event received')
 
-  try {
-    const data = event.data.json()
+  // Always call event.waitUntil with a notification - browsers require it
+  const showNotification = () => {
+    try {
+      let data = {}
+      if (event.data) {
+        try {
+          data = event.data.json()
+        } catch (parseError) {
+          console.error('[SW] Failed to parse push data:', parseError)
+          data = { title: 'HomeFit', body: event.data.text() || 'New notification' }
+        }
+      }
 
-    const options = {
-      body: data.body || 'Time for your workout!',
-      icon: data.icon || '/logo.png',
-      badge: data.badge || '/logo.png',
-      vibrate: [100, 50, 100],
-      data: {
-        url: data.data?.url || '/today',
-        dateOfArrival: Date.now()
-      },
-      actions: [
-        { action: 'open', title: 'Open App' },
-        { action: 'dismiss', title: 'Dismiss' }
-      ],
-      tag: data.tag || 'homefit-notification',
-      renotify: true
+      const options = {
+        body: data.body || 'Time for your workout!',
+        icon: data.icon || '/logo.png',
+        badge: data.badge || '/logo.png',
+        vibrate: [100, 50, 100],
+        data: {
+          url: data.data?.url || '/today',
+          dateOfArrival: Date.now()
+        },
+        actions: [
+          { action: 'open', title: 'Open App' },
+          { action: 'dismiss', title: 'Dismiss' }
+        ],
+        tag: data.tag || 'homefit-notification',
+        renotify: true
+      }
+
+      return self.registration.showNotification(data.title || 'HomeFit', options)
+    } catch (error) {
+      console.error('[SW] Error creating notification:', error)
+      // Fallback - show something so browser doesn't penalize the subscription
+      return self.registration.showNotification('HomeFit', {
+        body: 'New notification',
+        icon: '/logo.png'
+      })
     }
-
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'HomeFit', options)
-    )
-  } catch (error) {
-    console.error('Error handling push notification:', error)
   }
+
+  event.waitUntil(showNotification())
 })
 
 self.addEventListener('notificationclick', (event) => {

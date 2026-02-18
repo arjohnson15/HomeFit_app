@@ -276,14 +276,14 @@ function Today() {
 
   // Play notification sound when rest timer ends
   // Ensure AudioContext is created and unlocked - call this during user gestures
-  const ensureAudioContext = useCallback(() => {
+  const ensureAudioContext = useCallback(async () => {
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
       }
       const ctx = audioContextRef.current
       if (ctx.state === 'suspended') {
-        ctx.resume()
+        await ctx.resume()
       }
       // Play a silent buffer to fully unlock on iOS
       const silentBuffer = ctx.createBuffer(1, 1, 22050)
@@ -1609,12 +1609,13 @@ function Today() {
     setShowCopyModal(false)
   }
 
-  // Remove an ad-hoc exercise from the workout
+  // Remove an exercise from the workout (works for ad-hoc and calendar exercises)
   const removeAdhocExercise = async (exerciseId, logId) => {
     // Remove from todayWorkout display
+    const updatedExercises = todayWorkout?.exercises?.filter(ex => ex.id !== exerciseId) || []
     setTodayWorkout(prev => ({
       ...prev,
-      exercises: prev.exercises.filter(ex => ex.id !== exerciseId)
+      exercises: updatedExercises
     }))
 
     // Remove from exercise logs
@@ -1630,6 +1631,25 @@ function Today() {
         await api.delete(`/workouts/${activeSession.id}/exercises/${logId}`)
       } catch (error) {
         console.error('Error deleting exercise log:', error)
+      }
+    }
+
+    // If this is a calendar workout, also update it on the server so other devices sync
+    if (todaySource === 'calendar' && todayWorkout?.id) {
+      try {
+        const exercisesPayload = updatedExercises.map((ex, i) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          sets: ex.sets || 3,
+          reps: ex.reps || '8-12',
+          order: i
+        }))
+        await api.put(`/schedules/calendar/${todayWorkout.id}`, {
+          name: todayWorkout.name || "Today's Workout",
+          exercises: exercisesPayload
+        })
+      } catch (error) {
+        console.error('Error updating calendar workout:', error)
       }
     }
   }
@@ -2865,18 +2885,19 @@ function Today() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (exercise.isAdhoc) {
+                          // Calendar/adhoc exercises can be permanently removed
+                          if (exercise.isAdhoc || todaySource === 'calendar') {
                             if (window.confirm(`Remove ${getDisplayName(exercise)} from this workout?`)) {
-                              removeAdhocExercise(exercise.id, log.id)
+                              removeAdhocExercise(exercise.id, log?.id)
                             }
                           } else {
                             hideExerciseForToday(exercise.id)
                           }
                         }}
                         className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
-                        title={exercise.isAdhoc ? "Remove this exercise" : "Skip for today"}
+                        title={(exercise.isAdhoc || todaySource === 'calendar') ? "Remove this exercise" : "Skip for today"}
                       >
-                        {exercise.isAdhoc ? (
+                        {(exercise.isAdhoc || todaySource === 'calendar') ? (
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>

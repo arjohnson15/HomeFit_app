@@ -1682,7 +1682,8 @@ router.post('/weight-log', async (req, res, next) => {
 // GET /api/nutrition/weight-log/today - Get today's weight entry
 router.get('/weight-log/today', async (req, res, next) => {
   try {
-    const today = new Date()
+    // Use client's local date if provided to avoid UTC timezone mismatch
+    const today = req.query.date ? new Date(req.query.date + 'T00:00:00.000Z') : new Date()
     today.setHours(0, 0, 0, 0)
 
     const entry = await prisma.weightLog.findUnique({

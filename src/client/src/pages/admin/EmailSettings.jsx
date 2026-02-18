@@ -100,11 +100,33 @@ function EmailSettings() {
     }
   }
 
-  const playTestDing = () => {
+  const purgeSubscriptions = async () => {
+    if (!selectedUserId) return
+    if (!confirm('Delete all push subscriptions for this user? They will need to re-enable push notifications on each device.')) return
+    setPushDebugResult(null)
+    try {
+      const response = await api.delete('/admin/notifications/purge-push', {
+        data: { userId: selectedUserId }
+      })
+      setPushDebugResult(response.data)
+    } catch (err) {
+      setPushDebugResult({ success: false, message: err.response?.data?.message || 'Request failed' })
+    }
+  }
+
+  const playTestDing = async () => {
     setDingTesting(true)
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)()
-      if (ctx.state === 'suspended') ctx.resume()
+      // iOS requires awaiting resume() before audio will play
+      if (ctx.state === 'suspended') await ctx.resume()
+
+      // Play a silent buffer first to fully unlock iOS audio
+      const silentBuffer = ctx.createBuffer(1, 1, 22050)
+      const silentSource = ctx.createBufferSource()
+      silentSource.buffer = silentBuffer
+      silentSource.connect(ctx.destination)
+      silentSource.start(0)
 
       const playTone = (frequency, startTime, duration) => {
         const oscillator = ctx.createOscillator()
@@ -318,6 +340,14 @@ function EmailSettings() {
             {dingTesting ? 'Playing...' : 'Test Ding Sound'}
           </button>
         </div>
+
+        <button
+          onClick={purgeSubscriptions}
+          disabled={!selectedUserId}
+          className="w-full py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
+        >
+          Purge All Subscriptions (Force Re-subscribe)
+        </button>
 
         {/* Push Debug Result */}
         {pushDebugResult && (
