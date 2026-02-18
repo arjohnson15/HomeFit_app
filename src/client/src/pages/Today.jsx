@@ -389,16 +389,27 @@ function Today() {
     }
   }, [])
 
-  // Clean up old hidden exercises from localStorage (keep only last 7 days)
+  // Clean up hidden exercises from localStorage
   useEffect(() => {
-    const today = new Date()
+    const todayKey = getLocalDateKey()
+    // One-time migration: clear all hidden exercises stored under old UTC-based keys
+    if (!localStorage.getItem('hiddenExercises-tz-migrated')) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i)
+        if (key?.startsWith('hiddenExercises-') && key !== 'hiddenExercises-tz-migrated') {
+          localStorage.removeItem(key)
+        }
+      }
+      localStorage.setItem('hiddenExercises-tz-migrated', '1')
+      setHiddenExercises([])
+      return
+    }
+    // Regular cleanup: remove entries not matching today's local date
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
-      if (key?.startsWith('hiddenExercises-')) {
+      if (key?.startsWith('hiddenExercises-') && key !== 'hiddenExercises-tz-migrated') {
         const dateStr = key.replace('hiddenExercises-', '')
-        const entryDate = new Date(dateStr)
-        const daysDiff = (today - entryDate) / (1000 * 60 * 60 * 24)
-        if (daysDiff > 7) {
+        if (dateStr !== todayKey) {
           localStorage.removeItem(key)
         }
       }
