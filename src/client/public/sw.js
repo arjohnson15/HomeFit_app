@@ -1,5 +1,5 @@
 // HomeFit Service Worker with Offline Support
-const CACHE_NAME = 'homefit-v20'
+const CACHE_NAME = 'homefit-v21'
 const API_CACHE_NAME = 'homefit-api-v1'
 const IMAGE_CACHE_NAME = 'homefit-images-v1'
 
