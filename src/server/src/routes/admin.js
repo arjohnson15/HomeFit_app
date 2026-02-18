@@ -506,7 +506,7 @@ router.post('/notifications/test-push-user', async (req, res, next) => {
     // Check subscriptions
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId },
-      select: { id: true, endpoint: true, userAgent: true, createdAt: true, updatedAt: true }
+      select: { id: true, endpoint: true, p256dh: true, auth: true, userAgent: true, createdAt: true, updatedAt: true }
     })
 
     if (subscriptions.length === 0) {
