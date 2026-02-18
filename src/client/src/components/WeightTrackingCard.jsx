@@ -13,9 +13,7 @@ export default function WeightTrackingCard({ weightUnit = 'LBS', onWeightLogged 
 
   const fetchTodayWeight = async () => {
     try {
-      // Send local date to avoid timezone mismatch with server (UTC)
-      const localDate = new Date().toISOString().split('T')[0]
-      const response = await api.get(`/nutrition/weight-log/today?date=${localDate}`)
+      const response = await api.get('/nutrition/weight-log/today')
       setTodayWeight(response.data.entry)
     } catch (error) {
       console.error('Error fetching today weight:', error)

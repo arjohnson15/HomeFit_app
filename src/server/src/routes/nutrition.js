@@ -2,6 +2,7 @@ import express from 'express'
 import prisma from '../lib/prisma.js'
 import fatSecretService from '../services/fatsecret.js'
 import achievementService from '../services/achievements.js'
+import { getLocalDayBounds, getLocalDate, getClientTimezone } from '../utils/timezone.js'
 
 const router = express.Router()
 
@@ -699,8 +700,7 @@ router.get('/meal-plans', async (req, res, next) => {
 // GET /api/nutrition/meal-plans/current - Get current active meal plan
 router.get('/meal-plans/current', async (req, res, next) => {
   try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = new Date(getLocalDate(getClientTimezone(req)) + 'T00:00:00.000Z')
 
     const mealPlan = await prisma.mealPlan.findFirst({
       where: {
@@ -1115,9 +1115,8 @@ router.get('/food-log', async (req, res, next) => {
 router.get('/food-log/summary', async (req, res, next) => {
   try {
     const { days = 7 } = req.query
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - parseInt(days))
-    startDate.setHours(0, 0, 0, 0)
+    const { startOfDay } = getLocalDayBounds(getClientTimezone(req))
+    const startDate = new Date(startOfDay.getTime() - (parseInt(days) - 1) * 86400000)
 
     const entries = await prisma.foodLogEntry.findMany({
       where: {
@@ -1184,7 +1183,7 @@ router.post('/food-log', async (req, res, next) => {
     const entry = await prisma.foodLogEntry.create({
       data: {
         userId: req.user.id,
-        date: date ? new Date(date) : new Date(),
+        date: date ? new Date(date) : new Date(getLocalDate(getClientTimezone(req)) + 'T00:00:00.000Z'),
         mealType,
         name,
         brand,
@@ -1308,7 +1307,7 @@ router.post('/food-log/quick', async (req, res, next) => {
     const entry = await prisma.foodLogEntry.create({
       data: {
         userId: req.user.id,
-        date: date ? new Date(date) : new Date(),
+        date: date ? new Date(date) : new Date(getLocalDate(getClientTimezone(req)) + 'T00:00:00.000Z'),
         mealType,
         name: food.name,
         brand: food.brand,
@@ -1539,9 +1538,8 @@ router.put('/body-stats', async (req, res, next) => {
 router.get('/weight-log', async (req, res, next) => {
   try {
     const { days = 30 } = req.query
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - parseInt(days))
-    startDate.setHours(0, 0, 0, 0)
+    const { startOfDay } = getLocalDayBounds(getClientTimezone(req))
+    const startDate = new Date(startOfDay.getTime() - (parseInt(days) - 1) * 86400000)
 
     const entries = await prisma.weightLog.findMany({
       where: {
@@ -1596,9 +1594,9 @@ router.post('/weight-log', async (req, res, next) => {
       return res.status(400).json({ message: 'Valid weight is required' })
     }
 
-    // Normalize date to start of day for unique constraint
-    const logDate = date ? new Date(date) : new Date()
-    logDate.setHours(0, 0, 0, 0)
+    // Normalize date to start of day (YYYY-MM-DD at midnight UTC) for unique constraint
+    const logDate = date ? new Date(new Date(date).toISOString().split('T')[0] + 'T00:00:00.000Z')
+                         : new Date(getLocalDate(getClientTimezone(req)) + 'T00:00:00.000Z')
 
     // Upsert - update if exists for this date, create if not
     const entry = await prisma.weightLog.upsert({
@@ -1682,9 +1680,8 @@ router.post('/weight-log', async (req, res, next) => {
 // GET /api/nutrition/weight-log/today - Get today's weight entry
 router.get('/weight-log/today', async (req, res, next) => {
   try {
-    // Use client's local date if provided to avoid UTC timezone mismatch
-    const today = req.query.date ? new Date(req.query.date + 'T00:00:00.000Z') : new Date()
-    today.setHours(0, 0, 0, 0)
+    const { localDate } = getLocalDayBounds(getClientTimezone(req))
+    const today = new Date(localDate + 'T00:00:00.000Z')
 
     const entry = await prisma.weightLog.findUnique({
       where: {
