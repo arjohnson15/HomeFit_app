@@ -670,8 +670,12 @@ function Today() {
   // Fetch completed workouts for today
   const fetchCompletedWorkouts = async () => {
     try {
-      const localDate = getLocalDateKey()
-      const response = await api.get(`/workouts/today/completed?date=${localDate}`)
+      // Send local day boundaries as UTC timestamps so server queries correctly
+      const dayStart = new Date()
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(dayStart)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+      const response = await api.get(`/workouts/today/completed?from=${dayStart.toISOString()}&to=${dayEnd.toISOString()}`)
       setCompletedWorkouts(response.data.workouts || [])
       setTodaySummary(response.data.summary)
     } catch (error) {

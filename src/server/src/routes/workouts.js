@@ -9,18 +9,25 @@ const router = express.Router()
 // GET /api/workouts/today/completed - Get today's completed workouts
 router.get('/today/completed', async (req, res, next) => {
   try {
-    // Use client's local date if provided to avoid UTC timezone mismatch
-    const today = req.query.date ? new Date(req.query.date + 'T00:00:00.000Z') : new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
+    // Use client's local day boundaries (UTC timestamps) to avoid timezone mismatch
+    // Client sends from/to as ISO strings representing midnight-to-midnight in their timezone
+    let dayStart, dayEnd
+    if (req.query.from && req.query.to) {
+      dayStart = new Date(req.query.from)
+      dayEnd = new Date(req.query.to)
+    } else {
+      dayStart = new Date()
+      dayStart.setHours(0, 0, 0, 0)
+      dayEnd = new Date(dayStart)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+    }
 
     const workouts = await prisma.workoutSession.findMany({
       where: {
         userId: req.user.id,
-        date: {
-          gte: today,
-          lt: tomorrow
+        startTime: {
+          gte: dayStart,
+          lt: dayEnd
         },
         endTime: { not: null } // Only completed workouts
       },
