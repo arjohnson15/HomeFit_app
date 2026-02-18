@@ -546,6 +546,10 @@ enum NotificationType {
   FRIEND_STREAK_MILESTONE
   FRIEND_REQUEST
   FRIEND_ACCEPTED
+  WORKOUT_REMINDER
+  STREAK_ALERT
+  ACHIEVEMENT_TEASE
+  SOCIAL_MOTIVATION
 }
 
 // ===========================================

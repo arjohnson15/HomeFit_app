@@ -173,7 +173,9 @@ function NotificationBell() {
     if (!notification.read) {
       markAsRead(notification.id)
     }
-    if (notification.data?.friendId) {
+    if (notification.data?.url) {
+      navigate(notification.data.url)
+    } else if (notification.data?.friendId) {
       navigate(`/friend/${notification.data.friendId}`)
     }
     setIsOpen(false)
@@ -186,6 +188,10 @@ function NotificationBell() {
       case 'FRIEND_STREAK_MILESTONE': return '🔥'
       case 'FRIEND_REQUEST': return '👋'
       case 'FRIEND_ACCEPTED': return '🤝'
+      case 'WORKOUT_REMINDER': return '🏋️'
+      case 'STREAK_ALERT': return '🔥'
+      case 'ACHIEVEMENT_TEASE': return '⭐'
+      case 'SOCIAL_MOTIVATION': return '👥'
       default: return '🔔'
     }
   }
@@ -241,7 +247,7 @@ function NotificationBell() {
               <div className="py-8 text-center">
                 <div className="text-4xl mb-2">🔔</div>
                 <p className="text-gray-500">No notifications yet</p>
-                <p className="text-gray-600 text-sm mt-1">Follow friends to see their activity</p>
+                <p className="text-gray-600 text-sm mt-1">Reminders and friend activity will appear here</p>
               </div>
             ) : (
               notifications.map((notification) => (

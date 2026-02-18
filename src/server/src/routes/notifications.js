@@ -388,6 +388,12 @@ router.post('/test-reminder', async (req, res, next) => {
       url: '/today'
     })
 
+    // Also create in-app notification
+    await workoutReminderService.createInAppNotification(req.user.id, 'WORKOUT_REMINDER', title, message, {
+      url: '/today',
+      personality
+    })
+
     res.json({
       success: true,
       message,

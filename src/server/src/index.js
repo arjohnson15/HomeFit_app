@@ -38,6 +38,7 @@ import marathonRoutes from './routes/marathons.js'
 import backupScheduler from './services/scheduler.js'
 import reminderScheduler from './services/reminderScheduler.js'
 import followNotificationService from './services/followNotifications.js'
+import workoutReminderService from './services/workoutReminders.js'
 import notificationService from './services/notifications.js'
 import prisma from './lib/prisma.js'
 import webpush from 'web-push'
@@ -62,8 +63,9 @@ const io = new SocketServer(httpServer, {
   }
 })
 
-// Initialize follow notification service with socket.io
+// Initialize notification services with socket.io
 followNotificationService.setSocketIO(io)
+workoutReminderService.setSocketIO(io)
 
 // Trust proxy for production behind nginx/docker
 app.set('trust proxy', 1)

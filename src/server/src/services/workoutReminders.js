@@ -19,6 +19,29 @@ const MAX_CACHED_MESSAGES = 20  // Maximum messages to keep per combo
 class WorkoutReminderService {
   constructor() {
     this.initialized = false
+    this.io = null
+  }
+
+  setSocketIO(io) {
+    this.io = io
+  }
+
+  // Create an in-app notification and emit via socket.io
+  async createInAppNotification(userId, type, title, body, data = {}) {
+    try {
+      const notification = await prisma.inAppNotification.create({
+        data: { userId, type, title, body, data }
+      })
+
+      if (this.io) {
+        this.io.to(`user-${userId}`).emit('notification:new', notification)
+      }
+
+      return notification
+    } catch (error) {
+      console.error('[WorkoutReminders] Failed to create in-app notification:', error)
+      return null
+    }
   }
 
   async initialize() {
@@ -390,6 +413,12 @@ Guidelines:
       url: '/today'
     })
 
+    // Create in-app notification so it shows in the notification panel
+    await this.createInAppNotification(userId, 'WORKOUT_REMINDER', title, message, {
+      url: '/today',
+      personality
+    })
+
     // Log the reminder
     const channelsSent = []
     if (result.email) channelsSent.push('email')
@@ -484,6 +513,12 @@ Guidelines:
         body: message,
         html: this.generateEmailHTML(title, message, personality),
         url: '/today'
+      })
+
+      await this.createInAppNotification(user.id, 'STREAK_ALERT', title, message, {
+        url: '/today',
+        streak: stats.currentStreak,
+        personality
       })
 
       const channelsSent = []
@@ -581,6 +616,13 @@ Guidelines:
         body: message,
         html: this.generateEmailHTML(title, message, personality),
         url: '/profile'
+      })
+
+      await this.createInAppNotification(user.id, 'ACHIEVEMENT_TEASE', title, message, {
+        url: '/profile',
+        achievementName: ua.achievement.name,
+        remaining,
+        personality
       })
 
       const channelsSent = []
@@ -688,6 +730,12 @@ Guidelines:
         body: message,
         html: this.generateEmailHTML(title, message, personality),
         url: '/today'
+      })
+
+      await this.createInAppNotification(user.id, 'SOCIAL_MOTIVATION', title, message, {
+        url: '/today',
+        friendCount: friendsWhoWorkedOut.length,
+        personality
       })
 
       const channelsSent = []

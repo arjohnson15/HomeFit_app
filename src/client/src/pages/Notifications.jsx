@@ -84,6 +84,10 @@ function Notifications() {
       case 'FRIEND_STREAK_MILESTONE': return '🔥'
       case 'FRIEND_REQUEST': return '👋'
       case 'FRIEND_ACCEPTED': return '🤝'
+      case 'WORKOUT_REMINDER': return '🏋️'
+      case 'STREAK_ALERT': return '🔥'
+      case 'ACHIEVEMENT_TEASE': return '⭐'
+      case 'SOCIAL_MOTIVATION': return '👥'
       default: return '🔔'
     }
   }
@@ -167,7 +171,9 @@ function Notifications() {
                 if (!notification.read) {
                   markAsRead(notification.id)
                 }
-                if (notification.data?.friendId) {
+                if (notification.data?.url) {
+                  navigate(notification.data.url)
+                } else if (notification.data?.friendId) {
                   navigate(`/friend/${notification.data.friendId}`)
                 }
               }}
@@ -208,7 +214,7 @@ function Notifications() {
             <p className="text-gray-600 text-sm mt-2">
               {filter === 'unread'
                 ? "You're all caught up!"
-                : "Follow friends to see their activity here"
+                : "Reminders and friend activity will appear here"
               }
             </p>
           </div>
