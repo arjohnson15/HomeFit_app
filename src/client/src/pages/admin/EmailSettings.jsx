@@ -118,7 +118,6 @@ function EmailSettings() {
     setDingTesting(true)
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)()
-      // iOS requires awaiting resume() before audio will play
       if (ctx.state === 'suspended') await ctx.resume()
 
       // Play a silent buffer first to fully unlock iOS audio
@@ -128,29 +127,84 @@ function EmailSettings() {
       silentSource.connect(ctx.destination)
       silentSource.start(0)
 
-      const playTone = (frequency, startTime, duration) => {
-        const oscillator = ctx.createOscillator()
-        const gainNode = ctx.createGain()
-        oscillator.connect(gainNode)
-        gainNode.connect(ctx.destination)
-        oscillator.frequency.value = frequency
-        oscillator.type = 'sine'
-        gainNode.gain.setValueAtTime(0, startTime)
-        gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
-        oscillator.start(startTime)
-        oscillator.stop(startTime + duration)
-      }
+      // Small delay for iOS to finish unlocking
+      await new Promise(r => setTimeout(r, 100))
+      if (ctx.state === 'suspended') await ctx.resume()
 
-      const now = ctx.currentTime
-      playTone(880, now, 0.15)
-      playTone(1100, now + 0.15, 0.2)
-      playTone(1320, now + 0.35, 0.3)
+      if (ctx.state === 'running') {
+        const playTone = (frequency, startTime, duration) => {
+          const oscillator = ctx.createOscillator()
+          const gainNode = ctx.createGain()
+          oscillator.connect(gainNode)
+          gainNode.connect(ctx.destination)
+          oscillator.frequency.value = frequency
+          oscillator.type = 'sine'
+          gainNode.gain.setValueAtTime(0, startTime)
+          gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05)
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration)
+          oscillator.start(startTime)
+          oscillator.stop(startTime + duration)
+        }
 
-      setTimeout(() => {
+        const now = ctx.currentTime
+        playTone(880, now, 0.15)
+        playTone(1100, now + 0.15, 0.2)
+        playTone(1320, now + 0.35, 0.3)
+
+        setTimeout(() => {
+          ctx.close()
+          setDingTesting(false)
+        }, 1000)
+      } else {
+        // AudioContext won't run (iOS restriction) - generate WAV and play via Audio element
         ctx.close()
-        setDingTesting(false)
-      }, 1000)
+        const sampleRate = 22050
+        const duration = 0.7
+        const numSamples = Math.floor(sampleRate * duration)
+        const buffer = new Float32Array(numSamples)
+
+        const addTone = (freq, start, dur, vol) => {
+          const startSample = Math.floor(start * sampleRate)
+          const endSample = Math.floor((start + dur) * sampleRate)
+          for (let i = startSample; i < endSample && i < numSamples; i++) {
+            const t = (i - startSample) / sampleRate
+            const envelope = Math.max(0, vol * Math.exp(-t * 8))
+            buffer[i] += envelope * Math.sin(2 * Math.PI * freq * t)
+          }
+        }
+        addTone(880, 0, 0.15, 0.3)
+        addTone(1100, 0.15, 0.2, 0.3)
+        addTone(1320, 0.35, 0.3, 0.3)
+
+        // Encode as WAV
+        const wavLength = 44 + numSamples * 2
+        const wavBuffer = new ArrayBuffer(wavLength)
+        const view = new DataView(wavBuffer)
+        const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)) }
+        writeStr(0, 'RIFF')
+        view.setUint32(4, wavLength - 8, true)
+        writeStr(8, 'WAVE')
+        writeStr(12, 'fmt ')
+        view.setUint32(16, 16, true)
+        view.setUint16(20, 1, true)
+        view.setUint16(22, 1, true)
+        view.setUint32(24, sampleRate, true)
+        view.setUint32(28, sampleRate * 2, true)
+        view.setUint16(32, 2, true)
+        view.setUint16(34, 16, true)
+        writeStr(36, 'data')
+        view.setUint32(40, numSamples * 2, true)
+        for (let i = 0; i < numSamples; i++) {
+          const s = Math.max(-1, Math.min(1, buffer[i]))
+          view.setInt16(44 + i * 2, s * 0x7FFF, true)
+        }
+
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' })
+        const audio = new Audio(URL.createObjectURL(blob))
+        audio.play().catch(() => {})
+        audio.onended = () => URL.revokeObjectURL(audio.src)
+        setTimeout(() => setDingTesting(false), 1000)
+      }
     } catch (err) {
       console.error('Error playing ding:', err)
       setDingTesting(false)

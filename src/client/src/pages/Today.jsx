@@ -344,7 +344,59 @@ function Today() {
       console.error('AudioContext sound failed:', error)
     }
 
-    // Fallback: show a notification (works on iOS even when AudioContext is suspended)
+    // Fallback for iOS: generate WAV in memory and play via Audio element
+    if (!audioPlayed) {
+      try {
+        const sampleRate = 22050
+        const duration = 0.7
+        const numSamples = Math.floor(sampleRate * duration)
+        const buffer = new Float32Array(numSamples)
+
+        const addTone = (freq, start, dur, vol) => {
+          const startSample = Math.floor(start * sampleRate)
+          const endSample = Math.floor((start + dur) * sampleRate)
+          for (let i = startSample; i < endSample && i < numSamples; i++) {
+            const t = (i - startSample) / sampleRate
+            const envelope = Math.max(0, vol * Math.exp(-t * 8))
+            buffer[i] += envelope * Math.sin(2 * Math.PI * freq * t)
+          }
+        }
+        addTone(880, 0, 0.15, 0.3)
+        addTone(1100, 0.15, 0.2, 0.3)
+        addTone(1320, 0.35, 0.3, 0.3)
+
+        const wavLength = 44 + numSamples * 2
+        const wavBuffer = new ArrayBuffer(wavLength)
+        const view = new DataView(wavBuffer)
+        const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)) }
+        writeStr(0, 'RIFF')
+        view.setUint32(4, wavLength - 8, true)
+        writeStr(8, 'WAVE')
+        writeStr(12, 'fmt ')
+        view.setUint32(16, 16, true)
+        view.setUint16(20, 1, true)
+        view.setUint16(22, 1, true)
+        view.setUint32(24, sampleRate, true)
+        view.setUint32(28, sampleRate * 2, true)
+        view.setUint16(32, 2, true)
+        view.setUint16(34, 16, true)
+        writeStr(36, 'data')
+        view.setUint32(40, numSamples * 2, true)
+        for (let i = 0; i < numSamples; i++) {
+          const s = Math.max(-1, Math.min(1, buffer[i]))
+          view.setInt16(44 + i * 2, s * 0x7FFF, true)
+        }
+
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' })
+        const audio = new Audio(URL.createObjectURL(blob))
+        audio.play().then(() => { audioPlayed = true }).catch(() => {})
+        audio.onended = () => URL.revokeObjectURL(audio.src)
+      } catch (e) {
+        console.error('WAV fallback failed:', e)
+      }
+    }
+
+    // Last resort fallback: show a notification
     if (!audioPlayed && 'Notification' in window && Notification.permission === 'granted') {
       try {
         navigator.serviceWorker?.ready?.then(registration => {
