@@ -211,6 +211,9 @@ model UserSettings {
   enableAchievementTeases Boolean @default(true)         // Achievement progress teasing
   enableSocialMotivation Boolean  @default(true)         // Include friend activity in reminders
 
+  // Timezone (auto-saved from X-Timezone header)
+  timezone           String?  // IANA timezone e.g. "America/Chicago"
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

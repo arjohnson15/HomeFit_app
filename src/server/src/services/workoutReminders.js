@@ -544,7 +544,7 @@ Guidelines:
     return alertsSent
   }
 
-  // Check and send achievement tease notifications
+  // Check and send achievement tease notifications (batched: 1 per user per day)
   async checkAchievementTeases() {
     console.log('[WorkoutReminders] Checking achievement teases...')
 
@@ -578,50 +578,67 @@ Guidelines:
       }
     })
 
-    let teasesSent = 0
-
+    // Group close achievements by user (max 1 notification per user)
+    const userAchievements = new Map()
     for (const ua of closeAchievements) {
       const remaining = ua.achievement.threshold - ua.currentProgress
-      if (remaining < 1 || remaining > 3) continue // Only tease when 1-3 away
+      if (remaining < 1 || remaining > 3) continue
 
       const user = ua.user
-      // enableAchievementTeases field may not exist, skip this feature if missing
       if (!user.settings?.workoutReminders) continue
 
-      // Check if we already sent a tease for this achievement today
+      if (!userAchievements.has(user.id)) {
+        userAchievements.set(user.id, { user, achievements: [] })
+      }
+      userAchievements.get(user.id).achievements.push({
+        name: ua.achievement.name,
+        remaining
+      })
+    }
+
+    let teasesSent = 0
+
+    for (const [userId, { user, achievements }] of userAchievements) {
+      // Check if we already sent any achievement tease today for this user
       const existingTease = await prisma.reminderLog.findFirst({
         where: {
-          userId: user.id,
+          userId,
           type: 'achievement_tease',
-          sentAt: { gte: today },
-          message: { contains: ua.achievement.name }
+          sentAt: { gte: today }
         }
       })
 
       if (existingTease) continue
 
-      const personality = user.settings.reminderPersonality || 'supportive'
-      const message = getAchievementTeaseMessage(
-        personality,
-        ua.achievement.name,
-        remaining,
-        user.name?.split(' ')[0] || 'friend'
-      )
+      // Sort by closest first
+      achievements.sort((a, b) => a.remaining - b.remaining)
 
+      const personality = user.settings.reminderPersonality || 'supportive'
+      const userName = user.name?.split(' ')[0] || 'friend'
       const personalityInfo = PERSONALITIES[personality] || PERSONALITIES.supportive
       const title = `${personalityInfo.emoji} So Close!`
 
-      const result = await notificationService.notifyUser(user.id, {
+      let message
+      if (achievements.length === 1) {
+        message = getAchievementTeaseMessage(personality, achievements[0].name, achievements[0].remaining, userName)
+      } else {
+        // Batch message for multiple achievements
+        const closest = achievements[0]
+        message = getAchievementTeaseMessage(personality, closest.name, closest.remaining, userName)
+        const others = achievements.length - 1
+        message += ` (Plus ${others} more achievement${others > 1 ? 's' : ''} within reach!)`
+      }
+
+      const result = await notificationService.notifyUser(userId, {
         title,
         body: message,
         html: this.generateEmailHTML(title, message, personality),
         url: '/profile'
       })
 
-      await this.createInAppNotification(user.id, 'ACHIEVEMENT_TEASE', title, message, {
+      await this.createInAppNotification(userId, 'ACHIEVEMENT_TEASE', title, message, {
         url: '/profile',
-        achievementName: ua.achievement.name,
-        remaining,
+        achievements: achievements.map(a => a.name),
         personality
       })
 
@@ -633,7 +650,7 @@ Guidelines:
       if (channelsSent.length > 0) {
         await prisma.reminderLog.create({
           data: {
-            userId: user.id,
+            userId,
             type: 'achievement_tease',
             message,
             channel: channelsSent.join(','),

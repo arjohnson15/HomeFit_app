@@ -1,6 +1,10 @@
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 
+// Throttle timezone updates - only persist once per user per 10 minutes
+const _tzCache = new Map()
+const TZ_THROTTLE_MS = 10 * 60 * 1000
+
 export const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
@@ -33,6 +37,22 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     req.user = user
+
+    // Persist timezone from X-Timezone header (throttled, fire-and-forget)
+    const tz = req.headers['x-timezone']
+    if (tz && user.id) {
+      const cacheKey = `${user.id}:${tz}`
+      const lastSaved = _tzCache.get(cacheKey)
+      if (!lastSaved || Date.now() - lastSaved > TZ_THROTTLE_MS) {
+        _tzCache.set(cacheKey, Date.now())
+        prisma.userSettings.upsert({
+          where: { userId: user.id },
+          update: { timezone: tz },
+          create: { userId: user.id, timezone: tz }
+        }).catch(() => {})
+      }
+    }
+
     next()
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
